@@ -9,8 +9,10 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL no está definida en las variables de entorno")
 
+db_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+
 engine = create_engine(
-    DATABASE_URL,
+    db_url,
     pool_pre_ping=True,
     pool_size=5,
     max_overflow=10,
