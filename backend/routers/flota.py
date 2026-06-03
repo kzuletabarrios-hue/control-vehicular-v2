@@ -171,7 +171,7 @@ def eliminar(
 
 
 def _audit(db, user, accion, tabla, rid, antes, despues):
-    import uuid
+    import uuid, json
     db.execute(text("""
         INSERT INTO audit_log (id, usuario_id, usuario_email, accion, tabla, registro_id, datos_antes, datos_despues)
         VALUES (:id, :uid, :email, :accion, :tabla, :rid, :antes::jsonb, :despues::jsonb)
@@ -182,6 +182,6 @@ def _audit(db, user, accion, tabla, rid, antes, despues):
         "accion": accion,
         "tabla": tabla,
         "rid": str(rid),
-        "antes": str(antes) if antes else None,
-        "despues": str(despues) if despues else None,
+        "antes": json.dumps(antes, default=str) if antes else None,
+        "despues": json.dumps(despues, default=str) if despues else None,
     })
