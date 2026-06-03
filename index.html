@@ -596,7 +596,7 @@ function FlotaPage({user,online,addOffline}){
     setSelected(null); setView('form');
   };
 
-  if(view==='form') return h('div',{style:{display:'flex',flexDirection:'column',height:'100%'}},
+  if(view==='form') return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{className:'header'},
       h('div',{className:'header-inner'},
         h('button',{onClick:()=>{setView('list');setForm(emptyF);setSelected(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
@@ -667,7 +667,7 @@ function FlotaPage({user,online,addOffline}){
     )
   );
 
-  return h('div',{style:{display:'flex',flexDirection:'column',height:'100%'}},
+  return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{display:'flex',gap:8,padding:'10px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
       h('button',{onClick:()=>api.exportar('flota'),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
         h(Ico,{n:'download',s:14}),' Excel'
