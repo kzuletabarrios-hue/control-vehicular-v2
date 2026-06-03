@@ -522,9 +522,17 @@ function HomePage({setPage}){
 
   return h('div',{className:'scroll-body'},
     resumen&&h('div',{className:'chips'},
-      [['flota_propia','Flota'],['proveedores','TGN'],['control_acceso','Acceso'],['visitantes','Visitas']].map(
-        ([k,l])=>h('div',{key:k,className:'chip'},h('span',{className:'chip-num'},resumen[k]||0),h('span',{className:'chip-lbl'},l))
-      )
+      [
+        {k:'flota.hoy',     l:'Flota hoy'},
+        {k:'flota.en_ruta', l:'En ruta', color:'#f59e0b'},
+        {k:'proveedores.hoy',l:'TGN'},
+        {k:'control_acceso.hoy',l:'Acceso'},
+      ].map(({k,l,color})=>h('div',{key:k,className:'chip'},
+        h('span',{className:'chip-num',style:color?{color}:{}},
+          k.split('.').reduce((o,p)=>o?.[p],resumen)||0
+        ),
+        h('span',{className:'chip-lbl'},l)
+      ))
     ),
     h('div',{className:'pad'},
       h('p',{style:{fontSize:11,color:'var(--slate)',textTransform:'capitalize',marginBottom:12,fontWeight:500}},fechaHoy),
@@ -550,6 +558,8 @@ function FlotaPage({user,online,addOffline}){
   const [alert,setAlert]       = useState(null);
   const [confirm,setConfirm]   = useState(null);
   const [selected,setSelected] = useState(null);
+  const [llegada,setLlegada]   = useState(null);
+  const [horaLlegada,setHoraLlegada] = useState('');
   const emptyF = {fecha:today(),placa:'',codigo_conductor:'',n_pallets:'',n_contenedores:'',cant_volumen_externo:'',muelle_cargue:'',tienda_1:'',tienda_2:'',tienda_3:'',tienda_4:'',tienda_5:'',ultima_tienda:'',protocolo:'',sello:'',sello_entrada:'',hora_salida_muelle:'',temperatura:'',hora_salida_cedi:'',hora_llegada:'',observacion:'',fotografia:null};
   const [form,setForm]         = useState(emptyF);
 
@@ -690,11 +700,36 @@ function FlotaPage({user,online,addOffline}){
         h('div',{className:'li-right'},
           h('span',{className:'li-date'},fmtDate(r.fecha)),
           h('div',{style:{display:'flex',gap:4,marginTop:3}},
+            r.hora_salida_cedi&&!r.hora_llegada&&h('button',{
+              title:'Registrar llegada',
+              onClick:(e)=>{e.stopPropagation();setLlegada(r);setHoraLlegada(new Date().toTimeString().slice(0,5));},
+              style:{background:'#f59e0b',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
+            },'Llegada'),
             h('button',{title:'Duplicar',onClick:()=>handleDuplicate(r),style:{background:'none',border:'none',cursor:'pointer',color:'var(--slate)',padding:2}},h(Ico,{n:'copy',s:14})),
             h('button',{title:'Eliminar',onClick:()=>setConfirm(r.id),style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
           )
         )
       ))
+    ),
+    llegada&&h('div',{className:'overlay',onClick:()=>setLlegada(null)},
+      h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
+        h('div',{className:'sheet-header'},
+          h('span',{style:{fontWeight:700,fontSize:15}},'Registrar llegada'),
+          h('button',{className:'btn-icon',onClick:()=>setLlegada(null)},h(Ico,{n:'x',s:16}))
+        ),
+        h('p',{style:{fontSize:13,color:'var(--slate)',marginBottom:12}},llegada.placa,' · ',llegada.conductor||''),
+        h('div',{className:'fg'},
+          h('label',null,'Hora de llegada'),
+          h('input',{type:'time',value:horaLlegada,onChange:e=>setHoraLlegada(e.target.value),style:{width:'100%',padding:'10px',border:'1.5px solid var(--border)',borderRadius:8,fontSize:15}})
+        ),
+        h('div',{style:{display:'flex',gap:8,marginTop:14}},
+          h('button',{className:'btn-cancel',onClick:()=>setLlegada(null)},'Cancelar'),
+          h('button',{className:'btn-primary',onClick:async()=>{
+            await api.put(`/flota/${llegada.id}`,{hora_llegada:horaLlegada});
+            setLlegada(null);load();setAlert({type:'ok',msg:'Llegada registrada'});
+          }},h(Ico,{n:'checkCircle',s:16}),'Confirmar llegada')
+        )
+      )
     ),
     confirm&&h(ConfirmSheet,{msg:'Se eliminará el registro de flota.',onOk:async()=>{await api.del(`/flota/${confirm}`);setConfirm(null);load();setAlert({type:'ok',msg:'Eliminado'});},onCancel:()=>setConfirm(null)})
   );
