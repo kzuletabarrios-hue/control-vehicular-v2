@@ -28,6 +28,7 @@ def resumen(
     flota_hoy      = count("flota_propia",  "fecha = :hoy",   {"hoy": hoy})
     flota_semana   = count("flota_propia",  "fecha >= :d",    {"d": hace7})
     flota_mes      = count("flota_propia",  "fecha >= :d",    {"d": hace30})
+    flota_en_ruta  = count("flota_propia",  "fecha = :hoy AND hora_salida_cedi IS NOT NULL AND hora_llegada IS NULL", {"hoy": hoy})
 
     prov_hoy       = count("proveedores",   "fecha = :hoy",   {"hoy": hoy})
     prov_semana    = count("proveedores",   "fecha >= :d",    {"d": hace7})
@@ -61,6 +62,7 @@ def resumen(
             "hoy": flota_hoy,
             "semana": flota_semana,
             "mes": flota_mes,
+            "en_ruta": flota_en_ruta,
         },
         "proveedores": {
             "hoy": prov_hoy,
