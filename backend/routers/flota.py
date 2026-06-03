@@ -171,12 +171,11 @@ def eliminar(
 
 
 def _audit(db, user, accion, tabla, rid, antes, despues):
-    import uuid, json
+    import json
     db.execute(text("""
-        INSERT INTO audit_log (id, usuario_id, usuario_email, accion, tabla, registro_id, datos_antes, datos_despues)
-        VALUES (:id, :uid, :email, :accion, :tabla, :rid, :antes::jsonb, :despues::jsonb)
+        INSERT INTO audit_log (usuario_id, usuario_email, accion, tabla, registro_id, datos_antes, datos_despues)
+        VALUES (:uid, :email, :accion, :tabla, :rid, CAST(:antes AS jsonb), CAST(:despues AS jsonb))
     """), {
-        "id": str(uuid.uuid4()),
         "uid": user["id"],
         "email": user["email"],
         "accion": accion,
