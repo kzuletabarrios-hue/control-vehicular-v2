@@ -83,7 +83,10 @@ def crear(
     placeholders = ", ".join(f":{k}" for k in vals.keys())
     db.execute(text(f"INSERT INTO flota_propia ({cols}) VALUES ({placeholders})"), vals)
 
-    _audit(db, current_user, "INSERT", "flota_propia", rid, None, vals)
+    try:
+        _audit(db, current_user, "INSERT", "flota_propia", rid, None, vals)
+    except Exception:
+        pass
     db.commit()
     return {"id": rid, "message": "Registro creado"}
 
@@ -117,7 +120,10 @@ def actualizar(
 
     sets = ", ".join(f"{c} = :{c}" for c in vals if c != "id")
     db.execute(text(f"UPDATE flota_propia SET {sets}, updated_at = NOW() WHERE id = :id"), vals)
-    _audit(db, current_user, "UPDATE", "flota_propia", id, dict(antes._mapping), vals)
+    try:
+        _audit(db, current_user, "UPDATE", "flota_propia", id, dict(antes._mapping), vals)
+    except Exception:
+        pass
     db.commit()
     return {"message": "Registro actualizado"}
 
@@ -165,7 +171,10 @@ def eliminar(
         raise HTTPException(404, "Registro no encontrado")
 
     db.execute(text("DELETE FROM flota_propia WHERE id = :id"), {"id": id})
-    _audit(db, current_user, "DELETE", "flota_propia", id, dict(antes._mapping), None)
+    try:
+        _audit(db, current_user, "DELETE", "flota_propia", id, dict(antes._mapping), None)
+    except Exception:
+        pass
     db.commit()
     return {"message": "Registro eliminado"}
 
