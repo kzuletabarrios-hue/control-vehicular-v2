@@ -66,10 +66,17 @@ def crear(
     current_user: dict = Depends(require_permiso("control_acceso", "write")),
 ):
     rid = str(uuid.uuid4())
+    cedula = body.get("cedula")
+    if cedula:
+        existe_en_bd = db.execute(
+            text("SELECT 1 FROM bd_control_acceso WHERE cedula = :c"), {"c": cedula}
+        ).fetchone()
+        if not existe_en_bd:
+            cedula = None
     vals = {
         "id": rid,
         "fecha": body.get("fecha"),
-        "cedula": body.get("cedula"),
+        "cedula": cedula,
         "nombre": body.get("nombre"),
         "contratista": body.get("contratista"),
         "hora_ingreso": body.get("hora_ingreso"),
@@ -103,6 +110,12 @@ def actualizar(
 
     campos = ["fecha", "cedula", "nombre", "contratista", "hora_ingreso", "hora_salida", "observaciones", "foto_url"]
     vals = {c: body[c] for c in campos if c in body}
+    if "cedula" in vals and vals["cedula"]:
+        existe_en_bd = db.execute(
+            text("SELECT 1 FROM bd_control_acceso WHERE cedula = :c"), {"c": vals["cedula"]}
+        ).fetchone()
+        if not existe_en_bd:
+            del vals["cedula"]
     if not vals:
         raise HTTPException(400, "Sin campos para actualizar")
     vals["id"] = id
