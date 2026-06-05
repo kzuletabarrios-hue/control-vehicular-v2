@@ -10,7 +10,7 @@ from routers.auth import require_permiso
 router = APIRouter()
 
 
-@router.get("")
+@router.get("/resumen")
 def resumen(
     db: Session = Depends(get_db),
     _: dict = Depends(require_permiso("dashboard", "read")),
