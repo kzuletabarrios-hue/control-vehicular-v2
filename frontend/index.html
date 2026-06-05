@@ -922,6 +922,291 @@ function AccesoPage({user,online,addOffline}){
   );
 }
 
+/* ── VISITANTES PAGE ── */
+function VisitantesPage({user,online,addOffline}){
+  const [view,setView]       = useState('list');
+  const [records,setRecords] = useState([]);
+  const [loading,setLoading] = useState(true);
+  const [saving,setSaving]   = useState(false);
+  const [alert,setAlert]     = useState(null);
+  const [confirm,setConfirm] = useState(null);
+  const [selected,setSelected]= useState(null);
+  const [salida,setSalida]   = useState(null);
+  const [horaSalida,setHoraSalida] = useState('');
+  const emptyF = {fecha:today(),cedula:'',nombre:'',empresa:'',hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',observaciones:'',foto_url:null};
+  const [form,setForm] = useState(emptyF);
+
+  const load = useCallback(()=>{
+    setLoading(true);
+    api.get('/visitantes').then(r=>setRecords(r.items||r)).catch(()=>setAlert({type:'err',msg:'Error cargando datos'})).finally(()=>setLoading(false));
+  },[]);
+  useEffect(()=>load(),[load]);
+
+  const handleSave = async()=>{
+    if(!form.nombre) return setAlert({type:'err',msg:'El nombre es obligatorio'});
+    setSaving(true);
+    const body = Object.fromEntries(Object.entries(form).filter(([,v])=>v!=null&&v!==''));
+    try{
+      if(selected) await api.put(`/visitantes/${selected.id}`,body);
+      else await api.post('/visitantes',body);
+      setAlert({type:'ok',msg:'Registro guardado'});
+      setView('list');setForm(emptyF);setSelected(null);load();
+    }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
+    finally{setSaving(false);}
+  };
+
+  if(view==='form') return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{className:'header'},
+      h('div',{className:'header-inner'},
+        h('button',{onClick:()=>{setView('list');setForm(emptyF);setSelected(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
+          h(Ico,{n:'arrowLeft',s:18}),' Volver'
+        ),
+        h('div',{className:'header-brand'},h('h1',null,selected?'Editar visitante':'Nuevo visitante'),h('span',null,'Visitantes'))
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'users',s:12}),' Datos del visitante'),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,onChange:e=>setForm(p=>({...p,fecha:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Cédula'),h('input',{type:'text',value:form.cedula,onChange:e=>setForm(p=>({...p,cedula:e.target.value})),placeholder:'Número'}))
+        ),
+        h('div',{className:'fg'},h('label',null,'Nombre',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.nombre,onChange:e=>setForm(p=>({...p,nombre:e.target.value})),placeholder:'Nombre completo'})),
+        h('div',{className:'fg'},h('label',null,'Empresa / Visita a'),h('input',{type:'text',value:form.empresa,onChange:e=>setForm(p=>({...p,empresa:e.target.value})),placeholder:'Empresa o dependencia'}))
+      ),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'check',s:12}),' Horarios'),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('input',{type:'time',value:form.hora_ingreso,onChange:e=>setForm(p=>({...p,hora_ingreso:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida,onChange:e=>setForm(p=>({...p,hora_salida:e.target.value}))}))
+        ),
+        h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:3,placeholder:'—'}))
+      ),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'camera',s:12}),' Fotografía'),
+        h(CameraField,{value:form.foto_url,onChange:v=>setForm(p=>({...p,foto_url:v}))})
+      )
+    ),
+    h('div',{className:'sticky-cta'},
+      h('button',{className:'btn-cancel',onClick:()=>{setView('list');setForm(emptyF);setSelected(null);}},h(Ico,{n:'x',s:15})),
+      h('button',{className:'btn-primary',onClick:handleSave,disabled:saving},
+        saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),saving?'Guardando...':'Guardar registro'
+      )
+    )
+  );
+
+  return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{style:{display:'flex',gap:8,padding:'10px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
+      h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+        h(Ico,{n:'plus',s:15}),' Nuevo'
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      loading?h(LoadingDots):
+      records.length===0?h('div',{className:'empty'},h(Ico,{n:'users',s:44}),h('p',null,'Sin visitantes hoy')):
+      records.map(r=>h('div',{key:r.id,className:'list-item'},
+        h('div',{className:'li-icon',style:{background:'#ede9fe'}},
+          h(Ico,{n:'users',s:18,style:{color:'#7c3aed'}})
+        ),
+        h('div',{className:'li-body',onClick:()=>{setForm({...emptyF,...r,hora_ingreso:r.hora_ingreso||'',hora_salida:r.hora_salida||''});setSelected(r);setView('form');}},
+          h('div',{className:'li-title'},r.nombre),
+          h('div',{className:'li-sub'},r.empresa||'Sin empresa'),
+          r.hora_ingreso&&h('div',{className:'li-sub'},'Ingreso: ',r.hora_ingreso,r.hora_salida&&(' · Salida: '+r.hora_salida))
+        ),
+        h('div',{className:'li-right'},
+          h('span',{className:'li-date'},r.cedula||'—'),
+          h('div',{style:{display:'flex',gap:4,marginTop:3}},
+            r.hora_ingreso&&!r.hora_salida&&h('button',{
+              title:'Registrar salida',
+              onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(new Date().toTimeString().slice(0,5));},
+              style:{background:'#7c3aed',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
+            },'Salida'),
+            h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
+          )
+        )
+      ))
+    ),
+    salida&&h('div',{className:'overlay',onClick:()=>setSalida(null)},
+      h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
+        h('div',{className:'sheet-header'},
+          h('span',{style:{fontWeight:700,fontSize:15}},'Registrar salida'),
+          h('button',{className:'btn-icon',onClick:()=>setSalida(null)},h(Ico,{n:'x',s:16}))
+        ),
+        h('p',{style:{fontSize:13,color:'var(--slate)',marginBottom:12}},salida.nombre,' · ',salida.empresa||''),
+        h('div',{className:'fg'},
+          h('label',null,'Hora de salida'),
+          h('input',{type:'time',value:horaSalida,onChange:e=>setHoraSalida(e.target.value),style:{width:'100%',padding:'10px',border:'1.5px solid var(--border)',borderRadius:8,fontSize:15}})
+        ),
+        h('div',{style:{display:'flex',gap:8,marginTop:14}},
+          h('button',{className:'btn-cancel',onClick:()=>setSalida(null)},'Cancelar'),
+          h('button',{className:'btn-primary',style:{background:'#7c3aed'},onClick:async()=>{
+            await api.put(`/visitantes/${salida.id}`,{hora_salida:horaSalida});
+            setSalida(null);load();setAlert({type:'ok',msg:'Salida registrada'});
+          }},h(Ico,{n:'check',s:16}),'Confirmar salida')
+        )
+      )
+    ),
+    confirm&&h(ConfirmSheet,{msg:'Se eliminará el registro de visitantes.',onOk:async()=>{await api.del(`/visitantes/${confirm}`);setConfirm(null);load();setAlert({type:'ok',msg:'Eliminado'});},onCancel:()=>setConfirm(null)})
+  );
+}
+
+/* ── PROVEEDORES PAGE ── */
+function ProveedoresPage({user,online,addOffline}){
+  const [view,setView]       = useState('list');
+  const [records,setRecords] = useState([]);
+  const [loading,setLoading] = useState(true);
+  const [saving,setSaving]   = useState(false);
+  const [alert,setAlert]     = useState(null);
+  const [confirm,setConfirm] = useState(null);
+  const [selected,setSelected]= useState(null);
+  const [salida,setSalida]   = useState(null);
+  const [horaSalida,setHoraSalida] = useState('');
+  const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',tipo_vehiculo:'',empresa:'',muelle_descargue:'',carga_compartida:false,hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',actividad_a_desarrollar:'',dependencia_autoriza:'',fecha_pago_arl:'',observaciones:'',foto_url:null};
+  const [form,setForm] = useState(emptyF);
+
+  const load = useCallback(()=>{
+    setLoading(true);
+    api.get('/proveedores').then(r=>setRecords(r.items||r)).catch(()=>setAlert({type:'err',msg:'Error cargando datos'})).finally(()=>setLoading(false));
+  },[]);
+  useEffect(()=>load(),[load]);
+
+  const handleSave = async()=>{
+    setSaving(true);
+    const body = Object.fromEntries(Object.entries(form).filter(([,v])=>v!=null&&v!==''));
+    try{
+      if(selected) await api.put(`/proveedores/${selected.id}`,body);
+      else await api.post('/proveedores',body);
+      setAlert({type:'ok',msg:'Registro guardado'});
+      setView('list');setForm(emptyF);setSelected(null);load();
+    }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
+    finally{setSaving(false);}
+  };
+
+  const tiposVehiculo = ['Camión','Camioneta','Moto','Furgón','Tractomula','Otro'];
+
+  if(view==='form') return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{className:'header'},
+      h('div',{className:'header-inner'},
+        h('button',{onClick:()=>{setView('list');setForm(emptyF);setSelected(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
+          h(Ico,{n:'arrowLeft',s:18}),' Volver'
+        ),
+        h('div',{className:'header-brand'},h('h1',null,selected?'Editar TGN':'Nuevo TGN'),h('span',null,'Proveedores'))
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'truck',s:12}),' Vehículo y conductor'),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,onChange:e=>setForm(p=>({...p,fecha:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Placa'),h('input',{type:'text',value:form.placa_vehiculo,onChange:e=>setForm(p=>({...p,placa_vehiculo:e.target.value.toUpperCase()})),placeholder:'ABC-123'}))
+        ),
+        h('div',{className:'fg'},h('label',null,'Nombre conductor'),h('input',{type:'text',value:form.nombre_conductor,onChange:e=>setForm(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Nombre completo'})),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Tipo vehículo'),
+            h('select',{value:form.tipo_vehiculo,onChange:e=>setForm(p=>({...p,tipo_vehiculo:e.target.value}))},
+              h('option',{value:''},'Seleccionar...'),...tiposVehiculo.map(t=>h('option',{key:t,value:t},t))
+            )
+          ),
+          h('div',{className:'fg'},h('label',null,'Empresa'),h('input',{type:'text',value:form.empresa,onChange:e=>setForm(p=>({...p,empresa:e.target.value})),placeholder:'Razón social'}))
+        )
+      ),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'package',s:12}),' Operación'),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Muelle descargue'),h('input',{type:'text',value:form.muelle_descargue,onChange:e=>setForm(p=>({...p,muelle_descargue:e.target.value})),placeholder:'N° muelle'})),
+          h('div',{className:'fg'},h('label',null,'Carga compartida'),
+            h('select',{value:form.carga_compartida?'si':'no',onChange:e=>setForm(p=>({...p,carga_compartida:e.target.value==='si'}))},
+              h('option',{value:'no'},'No'),h('option',{value:'si'},'Sí')
+            )
+          )
+        ),
+        h('div',{className:'fg'},h('label',null,'Actividad a desarrollar'),h('textarea',{value:form.actividad_a_desarrollar,onChange:e=>setForm(p=>({...p,actividad_a_desarrollar:e.target.value})),rows:2,placeholder:'Describe la actividad'})),
+        h('div',{className:'fg'},h('label',null,'Dependencia que autoriza'),h('input',{type:'text',value:form.dependencia_autoriza,onChange:e=>setForm(p=>({...p,dependencia_autoriza:e.target.value})),placeholder:'Área o persona'}))
+      ),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'check',s:12}),' Horarios y ARL'),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('input',{type:'time',value:form.hora_ingreso,onChange:e=>setForm(p=>({...p,hora_ingreso:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida,onChange:e=>setForm(p=>({...p,hora_salida:e.target.value}))}))
+        ),
+        h('div',{className:'fg'},h('label',null,'Fecha pago ARL'),h('input',{type:'date',value:form.fecha_pago_arl,onChange:e=>setForm(p=>({...p,fecha_pago_arl:e.target.value}))})),
+        h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:2,placeholder:'—'}))
+      ),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'camera',s:12}),' Fotografía'),
+        h(CameraField,{value:form.foto_url,onChange:v=>setForm(p=>({...p,foto_url:v}))})
+      )
+    ),
+    h('div',{className:'sticky-cta'},
+      h('button',{className:'btn-cancel',onClick:()=>{setView('list');setForm(emptyF);setSelected(null);}},h(Ico,{n:'x',s:15})),
+      h('button',{className:'btn-primary',onClick:handleSave,disabled:saving},
+        saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),saving?'Guardando...':'Guardar registro'
+      )
+    )
+  );
+
+  return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{style:{display:'flex',gap:8,padding:'10px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
+      h('button',{onClick:()=>api.exportar('proveedores'),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
+        h(Ico,{n:'download',s:14}),' Excel'
+      ),
+      h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+        h(Ico,{n:'plus',s:15}),' Nuevo'
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      loading?h(LoadingDots):
+      records.length===0?h('div',{className:'empty'},h(Ico,{n:'package',s:44}),h('p',null,'Sin proveedores hoy')):
+      records.map(r=>h('div',{key:r.id,className:'list-item'},
+        h('div',{className:'li-icon',style:{background:'#fde68a'}},
+          h(Ico,{n:'package',s:18,style:{color:'#d97706'}})
+        ),
+        h('div',{className:'li-body',onClick:()=>{setForm({...emptyF,...r,hora_ingreso:r.hora_ingreso||'',hora_salida:r.hora_salida||'',carga_compartida:!!r.carga_compartida});setSelected(r);setView('form');}},
+          h('div',{className:'li-title'},r.nombre_conductor||r.placa_vehiculo||'Sin nombre'),
+          h('div',{className:'li-sub'},r.empresa||'Sin empresa'),
+          (r.placa_vehiculo||r.tipo_vehiculo)&&h('div',{className:'li-sub'},[r.placa_vehiculo,r.tipo_vehiculo].filter(Boolean).join(' · '))
+        ),
+        h('div',{className:'li-right'},
+          h('span',{className:'li-date'},fmtDate(r.fecha)),
+          h('div',{style:{display:'flex',gap:4,marginTop:3}},
+            r.hora_ingreso&&!r.hora_salida&&h('button',{
+              title:'Registrar salida',
+              onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(new Date().toTimeString().slice(0,5));},
+              style:{background:'#d97706',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
+            },'Salida'),
+            h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
+          )
+        )
+      ))
+    ),
+    salida&&h('div',{className:'overlay',onClick:()=>setSalida(null)},
+      h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
+        h('div',{className:'sheet-header'},
+          h('span',{style:{fontWeight:700,fontSize:15}},'Registrar salida'),
+          h('button',{className:'btn-icon',onClick:()=>setSalida(null)},h(Ico,{n:'x',s:16}))
+        ),
+        h('p',{style:{fontSize:13,color:'var(--slate)',marginBottom:12}},salida.nombre_conductor||salida.placa_vehiculo,' · ',salida.empresa||''),
+        h('div',{className:'fg'},
+          h('label',null,'Hora de salida'),
+          h('input',{type:'time',value:horaSalida,onChange:e=>setHoraSalida(e.target.value),style:{width:'100%',padding:'10px',border:'1.5px solid var(--border)',borderRadius:8,fontSize:15}})
+        ),
+        h('div',{style:{display:'flex',gap:8,marginTop:14}},
+          h('button',{className:'btn-cancel',onClick:()=>setSalida(null)},'Cancelar'),
+          h('button',{className:'btn-primary',style:{background:'#d97706'},onClick:async()=>{
+            await api.put(`/proveedores/${salida.id}`,{hora_salida:horaSalida});
+            setSalida(null);load();setAlert({type:'ok',msg:'Salida registrada'});
+          }},h(Ico,{n:'check',s:16}),'Confirmar salida')
+        )
+      )
+    ),
+    confirm&&h(ConfirmSheet,{msg:'Se eliminará el registro de proveedor.',onOk:async()=>{await api.del(`/proveedores/${confirm}`);setConfirm(null);load();setAlert({type:'ok',msg:'Eliminado'});},onCancel:()=>setConfirm(null)})
+  );
+}
+
 /* ── PLACEHOLDER PAGE ── */
 function PlaceholderPage({label,setPage}){
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
@@ -987,9 +1272,9 @@ function App(){
   const pageContent = {
     home:   h(HomePage,{setPage}),
     flota:  h(FlotaPage,{user,online,addOffline}),
-    prov:   h(PlaceholderPage,{label:'TGN · Proveedores',setPage}),
+    prov:   h(ProveedoresPage,{user,online,addOffline}),
     acceso: h(AccesoPage,{user,online,addOffline}),
-    visit:  h(PlaceholderPage,{label:'Visitantes',setPage}),
+    visit:  h(VisitantesPage,{user,online,addOffline}),
     bd:     h(PlaceholderPage,{label:'Base de Datos',setPage}),
     reg:    h(RegistrosPage,null),
   };
