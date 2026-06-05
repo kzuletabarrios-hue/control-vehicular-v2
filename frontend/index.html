@@ -775,6 +775,26 @@ function RegistrosPage(){
   );
 }
 
+/* ── PLACEHOLDER PAGE ── */
+function PlaceholderPage({label,setPage}){
+  return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{className:'header'},
+      h('div',{className:'header-inner'},
+        h('button',{onClick:()=>setPage('home'),style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
+          h(Ico,{n:'arrowLeft',s:18}),' Inicio'
+        ),
+        h('div',{className:'header-brand'},h('h1',null,label))
+      )
+    ),
+    h('div',{className:'scroll-body pad',style:{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,paddingTop:60}},
+      h(Ico,{n:'clock',s:48,style:{color:'var(--slate)',opacity:.4}}),
+      h('p',{style:{color:'var(--slate)',fontSize:14,fontWeight:600}},label),
+      h('p',{style:{color:'var(--slate)',fontSize:12,opacity:.7}},'Módulo disponible en próxima entrega'),
+      h('button',{onClick:()=>setPage('home'),style:{marginTop:8,background:'var(--navy2)',color:'#fff',border:'none',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}},'Volver al inicio')
+    )
+  );
+}
+
 /* ── APP ROOT ── */
 function App(){
   const [user,setUser]       = useState(getUser);
@@ -820,10 +840,10 @@ function App(){
   const pageContent = {
     home:   h(HomePage,{setPage}),
     flota:  h(FlotaPage,{user,online,addOffline}),
-    prov:   h('div',{className:'scroll-body pad'},h('p',{style:{color:'var(--slate)',fontSize:13}},'Módulo TGN — disponible en próxima entrega')),
-    acceso: h('div',{className:'scroll-body pad'},h('p',{style:{color:'var(--slate)',fontSize:13}},'Control Acceso — disponible en próxima entrega')),
-    visit:  h('div',{className:'scroll-body pad'},h('p',{style:{color:'var(--slate)',fontSize:13}},'Visitantes — disponible en próxima entrega')),
-    bd:     h('div',{className:'scroll-body pad'},h('p',{style:{color:'var(--slate)',fontSize:13}},'Base de Datos — disponible en próxima entrega')),
+    prov:   h(PlaceholderPage,{label:'TGN · Proveedores',setPage}),
+    acceso: h(PlaceholderPage,{label:'Control Acceso',setPage}),
+    visit:  h(PlaceholderPage,{label:'Visitantes',setPage}),
+    bd:     h(PlaceholderPage,{label:'Base de Datos',setPage}),
     reg:    h(RegistrosPage,null),
   };
 
