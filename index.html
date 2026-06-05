@@ -775,6 +775,153 @@ function RegistrosPage(){
   );
 }
 
+/* ── ACCESO PAGE ── */
+function AccesoPage({user,online,addOffline}){
+  const [view,setView]       = useState('list');
+  const [records,setRecords] = useState([]);
+  const [loading,setLoading] = useState(true);
+  const [saving,setSaving]   = useState(false);
+  const [alert,setAlert]     = useState(null);
+  const [confirm,setConfirm] = useState(null);
+  const [selected,setSelected]= useState(null);
+  const [salida,setSalida]   = useState(null);
+  const [horaSalida,setHoraSalida] = useState('');
+  const [sugerencias,setSugerencias] = useState([]);
+  const emptyF = {fecha:today(),cedula:'',nombre:'',contratista:'',hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',observaciones:''};
+  const [form,setForm] = useState(emptyF);
+
+  const load = useCallback(()=>{
+    setLoading(true);
+    api.get('/control-acceso').then(r=>setRecords(r.items||r)).catch(()=>setAlert({type:'err',msg:'Error cargando datos'})).finally(()=>setLoading(false));
+  },[]);
+  useEffect(()=>load(),[load]);
+
+  const buscarCedula = async(val)=>{
+    setForm(p=>({...p,cedula:val}));
+    if(val.length<3){setSugerencias([]);return;}
+    try{
+      const res = await api.get(`/control-acceso/bd/buscar?q=${val}`);
+      setSugerencias(res);
+      if(res.length===1){setForm(p=>({...p,nombre:res[0].nombre,contratista:res[0].contratista||''}));setSugerencias([]);}
+    }catch(e){}
+  };
+
+  const handleSave = async()=>{
+    if(!form.nombre) return setAlert({type:'err',msg:'El nombre es obligatorio'});
+    setSaving(true);
+    const body = Object.fromEntries(Object.entries(form).filter(([,v])=>v!=null&&v!==''));
+    if(body.cedula) body.cedula = parseInt(body.cedula);
+    try{
+      if(selected) await api.put(`/control-acceso/${selected.id}`,body);
+      else await api.post('/control-acceso',body);
+      setAlert({type:'ok',msg:'Registro guardado'});
+      setView('list');setForm(emptyF);setSelected(null);load();
+    }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
+    finally{setSaving(false);}
+  };
+
+  if(view==='form') return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{className:'header'},
+      h('div',{className:'header-inner'},
+        h('button',{onClick:()=>{setView('list');setForm(emptyF);setSelected(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
+          h(Ico,{n:'arrowLeft',s:18}),' Volver'
+        ),
+        h('div',{className:'header-brand'},h('h1',null,selected?'Editar':'Nuevo registro'),h('span',null,'Control Acceso'))
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'userCheck',s:12}),' Identificación'),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,onChange:e=>setForm(p=>({...p,fecha:e.target.value}))})),
+          h('div',{className:'fg',style:{position:'relative'}},
+            h('label',null,'Cédula'),
+            h('input',{type:'number',value:form.cedula,onChange:e=>buscarCedula(e.target.value),placeholder:'Número de cédula'}),
+            sugerencias.length>0&&h('div',{style:{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid var(--border)',borderRadius:8,zIndex:50,boxShadow:'var(--shadow)'}},
+              sugerencias.map(s=>h('div',{key:s.cedula,onClick:()=>{setForm(p=>({...p,cedula:String(s.cedula),nombre:s.nombre,contratista:s.contratista||''}));setSugerencias([]);},
+                style:{padding:'10px 12px',cursor:'pointer',borderBottom:'1px solid var(--border)',fontSize:13}},
+                h('strong',null,s.nombre),' · ',s.contratista||'',h('span',{style:{fontSize:11,color:'var(--slate)',marginLeft:8}},s.cedula)
+              ))
+            )
+          )
+        ),
+        h('div',{className:'fg'},h('label',null,'Nombre',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.nombre,onChange:e=>setForm(p=>({...p,nombre:e.target.value})),placeholder:'Nombre completo'})),
+        h('div',{className:'fg'},h('label',null,'Contratista / Empresa'),h('input',{type:'text',value:form.contratista,onChange:e=>setForm(p=>({...p,contratista:e.target.value})),placeholder:'Empresa contratista'}))
+      ),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'clock',s:12}),' Horarios'),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('input',{type:'time',value:form.hora_ingreso,onChange:e=>setForm(p=>({...p,hora_ingreso:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida,onChange:e=>setForm(p=>({...p,hora_salida:e.target.value}))}))
+        ),
+        h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:3,placeholder:'—'}))
+      )
+    ),
+    h('div',{className:'sticky-cta'},
+      h('button',{className:'btn-cancel',onClick:()=>{setView('list');setForm(emptyF);setSelected(null);}},h(Ico,{n:'x',s:15})),
+      h('button',{className:'btn-primary',onClick:handleSave,disabled:saving},
+        saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),saving?'Guardando...':'Guardar registro'
+      )
+    )
+  );
+
+  return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{style:{display:'flex',gap:8,padding:'10px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
+      h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+        h(Ico,{n:'plus',s:15}),' Nuevo'
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      loading?h(LoadingDots):
+      records.length===0?h('div',{className:'empty'},h(Ico,{n:'userCheck',s:44}),h('p',null,'Sin registros hoy')):
+      records.map(r=>h('div',{key:r.id,className:'list-item'},
+        h('div',{className:'li-icon',style:{background: r.hora_salida?'#dcfce7':'#dbeafe'}},
+          h(Ico,{n:'userCheck',s:18,style:{color: r.hora_salida?'#16a34a':'#1d4ed8'}})
+        ),
+        h('div',{className:'li-body',onClick:()=>{setForm({...emptyF,...r,cedula:r.cedula?String(r.cedula):'',hora_ingreso:r.hora_ingreso||'',hora_salida:r.hora_salida||''});setSelected(r);setView('form');}},
+          h('div',{className:'li-title'},r.nombre),
+          h('div',{className:'li-sub'},r.contratista||'Sin empresa'),
+          r.hora_ingreso&&h('div',{className:'li-sub'},'Ingreso: ',r.hora_ingreso,r.hora_salida&&(' · Salida: '+r.hora_salida))
+        ),
+        h('div',{className:'li-right'},
+          h('span',{className:'li-date'},r.cedula||'—'),
+          h('div',{style:{display:'flex',gap:4,marginTop:3}},
+            r.hora_ingreso&&!r.hora_salida&&h('button',{
+              title:'Registrar salida',
+              onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(new Date().toTimeString().slice(0,5));},
+              style:{background:'#16a34a',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
+            },'Salida'),
+            h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
+          )
+        )
+      ))
+    ),
+    salida&&h('div',{className:'overlay',onClick:()=>setSalida(null)},
+      h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
+        h('div',{className:'sheet-header'},
+          h('span',{style:{fontWeight:700,fontSize:15}},'Registrar salida'),
+          h('button',{className:'btn-icon',onClick:()=>setSalida(null)},h(Ico,{n:'x',s:16}))
+        ),
+        h('p',{style:{fontSize:13,color:'var(--slate)',marginBottom:12}},salida.nombre,' · ',salida.contratista||''),
+        h('div',{className:'fg'},
+          h('label',null,'Hora de salida'),
+          h('input',{type:'time',value:horaSalida,onChange:e=>setHoraSalida(e.target.value),style:{width:'100%',padding:'10px',border:'1.5px solid var(--border)',borderRadius:8,fontSize:15}})
+        ),
+        h('div',{style:{display:'flex',gap:8,marginTop:14}},
+          h('button',{className:'btn-cancel',onClick:()=>setSalida(null)},'Cancelar'),
+          h('button',{className:'btn-primary',style:{background:'#16a34a'},onClick:async()=>{
+            await api.put(`/control-acceso/${salida.id}`,{hora_salida:horaSalida});
+            setSalida(null);load();setAlert({type:'ok',msg:'Salida registrada'});
+          }},h(Ico,{n:'checkCircle',s:16}),'Confirmar salida')
+        )
+      )
+    ),
+    confirm&&h(ConfirmSheet,{msg:'Se eliminará el registro.',onOk:async()=>{await api.del(`/control-acceso/${confirm}`);setConfirm(null);load();setAlert({type:'ok',msg:'Eliminado'});},onCancel:()=>setConfirm(null)})
+  );
+}
+
 /* ── PLACEHOLDER PAGE ── */
 function PlaceholderPage({label,setPage}){
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
@@ -841,7 +988,7 @@ function App(){
     home:   h(HomePage,{setPage}),
     flota:  h(FlotaPage,{user,online,addOffline}),
     prov:   h(PlaceholderPage,{label:'TGN · Proveedores',setPage}),
-    acceso: h(PlaceholderPage,{label:'Control Acceso',setPage}),
+    acceso: h(AccesoPage,{user,online,addOffline}),
     visit:  h(PlaceholderPage,{label:'Visitantes',setPage}),
     bd:     h(PlaceholderPage,{label:'Base de Datos',setPage}),
     reg:    h(RegistrosPage,null),
