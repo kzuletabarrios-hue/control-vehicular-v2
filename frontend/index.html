@@ -565,10 +565,11 @@ function FlotaPage({user,online,addOffline}){
 
   const load = useCallback(()=>{
     setLoading(true);
-    Promise.all([api.get('/flota/'),api.get('/conductores/?activo=true&limit=200'),api.get('/maestros/distribucion')])
-      .then(([r,c,t])=>{setRecords(r.items||r);setCond(c);setTiendas(t)})
+    Promise.all([api.get('/flota/'),api.get('/conductores/?activo=true&limit=200')])
+      .then(([r,c])=>{setRecords(r.items||r);setCond(c);})
       .catch(()=>setAlert({type:'err',msg:'Error cargando datos'}))
       .finally(()=>setLoading(false));
+    api.get('/maestros/distribucion').then(setTiendas).catch(()=>{});
   },[]);
   useEffect(()=>load(),[load]);
 
