@@ -512,10 +512,10 @@ function HomePage({setPage}){
   useEffect(()=>{ api.get('/dashboard/resumen').then(setResumen).catch(()=>{}); },[]);
 
   const mods = [
-    {id:'flota', label:'Flota Propia',    desc:'Salidas de vehículos', cls:'m-flota',icon:'truck',   cnt:resumen?.flota_propia},
-    {id:'prov',  label:'TGN · Proveedores',desc:'Vehículos terceros', cls:'m-prov', icon:'package', cnt:resumen?.proveedores},
-    {id:'acceso',label:'Control Acceso',  desc:'Entrada/salida personal',cls:'m-acc',icon:'userCheck',cnt:resumen?.control_acceso},
-    {id:'visit', label:'Visitantes',      desc:'Registro de visitas', cls:'m-vis',  icon:'users',   cnt:resumen?.visitantes},
+    {id:'flota', label:'Flota Propia',    desc:'Salidas de vehículos', cls:'m-flota',icon:'truck',   cnt:resumen?.flota?.hoy},
+    {id:'prov',  label:'TGN · Proveedores',desc:'Vehículos terceros', cls:'m-prov', icon:'package', cnt:resumen?.proveedores?.hoy},
+    {id:'acceso',label:'Control Acceso',  desc:'Entrada/salida personal',cls:'m-acc',icon:'userCheck',cnt:resumen?.control_acceso?.hoy},
+    {id:'visit', label:'Visitantes',      desc:'Registro de visitas', cls:'m-vis',  icon:'users',   cnt:resumen?.visitantes?.hoy},
     {id:'bd',    label:'Base de Datos',   desc:'Catálogos maestros',  cls:'m-bd',   icon:'database',cnt:null},
     {id:'reg',   label:'Registros',       desc:'Historial y Excel',   cls:'m-reg',  icon:'fileText',cnt:null},
   ];
