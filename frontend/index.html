@@ -464,9 +464,70 @@ function LoginPage({onLogin}){
   );
 }
 
+/* ── CAMBIAR PASSWORD SHEET ── */
+function CambiarPasswordSheet({onClose,onSuccess}){
+  const [actual,setActual]       = useState('');
+  const [nueva,setNueva]         = useState('');
+  const [confirmar,setConfirmar] = useState('');
+  const [saving,setSaving]       = useState(false);
+  const [err,setErr]             = useState('');
+  const [done,setDone]           = useState(false);
+
+  const handleSave = async()=>{
+    setErr('');
+    if(!actual||!nueva||!confirmar) return setErr('Todos los campos son requeridos');
+    if(nueva.length<8) return setErr('La nueva contraseña debe tener mínimo 8 caracteres');
+    if(nueva!==confirmar) return setErr('Las contraseñas nuevas no coinciden');
+    setSaving(true);
+    try{
+      await api.put('/auth/usuarios/cambiar-password',{password_actual:actual,password_nueva:nueva});
+      setDone(true);
+      setTimeout(onSuccess,2000);
+    }catch(e){ setErr(e.message||'Contraseña actual incorrecta'); }
+    finally{ setSaving(false); }
+  };
+
+  return h('div',{className:'overlay',onClick:onClose},
+    h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
+      h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}},
+        h('h3',{style:{fontSize:15,fontWeight:700,color:'var(--navy)',display:'flex',alignItems:'center',gap:6}},h(Ico,{n:'key',s:15}),'Cambiar contraseña'),
+        h('button',{onClick:onClose,style:{background:'none',border:'none',cursor:'pointer',padding:4,color:'var(--slate)'}},h(Ico,{n:'x',s:18}))
+      ),
+      done
+        ? h('div',{style:{textAlign:'center',padding:'16px 0'}},
+            h('div',{style:{fontSize:32,marginBottom:8}},'✓'),
+            h('p',{style:{color:'var(--navy2)',fontWeight:600}},'Contraseña actualizada'),
+            h('p',{style:{fontSize:12,color:'var(--slate)',marginTop:4}},'Cerrando sesión...')
+          )
+        : h('div',null,
+            err&&h('div',{className:'alert-err',style:{marginBottom:12,padding:'8px 12px',borderRadius:8,fontSize:12}},err),
+            h('div',{className:'fg'},
+              h('label',null,'Contraseña actual'),
+              h('input',{type:'password',value:actual,onChange:e=>setActual(e.target.value),placeholder:'••••••••',autoComplete:'current-password'})
+            ),
+            h('div',{className:'fg'},
+              h('label',null,'Nueva contraseña'),
+              h('input',{type:'password',value:nueva,onChange:e=>setNueva(e.target.value),placeholder:'Mínimo 8 caracteres',autoComplete:'new-password'})
+            ),
+            h('div',{className:'fg',style:{marginBottom:16}},
+              h('label',null,'Confirmar nueva contraseña'),
+              h('input',{type:'password',value:confirmar,onChange:e=>setConfirmar(e.target.value),placeholder:'Repetir contraseña',autoComplete:'new-password',
+                onKeyDown:e=>e.key==='Enter'&&handleSave()})
+            ),
+            h('div',{style:{display:'flex',gap:8}},
+              h('button',{className:'btn-primary',style:{background:'none',border:'1.5px solid var(--navy2)',color:'var(--navy2)',flex:1},onClick:onClose},'Cancelar'),
+              h('button',{className:'btn-primary',onClick:handleSave,disabled:saving},
+                saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:15}),saving?'Guardando...':'Guardar')
+            )
+          )
+    )
+  );
+}
+
 /* ── HEADER COMPONENT ── */
 function AppHeader({user,page,setPage,online,offlineQueue}){
   const [menuOpen,setMenuOpen] = useState(false);
+  const [pwOpen,setPwOpen]     = useState(false);
   const titleMap = {home:'Inicio',flota:'Flota Propia',prov:'TGN · Proveedores',acceso:'Control Acceso',visit:'Visitantes',bd:'Base de Datos',reg:'Registros'};
 
   const logout = async () => {
@@ -495,14 +556,18 @@ function AppHeader({user,page,setPage,online,offlineQueue}){
           h('div',{className:'user-menu-name'},user?.nombre),
           h('div',{className:'user-menu-role'},user?.rol)
         ),
-        h('div',{className:'user-menu-item',onClick:()=>{setMenuOpen(false);}},
-          h(Ico,{n:'user',s:15}),'Mi perfil'
+        h('div',{className:'user-menu-item',onClick:()=>{setMenuOpen(false);setPwOpen(true);}},
+          h(Ico,{n:'key',s:15}),'Cambiar contraseña'
         ),
         h('div',{className:'user-menu-item danger',onClick:logout},
           h(Ico,{n:'logOut',s:15}),'Cerrar sesión'
         )
       )
-    )
+    ),
+    pwOpen&&h(CambiarPasswordSheet,{
+      onClose:()=>setPwOpen(false),
+      onSuccess:()=>{ setPwOpen(false); logout(); }
+    })
   );
 }
 
@@ -561,7 +626,7 @@ function FlotaPage({user,online,addOffline}){
   const [selected,setSelected] = useState(null);
   const [llegada,setLlegada]   = useState(null);
   const [horaLlegada,setHoraLlegada] = useState('');
-  const emptyF = {fecha:today(),placa:'',codigo_conductor:'',n_pallets:'',n_contenedores:'',cant_volumen_externo:'',muelle_cargue:'',tienda_1:'',tienda_2:'',tienda_3:'',tienda_4:'',tienda_5:'',ultima_tienda:'',protocolo:'',sello:'',sello_entrada:'',hora_salida_muelle:'',temperatura:'',hora_salida_cedi:'',hora_llegada:'',observacion:'',fotografia:null};
+  const emptyF = {fecha:today(),placa:'',codigo_conductor:'',n_pallets:'',n_contenedores:'',cant_volumen_externo:'',muelle_cargue:'',tienda_1:'',tienda_2:'',tienda_3:'',tienda_4:'',tienda_5:'',ultima_tienda:'',protocolo:'',sello:'',sello_entrada:'',hora_salida_muelle:'',temperatura:'',hora_salida_cedi:'',hora_llegada:'',observacion:'',foto_url:null};
   const [form,setForm]         = useState(emptyF);
 
   const load = useCallback(()=>{
@@ -667,7 +732,7 @@ function FlotaPage({user,online,addOffline}){
       ),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'camera',s:12}),' Fotografía'),
-        h(CameraField,{value:form.fotografia,onChange:v=>setForm(p=>({...p,fotografia:v}))})
+        h(CameraField,{value:form.foto_url,onChange:v=>setForm(p=>({...p,foto_url:v}))})
       )
     ),
     h('div',{className:'sticky-cta'},
