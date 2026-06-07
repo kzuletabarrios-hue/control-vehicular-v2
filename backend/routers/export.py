@@ -204,3 +204,49 @@ def export_visitantes(
         ws.append(list(row))
     _autowidth(ws)
     return _stream(wb, f"visitantes_{date.today()}.xlsx")
+
+
+@router.get("/conductores")
+def export_conductores(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("flota", "export")),
+):
+    rows = db.execute(text("""
+        SELECT codigo, conductor, n_cedula, telefono, activo, created_at
+        FROM conductores
+        ORDER BY conductor ASC
+    """)).fetchall()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Conductores"
+
+    headers = ["Código", "Nombre", "Cédula", "Teléfono", "Activo", "Creado"]
+    _header_style(ws, headers)
+    for row in rows:
+        ws.append(list(row))
+    _autowidth(ws)
+    return _stream(wb, f"conductores_{date.today()}.xlsx")
+
+
+@router.get("/bd-proveedores")
+def export_bd_proveedores(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("maestros", "read")),
+):
+    rows = db.execute(text("""
+        SELECT nombre, nit, contacto, celular, activo, created_at
+        FROM bd_proveedores
+        ORDER BY nombre ASC
+    """)).fetchall()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "BD Proveedores"
+
+    headers = ["Nombre", "NIT", "Contacto", "Celular", "Activo", "Creado"]
+    _header_style(ws, headers)
+    for row in rows:
+        ws.append(list(row))
+    _autowidth(ws)
+    return _stream(wb, f"bd_proveedores_{date.today()}.xlsx")
