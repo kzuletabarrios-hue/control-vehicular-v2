@@ -334,7 +334,7 @@ def cambiar_password(
     ).fetchone()
 
     if not row or not verify_password(actual, row.password_hash):
-        raise HTTPException(status_code=401, detail="Contraseña actual incorrecta")
+        raise HTTPException(status_code=400, detail="Contraseña actual incorrecta")
 
     db.execute(
         text("UPDATE usuarios SET password_hash = :ph, updated_at = NOW() WHERE id = :id"),
