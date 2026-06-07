@@ -212,7 +212,7 @@ def export_conductores(
     _: dict = Depends(require_permiso("flota", "export")),
 ):
     rows = db.execute(text("""
-        SELECT codigo, conductor, n_cedula, telefono, activo, created_at
+        SELECT codigo, conductor, n_cedula, celular, tipo, activo, created_at
         FROM conductores
         ORDER BY conductor ASC
     """)).fetchall()
@@ -221,7 +221,7 @@ def export_conductores(
     ws = wb.active
     ws.title = "Conductores"
 
-    headers = ["Código", "Nombre", "Cédula", "Teléfono", "Activo", "Creado"]
+    headers = ["Código", "Nombre", "Cédula", "Celular", "Tipo", "Activo", "Creado"]
     _header_style(ws, headers)
     for row in rows:
         ws.append(list(row))
