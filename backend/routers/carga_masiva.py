@@ -164,7 +164,7 @@ def importar_vehiculos(
 def importar_empleados(
     body: dict,
     db: Session = Depends(get_db),
-    _: dict = Depends(require_permiso("acceso", "write")),
+    _: dict = Depends(require_permiso("control_acceso", "write")),
 ):
     filas = body.get("filas", [])
     if not filas:
