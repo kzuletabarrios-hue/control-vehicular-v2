@@ -483,7 +483,7 @@ function CambiarPasswordSheet({onClose,onSuccess}){
       await api.put('/auth/usuarios/cambiar-password',{password_actual:actual,password_nueva:nueva});
       setDone(true);
       setTimeout(onSuccess,2000);
-    }catch(e){ setErr(e.message||'Contraseña actual incorrecta'); }
+    }catch(e){ let m=e.message||'Error'; try{m=JSON.parse(m).detail||m;}catch{}; setErr(m); }
     finally{ setSaving(false); }
   };
 
