@@ -12,6 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
@@ -124,6 +125,27 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 .m-vis   {background:linear-gradient(135deg,#3b0764,#7c3aed)}
 .m-bd    {background:linear-gradient(135deg,#1e293b,#334155)}
 .m-reg   {background:linear-gradient(135deg,#7f1d1d,#e11d48)}
+.m-carga {background:linear-gradient(135deg,#065f46,#059669)}
+
+/* ── CARGA MASIVA ── */
+.upload-zone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:2px dashed var(--border);border-radius:var(--radius-sm);padding:24px 16px;cursor:pointer;background:var(--bg);text-align:center;transition:border-color .2s;width:100%}
+.upload-zone:hover,.upload-zone:active{border-color:var(--amber)}
+.upload-zone p{font-size:13px;font-weight:500;color:var(--text2)}
+.upload-zone span{font-size:10px;color:var(--slate)}
+.upload-ico{color:var(--slate)}
+.preview-table{width:100%;border-collapse:collapse;font-size:11px}
+.preview-table th{background:var(--navy);color:#fff;padding:5px 8px;text-align:left;white-space:nowrap}
+.preview-table td{padding:4px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
+.preview-table tr:nth-child(even) td{background:#f8fafc}
+.stat-chips{display:flex;gap:10px;flex-wrap:wrap}
+.stat-chip{display:flex;flex-direction:column;align-items:center;padding:10px 18px;border-radius:var(--radius-sm);min-width:80px}
+.stat-chip span{font-size:22px;font-weight:800;font-family:'Syne',sans-serif}
+.stat-chip small{font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+.stat-chip.green{background:#d1fae5;color:#065f46}
+.stat-chip.blue{background:#dbeafe;color:#1d4ed8}
+.stat-chip.red{background:#fee2e2;color:#991b1b}
+.btn-outline{display:flex;align-items:center;gap:6px;background:transparent;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);font-family:'DM Sans',sans-serif;transition:border-color .2s,color .2s}
+.btn-outline:hover{border-color:var(--navy);color:var(--navy)}
 
 /* ── LIST ── */
 .list-item{background:var(--white);border-radius:var(--radius-sm);padding:12px 13px;margin-bottom:8px;display:flex;align-items:center;gap:10px;box-shadow:0 1px 4px rgba(0,0,0,0.05);cursor:pointer;transition:transform .1s}
@@ -282,6 +304,7 @@ const Icons = {
   alert:`<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>`,
   key:`<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>`,
   copy:`<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>`,
+  upload:`<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>`,
 };
 const Ico = ({n,s=20,c=''}) => SVG(Icons[n]||'',s,c);
 
@@ -583,6 +606,7 @@ function HomePage({setPage}){
     {id:'acceso',label:'Control Acceso',  desc:'Entrada/salida personal',cls:'m-acc',icon:'userCheck',cnt:resumen?.control_acceso?.hoy},
     {id:'visit', label:'Visitantes',      desc:'Registro de visitas', cls:'m-vis',  icon:'users',   cnt:resumen?.visitantes?.hoy},
     {id:'bd',    label:'Base de Datos',   desc:'Catálogos maestros',  cls:'m-bd',   icon:'database',cnt:null},
+    {id:'carga', label:'Carga Masiva',    desc:'Importar desde Excel', cls:'m-carga',icon:'upload',  cnt:null},
     {id:'reg',   label:'Registros',       desc:'Historial y Excel',   cls:'m-reg',  icon:'fileText',cnt:null},
   ];
 
@@ -799,6 +823,163 @@ function FlotaPage({user,online,addOffline}){
       )
     ),
     confirm&&h(ConfirmSheet,{msg:'Se eliminará el registro de flota.',onOk:async()=>{await api.del(`/flota/${confirm}`);setConfirm(null);load();setAlert({type:'ok',msg:'Eliminado'});},onCancel:()=>setConfirm(null)})
+  );
+}
+
+/* ── CARGA MASIVA ── */
+function CargaMasivaPage(){
+  const TABS = [
+    {
+      id:'conductores', label:'Conductores',
+      cols:['codigo','conductor','n_cedula','celular','tipo'],
+      headers:['Código','Nombre','Cédula','Celular','Tipo (Propio/Tercero)'],
+      endpoint:'/carga/conductores',
+      required:['conductor'],
+    },
+    {
+      id:'vehiculos', label:'Vehículos',
+      cols:['placa','marca','modelo','color','anio','tipo','capacidad'],
+      headers:['Placa','Marca','Modelo','Color','Año','Tipo','Capacidad'],
+      endpoint:'/carga/vehiculos',
+      required:['placa'],
+    },
+    {
+      id:'empleados', label:'Empleados',
+      cols:['cedula','nombre','contratista','estado'],
+      headers:['Cédula','Nombre','Contratista','Estado (ACTIVO/INACTIVO)'],
+      endpoint:'/carga/empleados',
+      required:['cedula','nombre'],
+    },
+  ];
+
+  const [tab, setTab]       = useState('conductores');
+  const [rows, setRows]     = useState([]);
+  const [fileName, setFile] = useState('');
+  const [loading, setLoad]  = useState(false);
+  const [result, setResult] = useState(null);
+  const [err, setErr]       = useState('');
+
+  const tabDef = TABS.find(t=>t.id===tab);
+
+  useEffect(()=>{ setRows([]); setFile(''); setResult(null); setErr(''); }, [tab]);
+
+  const downloadTemplate = () => {
+    if(!window.XLSX){ setErr('Librería Excel no cargada aún, intenta de nuevo'); return; }
+    const wb = window.XLSX.utils.book_new();
+    const ws = window.XLSX.utils.aoa_to_sheet([tabDef.headers]);
+    ws['!cols'] = tabDef.headers.map(()=>({wch:20}));
+    window.XLSX.utils.book_append_sheet(wb, ws, tabDef.label);
+    window.XLSX.writeFile(wb, `plantilla_${tabDef.id}.xlsx`);
+  };
+
+  const handleFile = e => {
+    const file = e.target.files[0];
+    if(!file) return;
+    if(!window.XLSX){ setErr('Librería Excel no cargada, recarga la página'); return; }
+    setFile(file.name); setResult(null); setErr('');
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const wb = window.XLSX.read(ev.target.result, {type:'array'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = window.XLSX.utils.sheet_to_json(ws, {defval:''});
+        const normalized = raw.map(row=>{
+          const r = {};
+          tabDef.cols.forEach((col,i)=>{
+            const variants = [col, tabDef.headers[i]];
+            let val = '';
+            for(const k of Object.keys(row)){
+              if(variants.some(v=>v.toLowerCase()===k.toLowerCase().trim())){
+                val = row[k]; break;
+              }
+            }
+            r[col] = val;
+          });
+          return r;
+        }).filter(r=>tabDef.required.some(c=>String(r[c]||'').trim()!==''));
+        setRows(normalized);
+        if(normalized.length===0) setErr('No se encontraron filas válidas. Revisa que las columnas coincidan con la plantilla.');
+      } catch(ex){ setErr('Error al leer archivo: '+ex.message); }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value='';
+  };
+
+  const handleImport = async()=>{
+    if(!rows.length) return setErr('No hay datos para importar');
+    setLoad(true); setErr(''); setResult(null);
+    try {
+      const res = await api.post(tabDef.endpoint, {filas:rows});
+      setResult(res);
+      setRows([]); setFile('');
+    } catch(ex){
+      let m=ex.message||'Error'; try{m=JSON.parse(m).detail||m;}catch{}
+      setErr(m);
+    } finally { setLoad(false); }
+  };
+
+  return h('div',{className:'scroll-body'},
+    h('div',{className:'pad'},
+      h('div',{className:'tab-bar',style:{marginBottom:16}},
+        TABS.map(t=>h('button',{key:t.id,className:'tab-btn'+(tab===t.id?' act':''),onClick:()=>setTab(t.id)},t.label))
+      ),
+
+      h('div',{className:'fcard',style:{marginBottom:12}},
+        h('p',{className:'sec-ttl',style:{marginBottom:8}},'1 · Descarga la plantilla'),
+        h('button',{className:'btn-outline',onClick:downloadTemplate},
+          h(Ico,{n:'download',s:14}),`Plantilla ${tabDef.label}`
+        ),
+        h('p',{style:{fontSize:10,color:'var(--slate)',marginTop:6}},
+          `Columnas: ${tabDef.headers.join(' · ')}`
+        )
+      ),
+
+      h('div',{className:'fcard',style:{marginBottom:12}},
+        h('p',{className:'sec-ttl',style:{marginBottom:8}},'2 · Sube el archivo'),
+        h('label',{className:'upload-zone'},
+          h('input',{type:'file',accept:'.xlsx,.xls,.csv',style:{display:'none'},onChange:handleFile}),
+          h(Ico,{n:'upload',s:28,c:'upload-ico'}),
+          h('p',null, fileName||'Toca para seleccionar archivo'),
+          h('span',null,'.xlsx · .xls · .csv')
+        )
+      ),
+
+      err&&h('div',{className:'alert-err',style:{marginBottom:12}},h(Ico,{n:'alert',s:14}),err),
+
+      rows.length>0&&h('div',{className:'fcard',style:{marginBottom:12}},
+        h('p',{className:'sec-ttl',style:{marginBottom:8}},`3 · Vista previa — ${rows.length} registros`),
+        h('div',{style:{overflowX:'auto',marginBottom:10}},
+          h('table',{className:'preview-table'},
+            h('thead',null,h('tr',null,tabDef.cols.map(c=>h('th',{key:c},c)))),
+            h('tbody',null,
+              rows.slice(0,8).map((r,i)=>h('tr',{key:i},tabDef.cols.map(c=>h('td',{key:c},String(r[c]??'')))))
+            )
+          )
+        ),
+        rows.length>8&&h('p',{style:{fontSize:10,color:'var(--slate)',marginBottom:8}},`...y ${rows.length-8} registros más`),
+        h('button',{
+          className:'btn-primary',style:{width:'100%'},
+          onClick:handleImport,disabled:loading
+        }, loading?'Importando...':h('span',{style:{display:'flex',alignItems:'center',gap:6,justifyContent:'center'}},
+          h(Ico,{n:'upload',s:15}),`Importar ${rows.length} registros`
+        ))
+      ),
+
+      result&&h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl',style:{marginBottom:12}},'Resultado'),
+        h('div',{className:'stat-chips',style:{marginBottom:result.errores?.length?12:0}},
+          h('div',{className:'stat-chip green'},h('span',null,result.insertados),h('small',null,'Nuevos')),
+          h('div',{className:'stat-chip blue'},h('span',null,result.actualizados),h('small',null,'Actualizados')),
+          result.errores?.length>0&&h('div',{className:'stat-chip red'},h('span',null,result.errores.length),h('small',null,'Errores')),
+        ),
+        result.errores?.length>0&&h('div',null,
+          result.errores.slice(0,5).map((e,i)=>
+            h('p',{key:i,style:{fontSize:11,color:'var(--red)',marginBottom:2}},`Fila ${e.fila}: ${e.error}`)
+          ),
+          result.errores.length>5&&h('p',{style:{fontSize:10,color:'var(--slate)'}},`...y ${result.errores.length-5} errores más`)
+        )
+      )
+    )
   );
 }
 
@@ -1781,6 +1962,7 @@ function App(){
     acceso: h(AccesoPage,{user,online,addOffline}),
     visit:  h(VisitantesPage,{user,online,addOffline}),
     bd:     h(BaseDatosPage,{user}),
+    carga:  h(CargaMasivaPage,null),
     reg:    h(RegistrosPage,null),
   };
 
