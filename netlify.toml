@@ -2,10 +2,10 @@
   publish = "frontend"
   command = ""
 
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
 
 [[redirects]]
   from = "/*"
