@@ -274,7 +274,7 @@ const {useState,useEffect,useCallback,useRef} = React;
 const h = React.createElement;
 
 /* ── CONFIG ── */
-const API_BASE = window.location.hostname==='localhost'?'http://localhost:8000/api':'https://control-vehicular-v2.onrender.com/api';
+const API_BASE = window.location.hostname==='localhost'?'http://localhost:8000/api':'https://control-vehicular-api-production.up.railway.app/api';
 
 /* ── ICONS ── */
 const SVG = (paths,size=20,cls='')=>h('svg',{xmlns:'http://www.w3.org/2000/svg',width:size,height:size,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:'2',strokeLinecap:'round',strokeLinejoin:'round',className:cls,dangerouslySetInnerHTML:{__html:paths}});
