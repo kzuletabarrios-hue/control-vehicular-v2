@@ -327,7 +327,9 @@ const api = {
   _fetch: async (path,opts={}) => {
     const token = getToken();
     const headers = {'Content-Type':'application/json', ...(token?{Authorization:`Bearer ${token}`}:{})};
-    const r = await fetch(`${API_BASE}${path}`,{...opts,headers:{...headers,...(opts.headers||{})}});
+    const rawUrl = `${API_BASE}${path}`;
+    const safeUrl = rawUrl.startsWith('http:') ? rawUrl.replace('http:','https:') : rawUrl;
+    const r = await fetch(safeUrl,{...opts,headers:{...headers,...(opts.headers||{})}});
     if(r.status===401){
       const rt = getRefresh();
       if(rt){
