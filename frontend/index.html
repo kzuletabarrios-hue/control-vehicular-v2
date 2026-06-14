@@ -2115,6 +2115,11 @@ function BdConductoresTab(){
   );
 }
 
+const ROL_LABELS = {
+  admin:'Administrador', supervisor:'Supervisor', operador:'Operador', consulta:'Consulta',
+  guarda_bodega:'Guarda - Bodega', guarda_peatonal:'Guarda - Peatonal', guarda_vehicular:'Guarda - Vehicular',
+};
+
 function BdUsuariosTab(){
   const [view,setView]        = useState('list');
   const [records,setRecords]  = useState([]);
@@ -2169,8 +2174,7 @@ function BdUsuariosTab(){
         ),
         h('div',{className:'fg'},h('label',null,'Rol'),
           h('select',{value:form.rol,onChange:e=>setForm(p=>({...p,rol:e.target.value}))},
-            h('option',{value:'operador'},'Operador'),
-            h('option',{value:'admin'},'Administrador')
+            Object.entries(ROL_LABELS).map(([v,l])=>h('option',{key:v,value:v},l))
           )
         )
       )
@@ -2200,7 +2204,7 @@ function BdUsuariosTab(){
           h('div',{className:'li-sub'},r.email)
         ),
         h('div',{className:'li-right'},
-          h('span',{className:`pill ${r.rol==='admin'?'pill-amber':'pill-blue'}`},r.rol),
+          h('span',{className:`pill ${r.rol==='admin'?'pill-amber':'pill-blue'}`},ROL_LABELS[r.rol]||r.rol),
           h('div',{style:{display:'flex',alignItems:'center',gap:4,marginTop:4}},
             h('span',{className:`pill ${r.activo?'pill-green':'pill-slate'}`,style:{fontSize:9}},r.activo?'Activo':'Inactivo'),
             h('button',{title:r.activo?'Desactivar':'Activar',onClick:e=>handleToggle(r.id,e),
