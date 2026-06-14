@@ -126,6 +126,8 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 .m-bd    {background:linear-gradient(135deg,#1e293b,#334155)}
 .m-reg   {background:linear-gradient(135deg,#7f1d1d,#e11d48)}
 .m-carga {background:linear-gradient(135deg,#065f46,#059669)}
+.m-sust  {background:linear-gradient(135deg,#7f1d1d,#dc2626)}
+.m-herr  {background:linear-gradient(135deg,#451a03,#b45309)}
 
 /* ── CARGA MASIVA ── */
 .upload-zone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:2px dashed var(--border);border-radius:var(--radius-sm);padding:24px 16px;cursor:pointer;background:var(--bg);text-align:center;transition:border-color .2s;width:100%}
@@ -637,6 +639,8 @@ function HomePage({setPage,user}){
     {id:'prov',  label:'TGN · Proveedores',desc:'Vehículos terceros',     cls:'m-prov', icon:'package',  roles:['admin','supervisor','operador','guarda_vehicular'],cnt:resumen?.proveedores?.hoy},
     {id:'acceso',label:'Control Acceso',   desc:'Entrada/salida personal',cls:'m-acc',  icon:'userCheck',roles:['admin','supervisor','operador','guarda_peatonal'],  cnt:resumen?.control_acceso?.hoy},
     {id:'visit', label:'Visitantes',       desc:'Registro de visitas',    cls:'m-vis',  icon:'users',    roles:['admin','supervisor','operador','guarda_peatonal'],  cnt:resumen?.visitantes?.hoy},
+    {id:'sust',  label:'Sustancias',        desc:'Control de sustancias',  cls:'m-sust', icon:'alert',    roles:['admin','supervisor','operador','guarda_peatonal'],cnt:null},
+    {id:'herr',  label:'Herramientas',     desc:'Control de herramientas',cls:'m-herr', icon:'key',      roles:['admin','supervisor','operador','guarda_peatonal'],cnt:null},
     {id:'bd',    label:'Base de Datos',    desc:'Catálogos maestros',     cls:'m-bd',   icon:'database', roles:['admin','supervisor'],cnt:null},
     {id:'carga', label:'Carga Masiva',     desc:'Importar desde Excel',   cls:'m-carga',icon:'upload',   roles:['admin'],cnt:null},
     {id:'reg',   label:'Reportes',         desc:'Historial y Excel',      cls:'m-reg',  icon:'fileText', roles:['admin','supervisor','consulta'],cnt:null},
@@ -1378,32 +1382,10 @@ function AccesoPage({user,online,addOffline}){
     )
   );
 
-  const accesoTabs = [
-    {id:'personas',   label:'Personas',    icon:'userCheck'},
-    {id:'sustancias', label:'Sustancias',  icon:'alert'},
-    {id:'herramientas',label:'Herramientas',icon:'key'},
-  ];
-
-  if(tab!=='personas') return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
-    h('div',{style:{display:'flex',gap:6,padding:'8px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0,overflowX:'auto'}},
-      accesoTabs.map(t=>h('button',{key:t.id,onClick:()=>{setTab(t.id);setView('list');},
-        style:{flexShrink:0,padding:'7px 12px',borderRadius:8,fontSize:11,fontWeight:700,border:'1.5px solid',cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:4,
-          background:tab===t.id?'var(--navy2)':'none',color:tab===t.id?'#fff':'var(--slate)',borderColor:tab===t.id?'var(--navy2)':'var(--border)'}},
-        h(Ico,{n:t.icon,s:12}),t.label
-      ))
-    ),
-    h(ItemAccesoPage,{tipo:tab,user})
-  );
-
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
-    h('div',{style:{display:'flex',gap:6,padding:'8px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0,overflowX:'auto'}},
-      accesoTabs.map(t=>h('button',{key:t.id,onClick:()=>{setTab(t.id);setView('list');},
-        style:{flexShrink:0,padding:'7px 12px',borderRadius:8,fontSize:11,fontWeight:700,border:'1.5px solid',cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:4,
-          background:tab===t.id?'var(--navy2)':'none',color:tab===t.id?'#fff':'var(--slate)',borderColor:tab===t.id?'var(--navy2)':'var(--border)'}},
-        h(Ico,{n:t.icon,s:12}),t.label
-      )),
-      h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:11,fontWeight:700,fontFamily:'inherit'}},
-        h(Ico,{n:'plus',s:14}),' Nuevo'
+    h('div',{style:{display:'flex',gap:8,padding:'8px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
+      h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+        h(Ico,{n:'plus',s:15}),' Nuevo'
       )
     ),
     h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
@@ -2260,7 +2242,7 @@ function App(){
   const rol = user?.rol||'';
   const navItems =
     rol==='guarda_bodega'   ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'}]
-    :rol==='guarda_peatonal' ? [{id:'home',label:'Inicio',icon:'home'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'}]
+    :rol==='guarda_peatonal' ? [{id:'home',label:'Inicio',icon:'home'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'},{id:'sust',label:'Sust.',icon:'alert'},{id:'herr',label:'Herram.',icon:'key'}]
     :rol==='guarda_vehicular'? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'TGN',icon:'package'}]
     :[
       {id:'home',  label:'Inicio',  icon:'home'},
@@ -2276,6 +2258,8 @@ function App(){
     prov:   h(ProveedoresPage,{user,online,addOffline}),
     acceso: h(AccesoPage,{user,online,addOffline}),
     visit:  h(VisitantesPage,{user,online,addOffline}),
+    sust:   h(ItemAccesoPage,{tipo:'sustancias',user}),
+    herr:   h(ItemAccesoPage,{tipo:'herramientas',user}),
     bd:     h(BaseDatosPage,{user}),
     carga:  h(CargaMasivaPage,null),
     reg:    h(RegistrosPage,null),
