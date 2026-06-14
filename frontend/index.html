@@ -707,8 +707,14 @@ function FlotaPage({user,online,addOffline}){
   const [selected,setSelected] = useState(null);
   const [llegada,setLlegada]   = useState(null);
   const [horaLlegada,setHoraLlegada] = useState('');
-  const [salida,setSalida2]    = useState(null);
+  const [salida,setSalida2]          = useState(null);
   const [horaSalida2,setHoraSalida2] = useState('');
+  const [selloSalida,setSelloSalida] = useState('');
+  const [obsSalida,setObsSalida]     = useState('');
+  const [fotoSalida,setFotoSalida]   = useState(null);
+  const [selloLleg,setSelloLleg]     = useState('');
+  const [obsLleg,setObsLleg]         = useState('');
+  const [fotoLleg,setFotoLleg]       = useState(null);
   const esBodega    = user?.rol==='guarda_bodega';
   const esVehicular = user?.rol==='guarda_vehicular';
   const [cedulaBusq,setCedulaBusq]   = useState('');
@@ -903,15 +909,29 @@ function FlotaPage({user,online,addOffline}){
           h('button',{className:'btn-icon',onClick:()=>setLlegada(null)},h(Ico,{n:'x',s:16}))
         ),
         h('p',{style:{fontSize:13,color:'var(--slate)',marginBottom:12}},llegada.placa,' · ',llegada.conductor||''),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},
+            h('label',null,'Hora de llegada'),
+            h('input',{type:'time',value:horaLlegada,onChange:e=>setHoraLlegada(e.target.value)})
+          ),
+          h('div',{className:'fg'},
+            h('label',null,'N° Sello de regreso'),
+            h('input',{type:'text',value:selloLleg,onChange:e=>setSelloLleg(e.target.value),placeholder:'Ej: 123456'})
+          )
+        ),
         h('div',{className:'fg'},
-          h('label',null,'Hora de llegada'),
-          h('input',{type:'time',value:horaLlegada,onChange:e=>setHoraLlegada(e.target.value),style:{width:'100%',padding:'10px',border:'1.5px solid var(--border)',borderRadius:8,fontSize:15}})
+          h('label',null,'Observaciones (opcional)'),
+          h('textarea',{value:obsLleg,onChange:e=>setObsLleg(e.target.value),rows:2,placeholder:'—'})
+        ),
+        h('div',{className:'fg'},
+          h('label',null,'Foto (opcional)'),
+          h(CameraField,{value:fotoLleg,onChange:setFotoLleg})
         ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
           h('button',{className:'btn-cancel',onClick:()=>setLlegada(null)},'Cancelar'),
           h('button',{className:'btn-primary',onClick:async()=>{
-            await api.put(`/flota/${llegada.id}`,{hora_llegada:horaLlegada});
-            setLlegada(null);load();setAlert({type:'ok',msg:'Llegada registrada'});
+            await api.put(`/flota/${llegada.id}`,{hora_llegada:horaLlegada,sello_entrada:selloLleg||undefined,obs_llegada:obsLleg||undefined,foto_llegada:fotoLleg||undefined});
+            setLlegada(null);setSelloLleg('');setObsLleg('');setFotoLleg(null);load();setAlert({type:'ok',msg:'Llegada registrada'});
           }},h(Ico,{n:'checkCircle',s:16}),'Confirmar llegada')
         )
       )
@@ -923,15 +943,29 @@ function FlotaPage({user,online,addOffline}){
           h('button',{className:'btn-icon',onClick:()=>setSalida2(null)},h(Ico,{n:'x',s:16}))
         ),
         h('p',{style:{fontSize:13,color:'var(--slate)',marginBottom:12}},salida.placa,' · ',salida.conductor||''),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},
+            h('label',null,'Hora de salida CEDI'),
+            h('input',{type:'time',value:horaSalida2,onChange:e=>setHoraSalida2(e.target.value)})
+          ),
+          h('div',{className:'fg'},
+            h('label',null,'N° Sello de salida'),
+            h('input',{type:'text',value:selloSalida,onChange:e=>setSelloSalida(e.target.value),placeholder:'Ej: 123456'})
+          )
+        ),
         h('div',{className:'fg'},
-          h('label',null,'Hora de salida CEDI'),
-          h('input',{type:'time',value:horaSalida2,onChange:e=>setHoraSalida2(e.target.value),style:{width:'100%',padding:'10px',border:'1.5px solid var(--border)',borderRadius:8,fontSize:15}})
+          h('label',null,'Observaciones (opcional)'),
+          h('textarea',{value:obsSalida,onChange:e=>setObsSalida(e.target.value),rows:2,placeholder:'—'})
+        ),
+        h('div',{className:'fg'},
+          h('label',null,'Foto (opcional)'),
+          h(CameraField,{value:fotoSalida,onChange:setFotoSalida})
         ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
           h('button',{className:'btn-cancel',onClick:()=>setSalida2(null)},'Cancelar'),
           h('button',{className:'btn-primary',style:{background:'#059669'},onClick:async()=>{
-            await api.put(`/flota/${salida.id}`,{hora_salida_cedi:horaSalida2});
-            setSalida2(null);load();setAlert({type:'ok',msg:'Salida registrada'});
+            await api.put(`/flota/${salida.id}`,{hora_salida_cedi:horaSalida2,sello:selloSalida||undefined,obs_salida:obsSalida||undefined,foto_salida:fotoSalida||undefined});
+            setSalida2(null);setSelloSalida('');setObsSalida('');setFotoSalida(null);load();setAlert({type:'ok',msg:'Salida registrada'});
           }},h(Ico,{n:'checkCircle',s:16}),'Confirmar salida')
         )
       )

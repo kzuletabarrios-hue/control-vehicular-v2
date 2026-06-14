@@ -74,6 +74,7 @@ def crear(
         "protocolo", "sello", "sello_entrada",
         "hora_salida_muelle", "temperatura", "hora_salida_cedi", "hora_llegada",
         "observacion", "foto_url",
+        "obs_salida", "foto_salida", "obs_llegada", "foto_llegada",
     ]
     vals = {c: body.get(c) for c in campos}
     vals["id"] = rid
@@ -112,6 +113,7 @@ def actualizar(
         "protocolo", "sello", "sello_entrada",
         "hora_salida_muelle", "temperatura", "hora_salida_cedi", "hora_llegada",
         "observacion", "foto_url",
+        "obs_salida", "foto_salida", "obs_llegada", "foto_llegada",
     ]
     vals = {c: body[c] for c in campos if c in body}
     if not vals:
