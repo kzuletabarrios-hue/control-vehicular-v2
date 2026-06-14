@@ -2268,9 +2268,15 @@ function PlaceholderPage({label,setPage}){
 /* ── APP ROOT ── */
 function App(){
   const [user,setUser]       = useState(getUser);
-  const [page,setPage]       = useState('home');
+  const [page,setPageState]  = useState('home');
   const [online,setOnline]   = useState(navigator.onLine);
   const [queue,setQueue]     = useState(getQueue);
+
+  const navigate = (newPage)=>{
+    if(newPage===page) return;
+    window.history.pushState({page:newPage},'','');
+    setPageState(newPage);
+  };
 
   useEffect(()=>{
     const on  = ()=>setOnline(true);
@@ -2278,6 +2284,13 @@ function App(){
     window.addEventListener('online',on);
     window.addEventListener('offline',off);
     return ()=>{ window.removeEventListener('online',on); window.removeEventListener('offline',off); };
+  },[]);
+
+  useEffect(()=>{
+    window.history.replaceState({page:'home'},'','');
+    const onPop = e=>setPageState(e.state?.page||'home');
+    window.addEventListener('popstate',onPop);
+    return ()=>window.removeEventListener('popstate',onPop);
   },[]);
 
   const addOffline = (item)=>{ addToQueue(item); setQueue(getQueue()); };
@@ -2313,7 +2326,7 @@ function App(){
     ];
 
   const pageContent = {
-    home:   h(HomePage,{setPage,user}),
+    home:   h(HomePage,{setPage:navigate,user}),
     flota:  h(FlotaPage,{user,online,addOffline}),
     prov:   h(ProveedoresPage,{user,online,addOffline}),
     acceso: h(AccesoPage,{user,online,addOffline}),
@@ -2326,7 +2339,7 @@ function App(){
   };
 
   return h('div',{style:{display:'flex',flexDirection:'column',height:'100vh',position:'relative'}},
-    h(AppHeader,{user,page,setPage,online,offlineQueue:queue.length}),
+    h(AppHeader,{user,page,setPage:navigate,online,offlineQueue:queue.length}),
     queue.length>0&&online&&h('div',{className:'queue-banner'},
       h(Ico,{n:'wifi',s:14}),
       h('p',null,`${queue.length} registros pendientes de sincronizar`),
@@ -2334,7 +2347,7 @@ function App(){
     ),
     pageContent[page]||pageContent['home'],
     h('nav',{className:'bnav'},
-      navItems.map(it=>h('button',{key:it.id,className:`nav-btn ${page===it.id?'act':''}`,onClick:()=>setPage(it.id)},
+      navItems.map(it=>h('button',{key:it.id,className:`nav-btn ${page===it.id?'act':''}`,onClick:()=>navigate(it.id)},
         page===it.id&&h('div',{className:'nav-dot'}),
         h(Ico,{n:it.icon,s:22}),
         h('span',null,it.label)
