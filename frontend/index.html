@@ -668,7 +668,7 @@ function FlotaPage({user,online,addOffline}){
 
   const load = useCallback(()=>{
     setLoading(true);
-    Promise.all([api.get('/flota/'),api.get('/conductores/?activo=true&limit=200')])
+    Promise.all([api.get('/flota'),api.get('/conductores?activo=true&limit=200')])
       .then(([r,c])=>{setRecords(r.items||r);setCond(c);})
       .catch(()=>setAlert({type:'err',msg:'Error cargando datos'}))
       .finally(()=>setLoading(false));
@@ -697,7 +697,7 @@ function FlotaPage({user,online,addOffline}){
         return;
       }
       if(selected) await api.put(`/flota/${selected.id}`,body);
-      else await api.post('/flota/',body);
+      else await api.post('/flota',body);
       setAlert({type:'ok',msg:'Registro guardado exitosamente'});
       setView('list'); setForm(emptyF); setSelected(null); load();
     }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
@@ -1692,7 +1692,7 @@ function BdConductoresTab(){
 
   const load = useCallback(()=>{
     setLoading(true);
-    api.get('/conductores/').then(setRecords).catch(()=>setAlert({type:'err',msg:'Error cargando conductores'})).finally(()=>setLoading(false));
+    api.get('/conductores').then(setRecords).catch(()=>setAlert({type:'err',msg:'Error cargando conductores'})).finally(()=>setLoading(false));
   },[]);
   useEffect(()=>load(),[load]);
 
