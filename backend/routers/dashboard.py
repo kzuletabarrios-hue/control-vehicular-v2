@@ -56,6 +56,24 @@ def resumen(
         LIMIT 10
     """), {"d": hace30}).fetchall()
 
+    # Pendientes: vehículos sin llegada
+    flota_sin_llegada = db.execute(text("""
+        SELECT placa, conductor, hora_salida_cedi::text AS hora_salida, fecha::text
+        FROM flota_propia
+        WHERE hora_salida_cedi IS NOT NULL AND hora_llegada IS NULL
+        ORDER BY fecha DESC, hora_salida_cedi DESC
+        LIMIT 20
+    """)).fetchall()
+
+    # Pendientes: personas sin salida
+    acceso_sin_salida = db.execute(text("""
+        SELECT nombre, contratista, hora_ingreso::text, fecha::text
+        FROM control_acceso
+        WHERE hora_ingreso IS NOT NULL AND hora_salida IS NULL
+        ORDER BY fecha DESC, hora_ingreso DESC
+        LIMIT 20
+    """)).fetchall()
+
     return {
         "fecha": hoy,
         "flota": {
@@ -77,4 +95,8 @@ def resumen(
         },
         "ultimas_placas": [dict(r._mapping) for r in ultimas_placas],
         "top_empresas_proveedores": [dict(r._mapping) for r in empresas],
+        "pendientes": {
+            "flota_sin_llegada": [dict(r._mapping) for r in flota_sin_llegada],
+            "acceso_sin_salida": [dict(r._mapping) for r in acceso_sin_salida],
+        },
     }

@@ -608,37 +608,81 @@ function AppHeader({user,page,setPage,online,offlineQueue}){
 }
 
 /* ── HOME PAGE ── */
-function HomePage({setPage}){
+function StatCard({label,value,color,icon}){
+  return h('div',{style:{background:'#fff',borderRadius:12,padding:'14px 12px',boxShadow:'0 2px 8px rgba(0,0,0,0.07)',display:'flex',alignItems:'center',gap:10}},
+    h('div',{style:{width:40,height:40,borderRadius:10,background:color+'22',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}},
+      h(Ico,{n:icon,s:20,style:{color}})
+    ),
+    h('div',null,
+      h('div',{style:{fontSize:22,fontWeight:800,fontFamily:'Syne,sans-serif',color,lineHeight:1}},value??'—'),
+      h('div',{style:{fontSize:11,color:'var(--slate)',fontWeight:600,marginTop:2}},label)
+    )
+  );
+}
+
+function HomePage({setPage,user}){
   const [resumen,setResumen] = useState(null);
   const fechaHoy = new Date().toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'});
-  useEffect(()=>{ api.get('/dashboard/resumen').then(setResumen).catch(()=>{}); },[]);
+  const rol = user?.rol||'';
+  const isAdmin = ['admin','supervisor','operador'].includes(rol);
+  const isGuardaBodega   = rol==='guarda_bodega';
+  const isGuardaPeatonal = rol==='guarda_peatonal';
+  const isGuardaVehicular= rol==='guarda_vehicular';
 
-  const mods = [
-    {id:'flota', label:'Flota Propia',    desc:'Salidas de vehículos', cls:'m-flota',icon:'truck',   cnt:resumen?.flota?.hoy},
-    {id:'prov',  label:'TGN · Proveedores',desc:'Vehículos terceros', cls:'m-prov', icon:'package', cnt:resumen?.proveedores?.hoy},
-    {id:'acceso',label:'Control Acceso',  desc:'Entrada/salida personal',cls:'m-acc',icon:'userCheck',cnt:resumen?.control_acceso?.hoy},
-    {id:'visit', label:'Visitantes',      desc:'Registro de visitas', cls:'m-vis',  icon:'users',   cnt:resumen?.visitantes?.hoy},
-    {id:'bd',    label:'Base de Datos',   desc:'Catálogos maestros',  cls:'m-bd',   icon:'database',cnt:null},
-    {id:'carga', label:'Carga Masiva',    desc:'Importar desde Excel', cls:'m-carga',icon:'upload',  cnt:null},
-    {id:'reg',   label:'Registros',       desc:'Historial y Excel',   cls:'m-reg',  icon:'fileText',cnt:null},
+  const cargar = ()=>api.get('/dashboard/resumen').then(setResumen).catch(()=>{});
+  useEffect(()=>{ cargar(); const t=setInterval(cargar,60000); return ()=>clearInterval(t); },[]);
+
+  const allMods = [
+    {id:'flota', label:'Flota Propia',     desc:'Salidas de vehículos',   cls:'m-flota',icon:'truck',    roles:['admin','supervisor','operador','guarda_bodega'],   cnt:resumen?.flota?.hoy},
+    {id:'prov',  label:'TGN · Proveedores',desc:'Vehículos terceros',     cls:'m-prov', icon:'package',  roles:['admin','supervisor','operador','guarda_vehicular'],cnt:resumen?.proveedores?.hoy},
+    {id:'acceso',label:'Control Acceso',   desc:'Entrada/salida personal',cls:'m-acc',  icon:'userCheck',roles:['admin','supervisor','operador','guarda_peatonal'],  cnt:resumen?.control_acceso?.hoy},
+    {id:'visit', label:'Visitantes',       desc:'Registro de visitas',    cls:'m-vis',  icon:'users',    roles:['admin','supervisor','operador','guarda_vehicular'],cnt:resumen?.visitantes?.hoy},
+    {id:'bd',    label:'Base de Datos',    desc:'Catálogos maestros',     cls:'m-bd',   icon:'database', roles:['admin','supervisor'],cnt:null},
+    {id:'carga', label:'Carga Masiva',     desc:'Importar desde Excel',   cls:'m-carga',icon:'upload',   roles:['admin'],cnt:null},
+    {id:'reg',   label:'Reportes',         desc:'Historial y Excel',      cls:'m-reg',  icon:'fileText', roles:['admin','supervisor','consulta'],cnt:null},
   ];
+  const mods = allMods.filter(m=>m.roles.includes(rol));
+
+  const flotaPend  = resumen?.flota?.en_ruta||0;
+  const accesoPend = resumen?.control_acceso?.activos_sin_salida||0;
+  const pendFlota  = resumen?.pendientes?.flota_sin_llegada||[];
+  const pendAcceso = resumen?.pendientes?.acceso_sin_salida||[];
+
+  const showFlotaStats   = isAdmin||isGuardaBodega;
+  const showAccesoStats  = isAdmin||isGuardaPeatonal;
+  const showProvStats    = isAdmin||isGuardaVehicular;
 
   return h('div',{className:'scroll-body'},
-    resumen&&h('div',{className:'chips'},
-      [
-        {k:'flota.hoy',     l:'Flota hoy'},
-        {k:'flota.en_ruta', l:'En ruta', color:'#f59e0b'},
-        {k:'proveedores.hoy',l:'TGN'},
-        {k:'control_acceso.hoy',l:'Acceso'},
-      ].map(({k,l,color})=>h('div',{key:k,className:'chip'},
-        h('span',{className:'chip-num',style:color?{color}:{}},
-          k.split('.').reduce((o,p)=>o?.[p],resumen)||0
+    h('div',{style:{padding:'12px 14px 0'}},
+      h('p',{style:{fontSize:11,color:'var(--slate)',textTransform:'capitalize',marginBottom:10,fontWeight:500}},fechaHoy),
+      resumen&&h('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginBottom:12}},
+        showFlotaStats&&h(StatCard,{label:'Flota hoy',       value:resumen.flota.hoy,          color:'#1e4570',icon:'truck'}),
+        showFlotaStats&&h(StatCard,{label:'En ruta',          value:resumen.flota.en_ruta,      color:'#f59e0b',icon:'truck'}),
+        showAccesoStats&&h(StatCard,{label:'Acceso hoy',     value:resumen.control_acceso.hoy, color:'#7c3aed',icon:'userCheck'}),
+        showAccesoStats&&h(StatCard,{label:'Sin salida',     value:accesoPend,                  color:'#e11d48',icon:'userCheck'}),
+        showProvStats&&h(StatCard,{label:'TGN hoy',          value:resumen.proveedores.hoy,    color:'#d97706',icon:'package'}),
+        showProvStats&&h(StatCard,{label:'Visitantes hoy',   value:resumen.visitantes.hoy,     color:'#059669',icon:'users'})
+      ),
+      (flotaPend>0||accesoPend>0)&&h('div',{style:{background:'#fff',border:'2px solid #fcd34d',borderRadius:12,padding:12,marginBottom:12}},
+        h('p',{style:{fontWeight:700,fontSize:13,color:'#92400e',marginBottom:8,display:'flex',alignItems:'center',gap:6}},
+          h(Ico,{n:'alert',s:14}),'Pendientes de cierre'
         ),
-        h('span',{className:'chip-lbl'},l)
-      ))
+        flotaPend>0&&h('div',null,
+          h('p',{style:{fontSize:12,fontWeight:600,color:'#1e4570',marginBottom:4}},`${flotaPend} vehículo(s) fuera sin llegada:`),
+          pendFlota.map((v,i)=>h('div',{key:i,style:{fontSize:11,color:'var(--slate)',padding:'3px 8px',background:'#f8fafc',borderRadius:6,marginBottom:3}},
+            h('strong',null,v.placa),' · ',v.conductor||'—',' · Salió: ',v.hora_salida||'—',' (',v.fecha,')'
+          ))
+        ),
+        flotaPend>0&&accesoPend>0&&h('div',{style:{height:1,background:'#fde68a',margin:'8px 0'}}),
+        accesoPend>0&&h('div',null,
+          h('p',{style:{fontSize:12,fontWeight:600,color:'#7c3aed',marginBottom:4}},`${accesoPend} persona(s) dentro sin salida:`),
+          pendAcceso.map((v,i)=>h('div',{key:i,style:{fontSize:11,color:'var(--slate)',padding:'3px 8px',background:'#f8fafc',borderRadius:6,marginBottom:3}},
+            h('strong',null,v.nombre),' · ',v.contratista||'—',' · Ingresó: ',v.hora_ingreso||'—',' (',v.fecha,')'
+          ))
+        )
+      )
     ),
     h('div',{className:'pad'},
-      h('p',{style:{fontSize:11,color:'var(--slate)',textTransform:'capitalize',marginBottom:12,fontWeight:500}},fechaHoy),
       h('div',{className:'mgrid'},
         mods.map(m=>h('button',{key:m.id,className:`mcard ${m.cls}`,onClick:()=>setPage(m.id)},
           m.cnt!=null&&h('span',{className:'mcnt'},m.cnt),
@@ -831,8 +875,8 @@ function FlotaPage({user,online,addOffline}){
               onClick:(e)=>{e.stopPropagation();setLlegada(r);setHoraLlegada(new Date().toTimeString().slice(0,5));},
               style:{background:'#f59e0b',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Llegada'),
-            h('button',{title:'Duplicar',onClick:()=>handleDuplicate(r),style:{background:'none',border:'none',cursor:'pointer',color:'var(--slate)',padding:2}},h(Ico,{n:'copy',s:14})),
-            h('button',{title:'Eliminar',onClick:()=>setConfirm(r.id),style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
+            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Duplicar',onClick:()=>handleDuplicate(r),style:{background:'none',border:'none',cursor:'pointer',color:'var(--slate)',padding:2}},h(Ico,{n:'copy',s:14})),
+            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:()=>setConfirm(r.id),style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
           )
         )
       ))
@@ -1989,16 +2033,21 @@ function App(){
 
   if(!user) return h(LoginPage,{onLogin:(u)=>setUser(u)});
 
-  const navItems = [
-    {id:'home',  label:'Inicio',  icon:'home'},
-    {id:'flota', label:'Flota',   icon:'truck'},
-    {id:'acceso',label:'Acceso',  icon:'userCheck'},
-    {id:'visit', label:'Visitas', icon:'users'},
-    {id:'reg',   label:'Reportes',icon:'fileText'},
-  ];
+  const rol = user?.rol||'';
+  const navItems =
+    rol==='guarda_bodega'   ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'}]
+    :rol==='guarda_peatonal' ? [{id:'home',label:'Inicio',icon:'home'},{id:'acceso',label:'Acceso',icon:'userCheck'}]
+    :rol==='guarda_vehicular'? [{id:'home',label:'Inicio',icon:'home'},{id:'prov',label:'TGN',icon:'package'},{id:'visit',label:'Visitas',icon:'users'}]
+    :[
+      {id:'home',  label:'Inicio',  icon:'home'},
+      {id:'flota', label:'Flota',   icon:'truck'},
+      {id:'acceso',label:'Acceso',  icon:'userCheck'},
+      {id:'visit', label:'Visitas', icon:'users'},
+      {id:'reg',   label:'Reportes',icon:'fileText'},
+    ];
 
   const pageContent = {
-    home:   h(HomePage,{setPage}),
+    home:   h(HomePage,{setPage,user}),
     flota:  h(FlotaPage,{user,online,addOffline}),
     prov:   h(ProveedoresPage,{user,online,addOffline}),
     acceso: h(AccesoPage,{user,online,addOffline}),
