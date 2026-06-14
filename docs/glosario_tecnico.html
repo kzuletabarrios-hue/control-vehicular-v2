@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<title>Glosario Técnico - Control de Acceso y Operaciones CEDI R10</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',sans-serif;color:#1e293b;background:#fff;font-size:14px;line-height:1.6}
+  .page{max-width:860px;margin:0 auto;padding:40px 48px}
+
+  /* PORTADA */
+  .portada{background:linear-gradient(160deg,#0f2440 0%,#1e4570 60%,#1a3a5c 100%);min-height:220px;border-radius:20px;padding:48px 48px;margin-bottom:48px;color:#fff;position:relative;overflow:hidden}
+  .portada::after{content:'';position:absolute;bottom:-40px;right:-40px;width:200px;height:200px;border-radius:50%;background:rgba(245,158,11,0.1)}
+  .portada-label{background:rgba(245,158,11,0.2);border:1px solid rgba(245,158,11,0.5);color:#fcd34d;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:5px 14px;border-radius:20px;display:inline-block;margin-bottom:24px}
+  .portada h1{font-family:'Syne',sans-serif;font-size:34px;font-weight:800;margin-bottom:12px;line-height:1.2}
+  .portada h2{font-size:16px;font-weight:400;color:rgba(255,255,255,0.7)}
+
+  /* TIPOGRAFÍA */
+  h2.sec{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#0f2440;margin:40px 0 16px;padding-bottom:10px;border-bottom:3px solid #f59e0b}
+  p{margin-bottom:12px;color:#475569}
+  .intro{color:#475569;margin-bottom:8px}
+
+  /* TÉRMINOS */
+  .term{display:flex;gap:14px;margin-bottom:16px;align-items:flex-start;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px}
+  .term-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+  .term-body h4{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:#0f2440;margin-bottom:4px}
+  .term-body p{font-size:12.5px;color:#64748b;margin:0}
+  .term-body .ej{display:inline-block;margin-top:6px;font-size:11px;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:3px 8px;font-weight:600}
+
+  /* DIAGRAMA */
+  .diagrama{background:#0f2440;border-radius:16px;padding:32px;color:#fff;margin:24px 0}
+  .diagrama h3{font-family:'Syne',sans-serif;font-size:16px;color:#fcd34d;margin-bottom:20px;text-align:center}
+  .flujo{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .flujo-item{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:14px 20px;text-align:center;width:100%;max-width:420px}
+  .flujo-item strong{display:block;font-size:13px;color:#fff;margin-bottom:2px}
+  .flujo-item span{font-size:11px;color:rgba(255,255,255,0.6)}
+  .flujo-arrow{font-size:18px;color:#fcd34d}
+
+  @media print{
+    .page{padding:20px 24px}
+    h2.sec{page-break-before:auto}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="portada">
+    <div class="portada-label">Documento de Referencia · Uso interno</div>
+    <h1>Glosario Técnico</h1>
+    <h2>Conceptos clave para entender cómo funciona el Sistema de Control de Acceso y Operaciones CEDI R10</h2>
+  </div>
+
+  <p class="intro">Esta guía explica, en lenguaje sencillo, los términos técnicos que componen la aplicación. No es necesario saber programar para entenderlos: cada concepto incluye una explicación corta y un ejemplo dentro del propio sistema.</p>
+
+  <!-- 1. ESTRUCTURA GENERAL -->
+  <h2 class="sec">1. Estructura general de la app</h2>
+
+  <div class="term">
+    <div class="term-icon" style="background:#dbeafe">🖥️</div>
+    <div class="term-body">
+      <h4>Frontend</h4>
+      <p>Es la parte de la app que el usuario ve y toca: pantallas, botones, formularios, menús.</p>
+      <span class="ej">Ejemplo: la pantalla de "Flota Propia" donde el guarda llena los datos del vehículo.</span>
+    </div>
+  </div>
+
+  <div class="term">
+    <div class="term-icon" style="background:#fef3c7">⚙️</div>
+    <div class="term-body">
+      <h4>Backend</h4>
+      <p>Es el "cerebro" que corre en un servidor: recibe lo que el usuario hace en el frontend, valida permisos, guarda y devuelve información.</p>
+      <span class="ej">Ejemplo: cuando se guarda un registro de vehículo, el backend lo valida y lo escribe en la base de datos.</span>
+    </div>
+  </div>
+
+  <div class="term">
+    <div class="term-icon" style="background:#d1fae5">🔌</div>
+    <div class="term-body">
+      <h4>API (Application Programming Interface)</h4>
+      <p>Es el "menú de pedidos" que ofrece el backend. El frontend pide o envía datos usando estas "direcciones" llamadas endpoints.</p>
+      <span class="ej">Ejemplo: <code>/api/flota</code> sirve para crear o consultar registros de Flota Propia.</span>
+    </div>
+  </div>
+
+  <div class="term">
+    <div class="term-icon" style="background:#ede9fe">📍</div>
+    <div class="term-body">
+      <h4>Endpoint</h4>
+      <p>Es cada "dirección" específica dentro de la API, dedicada a una función concreta.</p>
+      <span class="ej">Ejemplo: <code>/api/auth/login</code> para iniciar sesión, <code>/api/dashboard/resumen</code> para los datos del panel principal.</span>
+    </div>
+  </div>
+
+  <div class="term">
+    <div class="term-icon" style="background:#fee2e2">🗄️</div>
+    <div class="term-body">
+      <h4>Base de datos</h4>
+      <p>Es donde se guarda permanentemente toda la información: vehículos, conductores, usuarios, registros de entrada y salida. Sin ella, todo se perdería al cerrar la app.</p>
+      <span class="ej">Ejemplo: la tabla "distribución" guarda el código, nombre y dirección de cada tienda.</span>
+    </div>
+  </div>
+
+  <!-- 2. INFRAESTRUCTURA -->
+  <h2 class="sec">2. Infraestructura — dónde "vive" la app</h2>
+
+  <div class="term">
+    <div class="term-icon" style="background:#f0f9ff">🟢</div>
+    <div class="term-body">
+      <h4>Supabase</h4>
+      <p>Servicio en la nube que ofrece la base de datos (PostgreSQL) ya lista para usar, sin tener que instalar ni mantener un servidor propio.</p>
+      <span class="ej">Ahí se guardan todas las tablas: conductores, vehículos, usuarios, tiendas, registros, etc.</span>
+    </div>
+  </div>
+
+  <div class="term">
+    <div class="term-icon" style="background:#eff6ff">🐘</div>
+    <div class="term-body">
+      <h4>PostgreSQL</h4>
+      <p>Es el motor de base de datos que usa Supabase: organiza la información en tablas con filas y columnas, como una hoja de cálculo muy potente.</p>
+    </div>
+  </div>
+
+  <div class="term">
+    <div class="term-icon" style="background:#fef3c7">🚂</div>
+    <div class="term-body">
+      <h4>Railway</h4>
+      <p>Servicio en la nube donde "corre" el backend (el código Python). Cada vez que se sube un cambio al código, Railway lo despliega automáticamente.</p>
+    </div>
+  </div>
+
+  <div class="term">
+    <div class="term-icon" style="background:#d1fae5">▲</div>
+    <div class="term-body">
+      <h4>Vercel</h4>
+      <p>Servicio en la nube donde "corre" el frontend (la página web). También se actualiza solo cada vez que hay un cambio en el código.</p>
+    </div>
+  </div>
+
+  <div class="term">
+    <div class="term-icon" style="background:#ede9fe">🚀</div>
+    <div class="term-body">
+      <h4>Deploy (Despliegue)</h4>
+      <p>Proceso de "publicar" una nueva versión del código para que quede disponible en internet, sin que el usuario tenga que instalar nada.</p>
+    </div>
+  </div>
+
+  <div class="term">
+    <div class="term-icon" style="background:#fee2e2">🌐</div>
+    <div class="term-body">
+      <h4>Dominio / URL</h4>
+      <p>La dirección web pública donde se accede a la app desde cualquier navegador.</p>
+      <span class="ej">Ejemplo: <code>https://control-vehicular-v2.vercel.app</code></span>
+    </div>
+  </div>
+
+  <div class="term">
+    <div class="term-icon" style="background:#f0f9ff">🔗</div>
+    <div class="term-body">
+      <h4>Proxy</h4>
+      <p>Un "puente" configurado en Vercel que redirige las peticiones que empiezan con <code>/api/</code> hacia el backend en Railway, para que todo funcione como un solo sitio.</p>
+    </div>
+  </div>
+
+  <!-- 3. SEGURIDAD -->
+  <h2 class="sec">3. Seguridad y acceso</h2>
+
+  <div class="term">
+    <div class="term-icon" style="background:#eff6ff">🔐</div>
+    <div class="term-body">
+      <h4>Autenticación</h4>
+      <p>El proceso de comprobar "¿quién eres?", normalmente con correo y contraseña.</p>
+    </div>
+  </div>
+
+  <div class="term">
+    <div class="term-icon" style="background:#fef3c7">🎫</div>
+    <div class="term-body">
+      <h4>JWT (Token de acceso)</h4>
+      <p>Es como una "pulsera digital" que el sistema entrega al usuario al iniciar sesión. El frontend la guarda y la presenta en cada acción para demostrar que ya inició sesión, sin pedir la contraseña otra vez.</p>
+    </div>
+  </div>
+
+  <div class="term">
+    <div class="term-icon" style="background:#d1fae5">🛂</div>
+    <div class="term-body">
+      <h4>Roles y permisos</h4>
+      <p>Una vez el sistema sabe quién eres, decide qué puedes ver y hacer.</p>
+      <span class="ej">Ejemplo: un "guarda_bodega" solo ve Flota Propia; un "admin" ve y administra todo.</span>
+    </div>
+  </div>
+
+  <div class="term">
+    <div class="term-icon" style="background:#ede9fe">🔑</div>
+    <div class="term-body">
+      <h4>Variables de entorno</h4>
+      <p>Datos sensibles o de configuración (como contraseñas de la base de datos) que no se escriben dentro del código, sino que se configuran por fuera, en Railway y Vercel. Así el código puede ser público sin exponer las claves reales.</p>
+    </div>
+  </div>
+
+  <!-- 4. DESARROLLO -->
+  <h2 class="sec">4. Código y desarrollo</h2>
+
+  <div class="term">
+    <div class="term-icon" style="background:#fee2e2">📂</div>
+    <div class="term-body">
+      <h4>Repositorio (GitHub)</h4>
+      <p>La "carpeta maestra" en internet donde vive todo el código del proyecto, con el historial completo de cambios.</p>
+    </div>
+  </div>
+
+  <div class="term">
+    <div class="term-icon" style="background:#f0f9ff">📝</div>
+    <div class="term-body">
+      <h4>Commit / Push</h4>
+      <p><strong>Commit:</strong> guardar un "punto de control" con los cambios realizados, junto a un mensaje que explica qué se hizo. <strong>Push:</strong> enviar esos cambios al repositorio en GitHub, lo cual activa automáticamente el redeploy en Railway y Vercel.</p>
+    </div>
+  </div>
+
+  <div class="term">
+    <div class="term-icon" style="background:#eff6ff">🔄</div>
+    <div class="term-body">
+      <h4>CRUD</h4>
+      <p>Las 4 operaciones básicas de cualquier sistema con datos: <strong>C</strong>rear, <strong>R</strong>eer (leer), <strong>U</strong>pdate (actualizar) y <strong>D</strong>elete (eliminar).</p>
+      <span class="ej">Ejemplo: crear un registro de vehículo, listar los existentes, editarlo o eliminarlo.</span>
+    </div>
+  </div>
+
+  <div class="term">
+    <div class="term-icon" style="background:#fef3c7">⚛️</div>
+    <div class="term-body">
+      <h4>React</h4>
+      <p>La herramienta con la que está construido el frontend. Permite que la pantalla se actualice al instante cuando cambian los datos, sin recargar la página.</p>
+    </div>
+  </div>
+
+  <div class="term">
+    <div class="term-icon" style="background:#d1fae5">🐍</div>
+    <div class="term-body">
+      <h4>FastAPI</h4>
+      <p>La herramienta con la que está construido el backend, en lenguaje Python. Permite definir los endpoints de la API de forma rápida, ordenada y segura.</p>
+    </div>
+  </div>
+
+  <!-- DIAGRAMA -->
+  <h2 class="sec">5. Cómo se conecta todo</h2>
+  <div class="diagrama">
+    <h3>Recorrido de una acción dentro de la app</h3>
+    <div class="flujo">
+      <div class="flujo-item"><strong>👤 Usuario (celular o PC)</strong><span>Abre la app desde el navegador</span></div>
+      <div class="flujo-arrow">↓</div>
+      <div class="flujo-item"><strong>🖥️ Frontend — Vercel</strong><span>Lo que el usuario ve y usa (React)</span></div>
+      <div class="flujo-arrow">↓ pide datos vía /api/...</div>
+      <div class="flujo-item"><strong>⚙️ Backend — Railway</strong><span>Valida el login, los permisos y la lógica (FastAPI)</span></div>
+      <div class="flujo-arrow">↓ lee y escribe datos</div>
+      <div class="flujo-item"><strong>🗄️ Base de datos — Supabase</strong><span>Guarda todo de forma permanente (PostgreSQL)</span></div>
+    </div>
+  </div>
+
+  <div style="margin-top:40px;text-align:center;color:#94a3b8;font-size:11px;border-top:1px solid #e2e8f0;padding-top:20px">
+    Glosario Técnico · Sistema de Control de Acceso y Operaciones · CEDI R10 · Junio 2026 · Confidencial
+  </div>
+
+</div>
+</body>
+</html>
