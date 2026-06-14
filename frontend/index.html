@@ -1189,8 +1189,10 @@ function AccesoPage({user,online,addOffline}){
   const [alert,setAlert]     = useState(null);
   const [confirm,setConfirm] = useState(null);
   const [selected,setSelected]= useState(null);
-  const [salida,setSalida]   = useState(null);
+  const [salida,setSalida]         = useState(null);
   const [horaSalida,setHoraSalida] = useState('');
+  const [obsSalida,setObsSalida]   = useState('');
+  const [fotoSalida,setFotoSalida] = useState(null);
   const [sugerencias,setSugerencias] = useState([]);
   const [contratistas,setContratistas] = useState([]);
   const emptyF = {fecha:today(),cedula:'',nombre:'',contratista:'',hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',observaciones:''};
@@ -1326,13 +1328,24 @@ function AccesoPage({user,online,addOffline}){
         h('p',{style:{fontSize:13,color:'var(--slate)',marginBottom:12}},salida.nombre,' · ',salida.contratista||''),
         h('div',{className:'fg'},
           h('label',null,'Hora de salida'),
-          h('input',{type:'time',value:horaSalida,onChange:e=>setHoraSalida(e.target.value),style:{width:'100%',padding:'10px',border:'1.5px solid var(--border)',borderRadius:8,fontSize:15}})
+          h('input',{type:'time',value:horaSalida,onChange:e=>setHoraSalida(e.target.value)})
+        ),
+        h('div',{className:'fg'},
+          h('label',null,'Observaciones (opcional)'),
+          h('textarea',{value:obsSalida,onChange:e=>setObsSalida(e.target.value),rows:2,placeholder:'—'})
+        ),
+        h('div',{className:'fg'},
+          h('label',null,'Foto (opcional)'),
+          h(CameraField,{value:fotoSalida,onChange:setFotoSalida})
         ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
           h('button',{className:'btn-cancel',onClick:()=>setSalida(null)},'Cancelar'),
           h('button',{className:'btn-primary',style:{background:'#16a34a'},onClick:async()=>{
-            await api.put(`/control-acceso/${salida.id}`,{hora_salida:horaSalida});
-            setSalida(null);load();setAlert({type:'ok',msg:'Salida registrada'});
+            const upd={hora_salida:horaSalida};
+            if(obsSalida) upd.observaciones=obsSalida;
+            if(fotoSalida) upd.foto_url=fotoSalida;
+            await api.put(`/control-acceso/${salida.id}`,upd);
+            setSalida(null);setObsSalida('');setFotoSalida(null);load();setAlert({type:'ok',msg:'Salida registrada'});
           }},h(Ico,{n:'checkCircle',s:16}),'Confirmar salida')
         )
       )
@@ -1350,8 +1363,10 @@ function VisitantesPage({user,online,addOffline}){
   const [alert,setAlert]     = useState(null);
   const [confirm,setConfirm] = useState(null);
   const [selected,setSelected]= useState(null);
-  const [salida,setSalida]   = useState(null);
+  const [salida,setSalida]         = useState(null);
   const [horaSalida,setHoraSalida] = useState('');
+  const [obsVisita,setObsVisita]   = useState('');
+  const [fotoVisita,setFotoVisita] = useState(null);
   const emptyF = {fecha:today(),cedula:'',nombre:'',empresa:'',hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',observaciones:'',foto_url:null};
   const [form,setForm] = useState(emptyF);
 
@@ -1456,13 +1471,24 @@ function VisitantesPage({user,online,addOffline}){
         h('p',{style:{fontSize:13,color:'var(--slate)',marginBottom:12}},salida.nombre,' · ',salida.empresa||''),
         h('div',{className:'fg'},
           h('label',null,'Hora de salida'),
-          h('input',{type:'time',value:horaSalida,onChange:e=>setHoraSalida(e.target.value),style:{width:'100%',padding:'10px',border:'1.5px solid var(--border)',borderRadius:8,fontSize:15}})
+          h('input',{type:'time',value:horaSalida,onChange:e=>setHoraSalida(e.target.value)})
+        ),
+        h('div',{className:'fg'},
+          h('label',null,'Observaciones (opcional)'),
+          h('textarea',{value:obsVisita,onChange:e=>setObsVisita(e.target.value),rows:2,placeholder:'—'})
+        ),
+        h('div',{className:'fg'},
+          h('label',null,'Foto (opcional)'),
+          h(CameraField,{value:fotoVisita,onChange:setFotoVisita})
         ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
           h('button',{className:'btn-cancel',onClick:()=>setSalida(null)},'Cancelar'),
           h('button',{className:'btn-primary',style:{background:'#7c3aed'},onClick:async()=>{
-            await api.put(`/visitantes/${salida.id}`,{hora_salida:horaSalida});
-            setSalida(null);load();setAlert({type:'ok',msg:'Salida registrada'});
+            const upd={hora_salida:horaSalida};
+            if(obsVisita) upd.observaciones=obsVisita;
+            if(fotoVisita) upd.foto_url=fotoVisita;
+            await api.put(`/visitantes/${salida.id}`,upd);
+            setSalida(null);setObsVisita('');setFotoVisita(null);load();setAlert({type:'ok',msg:'Salida registrada'});
           }},h(Ico,{n:'check',s:16}),'Confirmar salida')
         )
       )
