@@ -231,6 +231,53 @@ def importar_empleados(
     return {"insertados": insertados, "actualizados": actualizados, "errores": errores}
 
 
+# ── TIENDAS / DISTRIBUCIÓN ───────────────────────────────────────
+
+@router.post("/tiendas")
+def importar_tiendas(
+    body: dict,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("maestros", "write")),
+):
+    filas = body.get("filas", [])
+    if not filas:
+        raise HTTPException(400, "Sin filas para importar")
+
+    insertados = actualizados = 0
+    errores = []
+
+    for i, fila in enumerate(filas):
+        try:
+            nombre = _str(fila.get("nombre") or fila.get("tienda") or fila.get("name"))
+            if not nombre:
+                errores.append({"fila": i + 2, "error": "Nombre requerido"})
+                continue
+
+            existe = db.execute(
+                text("SELECT id FROM distribucion WHERE name = :n"), {"n": nombre}
+            ).fetchone()
+
+            if existe:
+                actualizados += 1
+            else:
+                db.execute(
+                    text("INSERT INTO distribucion (id, name) VALUES (uuid_generate_v4(), :n)"),
+                    {"n": nombre}
+                )
+                insertados += 1
+        except Exception as e:
+            db.rollback()
+            errores.append({"fila": i + 2, "error": str(e)[:120]})
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, str(e))
+
+    return {"insertados": insertados, "actualizados": actualizados, "errores": errores}
+
+
 # ── LISTAR para verificación ──────────────────────────────────────
 
 @router.get("/vehiculos")

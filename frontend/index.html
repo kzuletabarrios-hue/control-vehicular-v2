@@ -885,6 +885,13 @@ function CargaMasivaPage(){
       endpoint:'/carga/empleados',
       required:['cedula','nombre'],
     },
+    {
+      id:'tiendas', label:'Tiendas',
+      cols:['nombre'],
+      headers:['Nombre Tienda'],
+      endpoint:'/carga/tiendas',
+      required:['nombre'],
+    },
   ];
 
   const [tab, setTab]       = useState('conductores');
