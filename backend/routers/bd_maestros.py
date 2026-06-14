@@ -17,7 +17,7 @@ def listar_distribucion(
     db: Session = Depends(get_db),
     _: dict = Depends(require_permiso("maestros", "read")),
 ):
-    rows = db.execute(text("SELECT * FROM distribucion ORDER BY name ASC")).fetchall()
+    rows = db.execute(text("SELECT * FROM distribucion ORDER BY codigo ASC NULLS LAST, name ASC")).fetchall()
     return [dict(r._mapping) for r in rows]
 
 
@@ -30,10 +30,46 @@ def crear_distribucion(
     name = (body.get("name") or "").strip()
     if not name:
         raise HTTPException(400, "El nombre es requerido")
+    codigo = body.get("codigo")
+    codigo = int(codigo) if codigo not in (None, "") else None
+    direccion = (body.get("direccion") or "").strip() or None
+
+    if codigo is not None:
+        existe = db.execute(text("SELECT id FROM distribucion WHERE codigo = :c"), {"c": codigo}).fetchone()
+        if existe:
+            db.execute(text("""
+                UPDATE distribucion SET name = :name, direccion = :direccion WHERE codigo = :codigo
+            """), {"name": name, "direccion": direccion, "codigo": codigo})
+            db.commit()
+            return {"id": str(existe.id), "message": "Tienda actualizada"}
+
     rid = str(uuid.uuid4())
-    db.execute(text("INSERT INTO distribucion (id, name) VALUES (:id, :name)"), {"id": rid, "name": name})
+    db.execute(text("""
+        INSERT INTO distribucion (id, codigo, name, direccion) VALUES (:id, :codigo, :name, :direccion)
+    """), {"id": rid, "codigo": codigo, "name": name, "direccion": direccion})
     db.commit()
     return {"id": rid, "message": "Tienda creada"}
+
+
+@router.put("/distribucion/{id}")
+def actualizar_distribucion(
+    id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("maestros", "write")),
+):
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "El nombre es requerido")
+    codigo = body.get("codigo")
+    codigo = int(codigo) if codigo not in (None, "") else None
+    direccion = (body.get("direccion") or "").strip() or None
+
+    db.execute(text("""
+        UPDATE distribucion SET codigo = :codigo, name = :name, direccion = :direccion WHERE id = :id
+    """), {"id": id, "codigo": codigo, "name": name, "direccion": direccion})
+    db.commit()
+    return {"message": "Tienda actualizada"}
 
 
 @router.delete("/distribucion/{id}")

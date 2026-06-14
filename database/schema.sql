@@ -41,9 +41,13 @@ CREATE TRIGGER trg_updated_at_conductores
 
 -- ── DISTRIBUCIÓN / TIENDAS (maestro) ────────────────────────────
 CREATE TABLE IF NOT EXISTS distribucion (
-    id      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name    TEXT NOT NULL UNIQUE
+    id        UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    codigo    INT UNIQUE,
+    name      TEXT NOT NULL UNIQUE,
+    direccion TEXT
 );
+
+CREATE INDEX IF NOT EXISTS idx_distribucion_codigo ON distribucion(codigo);
 
 
 -- ── FLOTA PROPIA ─────────────────────────────────────────────────

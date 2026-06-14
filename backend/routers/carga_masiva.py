@@ -253,17 +253,25 @@ def importar_tiendas(
                 errores.append({"fila": i + 2, "error": "Nombre requerido"})
                 continue
 
-            existe = db.execute(
-                text("SELECT id FROM distribucion WHERE name = :n"), {"n": nombre}
-            ).fetchone()
+            codigo = _int(fila.get("codigo"))
+            direccion = _str(fila.get("direccion"))
+
+            existe = None
+            if codigo is not None:
+                existe = db.execute(text("SELECT id FROM distribucion WHERE codigo = :c"), {"c": codigo}).fetchone()
+            if not existe:
+                existe = db.execute(text("SELECT id FROM distribucion WHERE name = :n"), {"n": nombre}).fetchone()
 
             if existe:
+                db.execute(text("""
+                    UPDATE distribucion SET codigo = :codigo, name = :name, direccion = :direccion WHERE id = :id
+                """), {"codigo": codigo, "name": nombre, "direccion": direccion, "id": existe.id})
                 actualizados += 1
             else:
-                db.execute(
-                    text("INSERT INTO distribucion (id, name) VALUES (uuid_generate_v4(), :n)"),
-                    {"n": nombre}
-                )
+                db.execute(text("""
+                    INSERT INTO distribucion (id, codigo, name, direccion)
+                    VALUES (uuid_generate_v4(), :codigo, :name, :direccion)
+                """), {"codigo": codigo, "name": nombre, "direccion": direccion})
                 insertados += 1
         except Exception as e:
             db.rollback()

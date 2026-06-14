@@ -828,7 +828,7 @@ function FlotaPage({user,online,addOffline}){
           h('div',{key:f,className:'fg'},
             h('label',null,i<5?`Tienda ${i+1}`:'Última tienda'),
             h('select',{value:form[f]||'',onChange:e=>setForm(p=>({...p,[f]:e.target.value}))},
-              h('option',{value:''},'—'),...tiendas.map(t=>h('option',{key:t.id,value:t.id},t.name))
+              h('option',{value:''},'—'),...tiendas.map(t=>h('option',{key:t.id,value:t.id},t.codigo?`${t.codigo} - ${t.name}`:t.name))
             )
           )
         )
@@ -1006,8 +1006,8 @@ function CargaMasivaPage(){
     },
     {
       id:'tiendas', label:'Tiendas',
-      cols:['nombre'],
-      headers:['Nombre Tienda'],
+      cols:['codigo','nombre','direccion'],
+      headers:['COD','Name','Dirección'],
       endpoint:'/carga/tiendas',
       required:['nombre'],
     },
@@ -1912,7 +1912,9 @@ function BdTiendasTab(){
   const [saving,setSaving]   = useState(false);
   const [alert,setAlert]     = useState(null);
   const [confirm,setConfirm] = useState(null);
-  const [newName,setNewName] = useState('');
+  const emptyF = {codigo:'',name:'',direccion:''};
+  const [form,setForm] = useState(emptyF);
+  const [editingId,setEditingId] = useState(null);
 
   const load = useCallback(()=>{
     setLoading(true);
@@ -1920,13 +1922,26 @@ function BdTiendasTab(){
   },[]);
   useEffect(()=>load(),[load]);
 
-  const handleAdd = async()=>{
-    if(!newName.trim()) return setAlert({type:'err',msg:'El nombre de la tienda es requerido'});
+  const handleCodigo = (val) => {
+    setForm(p=>({...p,codigo:val}));
+    const existente = records.find(r=>String(r.codigo)===String(val).trim() && val.trim()!=='');
+    if(existente){
+      setForm({codigo:String(existente.codigo),name:existente.name,direccion:existente.direccion||''});
+      setEditingId(existente.id);
+    } else if(editingId){
+      setEditingId(null);
+    }
+  };
+
+  const handleSave = async()=>{
+    if(!form.name.trim()) return setAlert({type:'err',msg:'El nombre de la tienda es requerido'});
     setSaving(true);
     try{
-      await api.post('/maestros/distribucion',{name:newName.trim()});
-      setAlert({type:'ok',msg:'Tienda agregada'});
-      setNewName('');load();
+      const body = {codigo:form.codigo.trim()||null, name:form.name.trim(), direccion:form.direccion.trim()||null};
+      if(editingId) await api.put(`/maestros/distribucion/${editingId}`,body);
+      else await api.post('/maestros/distribucion',body);
+      setAlert({type:'ok',msg:editingId?'Tienda actualizada':'Tienda agregada'});
+      setForm(emptyF);setEditingId(null);load();
     }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
     finally{setSaving(false);}
   };
@@ -1935,14 +1950,25 @@ function BdTiendasTab(){
     h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
       h('div',{className:'fcard'},
-        h('p',{className:'sec-ttl'},h(Ico,{n:'plus',s:12}),' Nueva tienda'),
-        h('div',{style:{display:'flex',gap:8,alignItems:'flex-end'}},
-          h('div',{className:'fg',style:{flex:1,marginBottom:0}},
-            h('label',null,'Nombre'),
-            h('input',{type:'text',value:newName,onChange:e=>setNewName(e.target.value),onKeyDown:e=>e.key==='Enter'&&handleAdd(),placeholder:'Nombre de la tienda'})
+        h('p',{className:'sec-ttl'},h(Ico,{n:'plus',s:12}),editingId?' Editar tienda':' Nueva tienda'),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},
+            h('label',null,'COD'),
+            h('input',{type:'text',value:form.codigo,onChange:e=>handleCodigo(e.target.value),placeholder:'1025'})
           ),
-          h('button',{onClick:handleAdd,disabled:saving,style:{background:'var(--navy2)',color:'#fff',border:'none',borderRadius:8,padding:'11px 16px',cursor:'pointer',fontWeight:700,fontSize:13,fontFamily:'inherit',display:'flex',alignItems:'center',gap:5,flexShrink:0,marginBottom:0}},
-            saving?h('div',{className:'spinner'}):h(Ico,{n:'plus',s:15}),'Agregar'
+          h('div',{className:'fg'},
+            h('label',null,'Nombre'),
+            h('input',{type:'text',value:form.name,onChange:e=>setForm(p=>({...p,name:e.target.value})),placeholder:'Nombre de la tienda'})
+          )
+        ),
+        h('div',{className:'fg'},
+          h('label',null,'Dirección'),
+          h('input',{type:'text',value:form.direccion,onChange:e=>setForm(p=>({...p,direccion:e.target.value})),placeholder:'Dirección',onKeyDown:e=>e.key==='Enter'&&handleSave()})
+        ),
+        h('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+          editingId&&h('button',{onClick:()=>{setForm(emptyF);setEditingId(null);},style:{background:'none',border:'1px solid var(--border)',borderRadius:8,padding:'11px 16px',cursor:'pointer',fontWeight:700,fontSize:13,fontFamily:'inherit'}},'Cancelar'),
+          h('button',{onClick:handleSave,disabled:saving,style:{background:'var(--navy2)',color:'#fff',border:'none',borderRadius:8,padding:'11px 16px',cursor:'pointer',fontWeight:700,fontSize:13,fontFamily:'inherit',display:'flex',alignItems:'center',gap:5,flexShrink:0}},
+            saving?h('div',{className:'spinner'}):h(Ico,{n:editingId?'save':'plus',s:15}),editingId?'Guardar':'Agregar'
           )
         )
       ),
@@ -1950,8 +1976,11 @@ function BdTiendasTab(){
       records.length===0?h('div',{className:'empty'},h(Ico,{n:'database',s:44}),h('p',null,'Sin tiendas registradas')):
       records.map(r=>h('div',{key:r.id,className:'list-item'},
         h('div',{className:'li-icon',style:{background:'#f1f5f9'}},h(Ico,{n:'database',s:18,style:{color:'#475569'}})),
-        h('div',{className:'li-body'},h('div',{className:'li-title'},r.name)),
-        h('button',{title:'Eliminar',onClick:()=>setConfirm(r.id),style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:4}},h(Ico,{n:'trash',s:14}))
+        h('div',{className:'li-body',onClick:()=>{setForm({codigo:r.codigo!=null?String(r.codigo):'',name:r.name,direccion:r.direccion||''});setEditingId(r.id);}},
+          h('div',{className:'li-title'},r.codigo?`${r.codigo} - ${r.name}`:r.name),
+          r.direccion&&h('div',{className:'li-sub'},r.direccion)
+        ),
+        h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:4}},h(Ico,{n:'trash',s:14}))
       ))
     ),
     confirm&&h(ConfirmSheet,{msg:'Se eliminará la tienda del catálogo.',onOk:async()=>{await api.del(`/maestros/distribucion/${confirm}`);setConfirm(null);load();setAlert({type:'ok',msg:'Tienda eliminada'});},onCancel:()=>setConfirm(null)})
