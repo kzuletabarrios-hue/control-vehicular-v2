@@ -7,7 +7,7 @@ from routers import (
 )
 
 app = FastAPI(
-    title="Control Vehicular CEDI R10 · v2",
+    title="Control de Acceso y Operaciones CEDI R10",
     description="API con autenticación JWT y roles",
     version="2.0.0",
     docs_url="/docs",

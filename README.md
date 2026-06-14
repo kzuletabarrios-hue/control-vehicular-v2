@@ -1,4 +1,4 @@
-# Control Vehicular CEDI R10 · v2
+# Control de Acceso y Operaciones CEDI R10
 
 Versión mejorada con autenticación JWT, roles, migración de datos y modo offline.
 

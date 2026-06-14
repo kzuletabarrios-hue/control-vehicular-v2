@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 SCRIPT DE MIGRACIÓN
-Google Sheets (CSV) → PostgreSQL (Control Vehicular v2)
+Google Sheets (CSV) → PostgreSQL (Control de Acceso y Operaciones CEDI R10)
 
 Uso:
   1. Exportar cada hoja del Google Sheets como CSV
@@ -445,7 +445,7 @@ def main():
         print(f"ERROR: Carpeta {CSV_DIR} no existe. Crea la carpeta y coloca los CSV exportados de Google Sheets.")
         sys.exit(1)
 
-    print("CONTROL VEHICULAR CEDI R10 · Migrador v2")
+    print("CONTROL DE ACCESO Y OPERACIONES CEDI R10 · Migrador")
     print(f"Base de datos: {DB_URL[:40]}...")
     print(f"CSV desde: {CSV_DIR.resolve()}\n")
 

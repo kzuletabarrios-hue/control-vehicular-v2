@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<title>Control Vehicular · CEDI R10 v3</title>
+<title>Control de Acceso y Operaciones · CEDI R10</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -478,7 +478,7 @@ function LoginPage({onLogin}){
   return h('div',{className:'login-wrap'},
     h('div',{className:'login-logo'},
       h('div',{className:'login-icon'},h(Ico,{n:'truck',s:36})),
-      h('h1',null,'CONTROL VEHICULAR'),
+      h('h1',null,'CONTROL DE ACCESO Y OPERACIONES'),
       h('span',null,'CEDI R10')
     ),
     h('div',{className:'login-card'},
@@ -566,7 +566,7 @@ function CambiarPasswordSheet({onClose,onSuccess}){
 function AppHeader({user,page,setPage,online,offlineQueue}){
   const [menuOpen,setMenuOpen] = useState(false);
   const [pwOpen,setPwOpen]     = useState(false);
-  const titleMap = {home:'Inicio',flota:'Flota Propia',prov:'TGN · Proveedores',acceso:'Control Acceso',visit:'Visitantes',bd:'Base de Datos',reg:'Registros'};
+  const titleMap = {home:'Inicio',flota:'Flota Propia',prov:'TGN · Proveedores',acceso:'Control Acceso',visit:'Visitantes',bd:'Base de Datos',reg:'Registros',carga:'Carga Masiva'};
 
   const logout = async () => {
     try{ await api.post('/auth/logout',{refresh_token:getRefresh()}); }catch(e){}
@@ -576,7 +576,7 @@ function AppHeader({user,page,setPage,online,offlineQueue}){
   return h('div',{className:'header'},
     h('div',{className:'header-inner'},
       h('div',{className:'header-brand'},
-        h('h1',null,titleMap[page]||'Control Vehicular'),
+        h('h1',null,titleMap[page]||'CEDI R10'),
         h('span',null,'CEDI R10')
       ),
       h('div',{className:'header-right'},
