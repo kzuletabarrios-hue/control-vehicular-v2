@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<title>QR - Control Vehicular CEDI R10</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;600&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',sans-serif;background:#f1f5f9;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+  .card{background:#fff;border-radius:24px;padding:40px 36px;text-align:center;box-shadow:0 8px 40px rgba(15,36,64,0.15);max-width:380px;width:100%}
+  .logo{background:linear-gradient(135deg,#0f2440,#1e4570);border-radius:16px;padding:16px 24px;margin-bottom:28px}
+  .logo h1{font-family:'Syne',sans-serif;color:#fff;font-size:18px;font-weight:800;letter-spacing:.5px}
+  .logo span{color:#fcd34d;font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:600}
+  .qr-wrap{background:#f8fafc;border-radius:16px;padding:20px;margin-bottom:24px;border:2px dashed #e2e8f0}
+  .qr-wrap img{width:220px;height:220px;display:block;margin:0 auto}
+  .instruccion{font-size:14px;color:#475569;margin-bottom:20px;line-height:1.6}
+  .instruccion strong{color:#0f2440}
+  .url-box{background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:10px 14px;font-size:11px;color:#0369a1;word-break:break-all;margin-bottom:24px;font-weight:600}
+  .pasos{text-align:left;background:#f8fafc;border-radius:12px;padding:16px;margin-bottom:20px}
+  .pasos h3{font-size:12px;font-weight:700;color:#0f2440;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
+  .paso{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;font-size:13px;color:#475569}
+  .paso-num{background:#0f2440;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;margin-top:1px}
+  .footer{font-size:10px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:16px}
+  @media print{body{background:#fff}  .card{box-shadow:none;border:1px solid #e2e8f0}}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <h1>Control Vehicular</h1>
+    <span>CEDI R10</span>
+  </div>
+
+  <div class="qr-wrap">
+    <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=https://control-vehicular-v2-fbv3i89qj-kzuletabarrios-2807s-projects.vercel.app&bgcolor=f8fafc&color=0f2440&qzone=1" alt="QR Control Vehicular CEDI R10"/>
+  </div>
+
+  <p class="instruccion">
+    <strong>Escanea el código QR</strong> con la cámara de tu celular para acceder directamente a la aplicación.
+  </p>
+
+  <div class="url-box">
+    control-vehicular-v2-fbv3i89qj-kzuletabarrios-2807s-projects.vercel.app
+  </div>
+
+  <div class="pasos">
+    <h3>Cómo ingresar</h3>
+    <div class="paso"><div class="paso-num">1</div><span>Escanea el QR o abre la URL en tu navegador</span></div>
+    <div class="paso"><div class="paso-num">2</div><span>Ingresa tu correo y contraseña asignados</span></div>
+    <div class="paso"><div class="paso-num">3</div><span>Accede a tu módulo de control</span></div>
+  </div>
+
+  <div class="footer">
+    Sistema de Control Vehicular · CEDI R10 · Confidencial
+  </div>
+</div>
+</body>
+</html>

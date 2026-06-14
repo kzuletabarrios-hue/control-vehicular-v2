@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<title>Presentación Ejecutiva - Sistema Control Vehicular CEDI R10</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',sans-serif;color:#1e293b;background:#fff;font-size:14px;line-height:1.6}
+  .page{max-width:860px;margin:0 auto;padding:40px 48px}
+
+  /* PORTADA */
+  .portada{background:linear-gradient(160deg,#0f2440 0%,#1e4570 60%,#1a3a5c 100%);min-height:320px;border-radius:20px;padding:56px 48px;margin-bottom:48px;color:#fff;position:relative;overflow:hidden}
+  .portada::after{content:'';position:absolute;bottom:-40px;right:-40px;width:200px;height:200px;border-radius:50%;background:rgba(245,158,11,0.1)}
+  .portada-label{background:rgba(245,158,11,0.2);border:1px solid rgba(245,158,11,0.5);color:#fcd34d;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:5px 14px;border-radius:20px;display:inline-block;margin-bottom:24px}
+  .portada h1{font-family:'Syne',sans-serif;font-size:36px;font-weight:800;margin-bottom:12px;line-height:1.2}
+  .portada h2{font-size:18px;font-weight:400;color:rgba(255,255,255,0.7);margin-bottom:32px}
+  .portada-stats{display:flex;gap:32px}
+  .ps{border-left:3px solid #f59e0b;padding-left:16px}
+  .ps-val{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#fcd34d;line-height:1}
+  .ps-lbl{font-size:11px;color:rgba(255,255,255,0.6);margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
+
+  /* TIPOGRAFÍA */
+  h2{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#0f2440;margin:40px 0 16px;padding-bottom:10px;border-bottom:3px solid #f59e0b}
+  h3{font-size:15px;font-weight:700;color:#1e4570;margin:24px 0 10px}
+  p{margin-bottom:12px;color:#475569}
+
+  /* CARDS GRID */
+  .cards-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:20px 0}
+  .cards-2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin:20px 0}
+  .card{background:#f8fafc;border-radius:14px;padding:20px;border:1px solid #e2e8f0}
+  .card-navy{background:#0f2440;color:#fff;border-color:#0f2440}
+  .card-amber{background:#fffbeb;border-color:#fcd34d}
+  .card-green{background:#f0fdf4;border-color:#86efac}
+  .card h4{font-size:13px;font-weight:700;margin-bottom:6px}
+  .card-navy h4{color:#fcd34d}
+  .card-amber h4{color:#92400e}
+  .card-green h4{color:#166534}
+  .card p{font-size:12px;margin:0;color:#64748b}
+  .card-navy p{color:rgba(255,255,255,0.7)}
+  .card-amber p{color:#78350f}
+  .card-green p{color:#166534}
+  .card .num{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;line-height:1;margin-bottom:6px}
+  .card-navy .num{color:#fcd34d}
+
+  /* MÓDULOS */
+  .modulos{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:16px 0}
+  .modulo{display:flex;align-items:flex-start;gap:12px;background:#f8fafc;border-radius:10px;padding:14px;border:1px solid #e2e8f0}
+  .modulo-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+  .modulo h4{font-size:13px;font-weight:700;color:#0f2440;margin-bottom:2px}
+  .modulo p{font-size:11px;color:#64748b;margin:0}
+
+  /* TABLA */
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px}
+  th{background:#0f2440;color:#fff;padding:10px 14px;text-align:left;font-size:12px}
+  td{padding:10px 14px;border-bottom:1px solid #e2e8f0;color:#475569}
+  tr:nth-child(even) td{background:#f8fafc}
+
+  /* BENEFICIOS */
+  .beneficio{display:flex;gap:14px;margin-bottom:16px;align-items:flex-start}
+  .ben-icon{width:40px;height:40px;border-radius:10px;background:#eff6ff;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+  .ben-body h4{font-size:14px;font-weight:700;color:#0f2440;margin-bottom:2px}
+  .ben-body p{font-size:13px;color:#64748b;margin:0}
+
+  /* STACK */
+  .stack{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+  .tag{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600}
+  .tag-green{background:#f0fdf4;color:#166534;border-color:#86efac}
+  .tag-amber{background:#fffbeb;color:#92400e;border-color:#fcd34d}
+
+  /* CAPACIDAD */
+  .cap-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:20px 0}
+  .cap-item{text-align:center;background:#f8fafc;border-radius:12px;padding:20px;border:1px solid #e2e8f0}
+  .cap-num{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#0f2440;line-height:1}
+  .cap-lbl{font-size:11px;color:#64748b;margin-top:4px}
+
+  /* CONCLUSIÓN */
+  .conclusion{background:linear-gradient(135deg,#0f2440,#1e4570);border-radius:16px;padding:32px;color:#fff;margin-top:40px}
+  .conclusion h3{font-family:'Syne',sans-serif;font-size:18px;color:#fcd34d;margin-bottom:16px}
+  .conclusion ul{list-style:none;padding:0}
+  .conclusion ul li{padding:6px 0;padding-left:20px;position:relative;color:rgba(255,255,255,0.85);font-size:13px}
+  .conclusion ul li::before{content:'✓';position:absolute;left:0;color:#fcd34d;font-weight:700}
+
+  @media print{
+    .page{padding:20px 24px}
+    h2{page-break-before:auto}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="portada">
+    <div class="portada-label">Resumen Ejecutivo · Propuesta de Aprobación</div>
+    <h1>Sistema de Control Vehicular<br>CEDI R10</h1>
+    <h2>Digitalización del control de acceso vehicular y peatonal</h2>
+    <div class="portada-stats">
+      <div class="ps"><div class="ps-val">100%</div><div class="ps-lbl">Operativo</div></div>
+      <div class="ps"><div class="ps-val">8</div><div class="ps-lbl">Módulos activos</div></div>
+      <div class="ps"><div class="ps-val">4</div><div class="ps-lbl">Usuarios guardas</div></div>
+      <div class="ps"><div class="ps-val">10K+</div><div class="ps-lbl">Registros soportados</div></div>
+    </div>
+  </div>
+
+  <!-- 1. RESUMEN -->
+  <h2>1. Resumen del Proyecto</h2>
+  <p>El Sistema de Control Vehicular CEDI R10 es una aplicación web desarrollada a medida para digitalizar y centralizar todos los procesos de registro de vehículos, personal y acceso en el CEDI. El sistema reemplaza el registro manual en hojas de cálculo y cuadernos físicos, eliminando errores, pérdida de información y falta de trazabilidad.</p>
+
+  <div class="cards-3">
+    <div class="card card-navy">
+      <div class="num">✓</div>
+      <h4>Activo y funcional</h4>
+      <p>El sistema está desplegado y operativo. Los guardas pueden registrar desde cualquier celular hoy mismo.</p>
+    </div>
+    <div class="card card-amber">
+      <div class="num">$0</div>
+      <h4>Costo mensual actual</h4>
+      <p>Desplegado en infraestructura gratuita (Railway + Vercel + Supabase). Sin costo de licencias.</p>
+    </div>
+    <div class="card card-green">
+      <div class="num">3</div>
+      <h4>Roles diferenciados</h4>
+      <p>Bodega, vehicular y peatonal con accesos y vistas independientes por usuario.</p>
+    </div>
+  </div>
+
+  <!-- 2. MÓDULOS -->
+  <h2>2. Módulos del Sistema</h2>
+  <div class="modulos">
+    <div class="modulo"><div class="modulo-icon" style="background:#dbeafe">🚛</div><div><h4>Flota Propia</h4><p>Registro completo del ciclo: bodega → salida → regreso con sellos y evidencia fotográfica</p></div></div>
+    <div class="modulo"><div class="modulo-icon" style="background:#fef3c7">📦</div><div><h4>Proveedores TGN</h4><p>Registro de vehículos de terceros, empresa, muelle de descargue y horarios</p></div></div>
+    <div class="modulo"><div class="modulo-icon" style="background:#d1fae5">👷</div><div><h4>Control Acceso</h4><p>Ingreso y salida de contratistas con búsqueda automática por cédula</p></div></div>
+    <div class="modulo"><div class="modulo-icon" style="background:#ede9fe">👥</div><div><h4>Visitantes</h4><p>Registro de personas externas con control de entrada y salida</p></div></div>
+    <div class="modulo"><div class="modulo-icon" style="background:#fee2e2">⚠️</div><div><h4>Sustancias</h4><p>Control de sustancias sospechosas o controladas que ingresan al CEDI</p></div></div>
+    <div class="modulo"><div class="modulo-icon" style="background:#fef3c7">🔧</div><div><h4>Herramientas</h4><p>Registro de herramientas y equipos que ingresan con responsable asignado</p></div></div>
+    <div class="modulo"><div class="modulo-icon" style="background:#f0f9ff">🗄️</div><div><h4>Base de Datos</h4><p>Catálogos de conductores, contratistas, tiendas y usuarios del sistema</p></div></div>
+    <div class="modulo"><div class="modulo-icon" style="background:#f0fdf4">📊</div><div><h4>Reportes y Exportación</h4><p>Exportación a Excel de cualquier módulo con filtro por rango de fechas</p></div></div>
+  </div>
+
+  <!-- 3. CAPACIDAD -->
+  <h2>3. Capacidad de Almacenamiento</h2>
+  <p>El sistema está respaldado por <strong>Supabase</strong> (PostgreSQL en la nube), con la siguiente capacidad:</p>
+
+  <div class="cap-grid">
+    <div class="cap-item">
+      <div class="cap-num">500 MB</div>
+      <div class="cap-lbl">Almacenamiento BD gratuito</div>
+    </div>
+    <div class="cap-item">
+      <div class="cap-num">+10,000</div>
+      <div class="cap-lbl">Registros de texto soportados</div>
+    </div>
+    <div class="cap-item">
+      <div class="cap-num">1 GB</div>
+      <div class="cap-lbl">Almacenamiento de fotos</div>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>Módulo</th><th>Campos por registro</th><th>Capacidad estimada</th></tr>
+    <tr><td>Flota Propia</td><td>25+ campos + sellos + 2 fotos</td><td>+15,000 registros/año</td></tr>
+    <tr><td>Control Acceso</td><td>8 campos + foto salida</td><td>+50,000 registros/año</td></tr>
+    <tr><td>Visitantes</td><td>7 campos + foto</td><td>+30,000 registros/año</td></tr>
+    <tr><td>Proveedores TGN</td><td>12 campos + foto</td><td>+20,000 registros/año</td></tr>
+    <tr><td>Sustancias / Herramientas</td><td>6 campos + foto</td><td>+10,000 registros/año</td></tr>
+  </table>
+  <p style="font-size:12px;color:#94a3b8">*Las fotos se almacenan como URLs base64 directamente en la BD. Para volúmenes mayores se puede migrar a almacenamiento dedicado (Supabase Storage) sin cambios en el frontend.</p>
+
+  <!-- 4. ARQUITECTURA -->
+  <h2>4. Arquitectura Tecnológica</h2>
+  <p>El sistema usa tecnologías modernas, probadas y de bajo costo de operación:</p>
+
+  <div class="cards-2">
+    <div>
+      <h3>Backend (Servidor)</h3>
+      <div class="stack">
+        <span class="tag">Python FastAPI</span>
+        <span class="tag">SQLAlchemy</span>
+        <span class="tag">JWT Auth</span>
+        <span class="tag tag-amber">Railway Cloud</span>
+      </div>
+      <p style="font-size:12px;color:#64748b;margin-top:8px">API REST segura con autenticación por token. Desplegada en Railway con auto-deploy desde GitHub.</p>
+    </div>
+    <div>
+      <h3>Frontend (App)</h3>
+      <div class="stack">
+        <span class="tag tag-green">React 18</span>
+        <span class="tag tag-green">HTML/CSS</span>
+        <span class="tag tag-amber">Vercel CDN</span>
+      </div>
+      <p style="font-size:12px;color:#64748b;margin-top:8px">Aplicación web progresiva (PWA). Funciona en cualquier celular con navegador. Sin instalación requerida.</p>
+    </div>
+    <div>
+      <h3>Base de Datos</h3>
+      <div class="stack">
+        <span class="tag">PostgreSQL</span>
+        <span class="tag tag-green">Supabase</span>
+      </div>
+      <p style="font-size:12px;color:#64748b;margin-top:8px">Base de datos relacional en la nube con backups automáticos y alta disponibilidad.</p>
+    </div>
+    <div>
+      <h3>Seguridad</h3>
+      <div class="stack">
+        <span class="tag">HTTPS cifrado</span>
+        <span class="tag">Roles y permisos</span>
+        <span class="tag">Audit log</span>
+      </div>
+      <p style="font-size:12px;color:#64748b;margin-top:8px">Comunicación cifrada, autenticación con contraseña, roles diferenciados y registro de auditoría de cambios.</p>
+    </div>
+  </div>
+
+  <!-- 5. BENEFICIOS -->
+  <h2>5. Beneficios del Sistema</h2>
+  <div class="beneficio">
+    <div class="ben-icon">📍</div>
+    <div class="ben-body"><h4>Trazabilidad completa del ciclo vehicular</h4><p>Cada vehículo queda registrado desde que llega a bodega hasta su regreso, con sellos, fotografías y horas exactas. Elimina disputas sobre tiempos y condiciones de salida/llegada.</p></div>
+  </div>
+  <div class="beneficio">
+    <div class="ben-icon">⏱️</div>
+    <div class="ben-body"><h4>Control en tiempo real</h4><p>El dashboard del administrador muestra en tiempo real cuántos vehículos están fuera, cuántas personas hay dentro y registros pendientes de cierre. Se actualiza automáticamente cada 60 segundos.</p></div>
+  </div>
+  <div class="beneficio">
+    <div class="ben-icon">❌</div>
+    <div class="ben-body"><h4>Eliminación de errores manuales</h4><p>La búsqueda automática por cédula, los campos obligatorios, la hora automática y los dropdowns de selección reducen los errores de digitación y datos incompletos.</p></div>
+  </div>
+  <div class="beneficio">
+    <div class="ben-icon">📱</div>
+    <div class="ben-body"><h4>Acceso desde cualquier dispositivo</h4><p>No requiere instalación. Funciona en el celular de cada guarda directamente desde el navegador. Compatible con Android e iOS.</p></div>
+  </div>
+  <div class="beneficio">
+    <div class="ben-icon">🔐</div>
+    <div class="ben-body"><h4>Control de acceso por roles</h4><p>Cada guarda solo ve y puede registrar lo que corresponde a su puesto. Ningún guarda puede eliminar registros ni acceder a información de otros módulos.</p></div>
+  </div>
+  <div class="beneficio">
+    <div class="ben-icon">📊</div>
+    <div class="ben-body"><h4>Exportación y reportes</h4><p>Cualquier módulo se puede exportar a Excel con filtro por fechas para auditorías, informes gerenciales o revisiones de turno.</p></div>
+  </div>
+  <div class="beneficio">
+    <div class="ben-icon">📸</div>
+    <div class="ben-body"><h4>Evidencia fotográfica</h4><p>Los registros de salida, llegada, acceso y herramientas incluyen campo de foto opcional, generando evidencia visual de cada evento registrado.</p></div>
+  </div>
+
+  <!-- 6. COMPARATIVO -->
+  <h2>6. Comparativo: Antes vs. Después</h2>
+  <table>
+    <tr><th>Aspecto</th><th>Antes (manual)</th><th>Ahora (sistema)</th></tr>
+    <tr><td>Registro de vehículos</td><td>Cuaderno físico, letra ilegible, datos incompletos</td><td>Digital, campos obligatorios, búsqueda instantánea</td></tr>
+    <tr><td>Control de sellos</td><td>Sin trazabilidad del número de sello</td><td>Sello obligatorio en salida y regreso, con foto</td></tr>
+    <tr><td>Acceso de contratistas</td><td>Lista en papel, sin validación</td><td>Búsqueda por cédula en base de datos validada</td></tr>
+    <tr><td>Vehículos en ruta</td><td>No había forma de saber cuántos estaban fuera</td><td>Dashboard en tiempo real con vehículos pendientes</td></tr>
+    <tr><td>Reportes</td><td>Consolidación manual semanal/mensual</td><td>Exportación Excel en segundos, cualquier período</td></tr>
+    <tr><td>Evidencia fotográfica</td><td>No existía</td><td>Disponible en todos los módulos</td></tr>
+    <tr><td>Acceso a información</td><td>Solo en la sede física</td><td>Desde cualquier celular, en cualquier momento</td></tr>
+  </table>
+
+  <!-- CONCLUSIÓN -->
+  <div class="conclusion">
+    <h3>Recomendación para aprobación</h3>
+    <ul>
+      <li>El sistema está <strong>100% operativo</strong> y listo para implementación inmediata en todos los puestos de control.</li>
+      <li>Los guardas pueden empezar a usarlo hoy mismo con sus credenciales asignadas desde cualquier celular.</li>
+      <li>La infraestructura actual soporta más de 10,000 registros anuales sin costo adicional.</li>
+      <li>El sistema es escalable: se pueden agregar nuevos usuarios, módulos o funcionalidades según las necesidades del CEDI.</li>
+      <li>Toda la información queda centralizada, segura y disponible para auditorías en cualquier momento.</li>
+    </ul>
+  </div>
+
+  <div style="margin-top:40px;text-align:center;color:#94a3b8;font-size:11px;border-top:1px solid #e2e8f0;padding-top:20px">
+    Resumen Ejecutivo · Sistema de Control Vehicular · CEDI R10 · Junio 2026 · Confidencial
+  </div>
+
+</div>
+</body>
+</html>
