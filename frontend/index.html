@@ -663,17 +663,17 @@ function HomePage({setPage,user}){
         showProvStats&&h(StatCard,{label:'TGN hoy',          value:resumen.proveedores.hoy,    color:'#d97706',icon:'package'}),
         showProvStats&&h(StatCard,{label:'Visitantes hoy',   value:resumen.visitantes.hoy,     color:'#059669',icon:'users'})
       ),
-      (flotaPend>0||accesoPend>0)&&h('div',{style:{background:'#fff',border:'2px solid #fcd34d',borderRadius:12,padding:12,marginBottom:12}},
+      ((isGuardaPeatonal?accesoPend>0:(flotaPend>0||accesoPend>0)))&&h('div',{style:{background:'#fff',border:'2px solid #fcd34d',borderRadius:12,padding:12,marginBottom:12}},
         h('p',{style:{fontWeight:700,fontSize:13,color:'#92400e',marginBottom:8,display:'flex',alignItems:'center',gap:6}},
           h(Ico,{n:'alert',s:14}),'Pendientes de cierre'
         ),
-        flotaPend>0&&h('div',null,
+        !isGuardaPeatonal&&flotaPend>0&&h('div',null,
           h('p',{style:{fontSize:12,fontWeight:600,color:'#1e4570',marginBottom:4}},`${flotaPend} vehículo(s) fuera sin llegada:`),
           pendFlota.map((v,i)=>h('div',{key:i,style:{fontSize:11,color:'var(--slate)',padding:'3px 8px',background:'#f8fafc',borderRadius:6,marginBottom:3}},
             h('strong',null,v.placa),' · ',v.conductor||'—',' · Salió: ',v.hora_salida||'—',' (',v.fecha,')'
           ))
         ),
-        flotaPend>0&&accesoPend>0&&h('div',{style:{height:1,background:'#fde68a',margin:'8px 0'}}),
+        !isGuardaPeatonal&&flotaPend>0&&accesoPend>0&&h('div',{style:{height:1,background:'#fde68a',margin:'8px 0'}}),
         accesoPend>0&&h('div',null,
           h('p',{style:{fontSize:12,fontWeight:600,color:'#7c3aed',marginBottom:4}},`${accesoPend} persona(s) dentro sin salida:`),
           pendAcceso.map((v,i)=>h('div',{key:i,style:{fontSize:11,color:'var(--slate)',padding:'3px 8px',background:'#f8fafc',borderRadius:6,marginBottom:3}},
@@ -1192,6 +1192,7 @@ function AccesoPage({user,online,addOffline}){
   const [salida,setSalida]   = useState(null);
   const [horaSalida,setHoraSalida] = useState('');
   const [sugerencias,setSugerencias] = useState([]);
+  const [contratistas,setContratistas] = useState([]);
   const emptyF = {fecha:today(),cedula:'',nombre:'',contratista:'',hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',observaciones:''};
   const [form,setForm] = useState(emptyF);
 
@@ -1199,7 +1200,13 @@ function AccesoPage({user,online,addOffline}){
     setLoading(true);
     api.get('/control-acceso').then(r=>setRecords(r.items||r)).catch(()=>setAlert({type:'err',msg:'Error cargando datos'})).finally(()=>setLoading(false));
   },[]);
-  useEffect(()=>load(),[load]);
+  useEffect(()=>{
+    load();
+    api.get('/maestros/control-acceso').then(rows=>{
+      const uniq=[...new Set(rows.filter(r=>r.contratista).map(r=>r.contratista.trim()))].sort();
+      setContratistas(uniq);
+    }).catch(()=>{});
+  },[]);
 
   const buscarCedula = async(val)=>{
     setForm(p=>({...p,cedula:val}));
@@ -1213,6 +1220,7 @@ function AccesoPage({user,online,addOffline}){
 
   const handleSave = async()=>{
     if(!form.nombre) return setAlert({type:'err',msg:'El nombre es obligatorio'});
+    if(!form.contratista) return setAlert({type:'err',msg:'Selecciona un contratista'});
     setSaving(true);
     const body = Object.fromEntries(Object.entries(form).filter(([,v])=>v!=null&&v!==''));
     if(body.cedula) body.cedula = parseInt(body.cedula);
@@ -1252,7 +1260,13 @@ function AccesoPage({user,online,addOffline}){
           )
         ),
         h('div',{className:'fg'},h('label',null,'Nombre',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.nombre,onChange:e=>setForm(p=>({...p,nombre:e.target.value})),placeholder:'Nombre completo'})),
-        h('div',{className:'fg'},h('label',null,'Contratista / Empresa'),h('input',{type:'text',value:form.contratista,onChange:e=>setForm(p=>({...p,contratista:e.target.value})),placeholder:'Empresa contratista'}))
+        h('div',{className:'fg'},
+          h('label',null,'Contratista',h('span',{className:'req'},'*')),
+          h('select',{value:form.contratista,onChange:e=>setForm(p=>({...p,contratista:e.target.value}))},
+            h('option',{value:''},'Seleccionar contratista...'),
+            contratistas.map(c=>h('option',{key:c,value:c},c))
+          )
+        )
       ),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'clock',s:12}),' Horarios'),
@@ -1298,7 +1312,7 @@ function AccesoPage({user,online,addOffline}){
               onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(new Date().toTimeString().slice(0,5));},
               style:{background:'#16a34a',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Salida'),
-            h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
+            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
           )
         )
       ))
@@ -1428,7 +1442,7 @@ function VisitantesPage({user,online,addOffline}){
               onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(new Date().toTimeString().slice(0,5));},
               style:{background:'#7c3aed',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Salida'),
-            h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
+            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
           )
         )
       ))
