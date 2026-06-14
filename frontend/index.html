@@ -719,7 +719,7 @@ function FlotaPage({user,online,addOffline}){
   const esVehicular = user?.rol==='guarda_vehicular';
   const [cedulaBusq,setCedulaBusq]   = useState('');
   const [sugerCond,setSugerCond]     = useState([]);
-  const emptyF = {fecha:today(),placa:'',conductor:'',codigo_conductor:'',n_pallets:'',n_contenedores:'',cant_volumen_externo:'',muelle_cargue:'',tienda_1:'',tienda_2:'',tienda_3:'',tienda_4:'',tienda_5:'',ultima_tienda:'',protocolo:'',sello:'',sello_entrada:'',hora_salida_muelle:'',temperatura:'',hora_salida_cedi:'',hora_llegada:'',observacion:'',foto_url:null};
+  const emptyF = {fecha:today(),placa:'',conductor:'',codigo_conductor:'',n_pallets:'',n_contenedores:'',cant_volumen_externo:'',muelle_cargue:'',tienda_1:'',tienda_2:'',tienda_3:'',tienda_4:'',tienda_5:'',ultima_tienda:'',protocolo:'',sello:'',sello_entrada:'',hora_salida_muelle:new Date().toTimeString().slice(0,5),temperatura:'',hora_salida_cedi:'',hora_llegada:'',observacion:'',foto_url:null};
   const [form,setForm]         = useState(emptyF);
 
   const buscarConductor = (val)=>{
