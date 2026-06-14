@@ -143,6 +143,128 @@ def eliminar(
     return {"message": "Registro eliminado"}
 
 
+# ── SUSTANCIAS ────────────────────────────────────────────────────
+
+@router.get("/sustancias")
+def listar_sustancias(
+    fecha: str = None,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("control_acceso", "read")),
+):
+    where = ["1=1"]
+    params = {}
+    if fecha:
+        where.append("fecha = :fecha")
+        params["fecha"] = fecha
+    rows = db.execute(text(f"SELECT * FROM sustancias WHERE {' AND '.join(where)} ORDER BY fecha DESC, created_at DESC LIMIT 100"), params).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+@router.post("/sustancias", status_code=201)
+def crear_sustancia(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permiso("control_acceso", "write")),
+):
+    rid = str(uuid.uuid4())
+    db.execute(text("""
+        INSERT INTO sustancias (id, fecha, descripcion, cantidad, responsable, observaciones, foto_url, creado_por)
+        VALUES (:id, :fecha, :descripcion, :cantidad, :responsable, :observaciones, :foto_url, :creado_por)
+    """), {
+        "id": rid, "fecha": body.get("fecha"), "descripcion": body.get("descripcion"),
+        "cantidad": body.get("cantidad"), "responsable": body.get("responsable"),
+        "observaciones": body.get("observaciones"), "foto_url": body.get("foto_url"),
+        "creado_por": current_user["id"],
+    })
+    db.commit()
+    return {"id": rid, "message": "Sustancia registrada"}
+
+@router.put("/sustancias/{id}")
+def actualizar_sustancia(
+    id: str, body: dict,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("control_acceso", "write")),
+):
+    campos = ["fecha", "descripcion", "cantidad", "responsable", "observaciones", "foto_url"]
+    vals = {c: body[c] for c in campos if c in body}
+    if not vals:
+        raise HTTPException(400, "Sin campos")
+    vals["id"] = id
+    sets = ", ".join(f"{c} = :{c}" for c in vals if c != "id")
+    db.execute(text(f"UPDATE sustancias SET {sets}, updated_at = NOW() WHERE id = :id"), vals)
+    db.commit()
+    return {"message": "Actualizado"}
+
+@router.delete("/sustancias/{id}")
+def eliminar_sustancia(
+    id: str, db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("control_acceso", "delete")),
+):
+    db.execute(text("DELETE FROM sustancias WHERE id = :id"), {"id": id})
+    db.commit()
+    return {"message": "Eliminado"}
+
+
+# ── HERRAMIENTAS ───────────────────────────────────────────────────
+
+@router.get("/herramientas")
+def listar_herramientas(
+    fecha: str = None,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("control_acceso", "read")),
+):
+    where = ["1=1"]
+    params = {}
+    if fecha:
+        where.append("fecha = :fecha")
+        params["fecha"] = fecha
+    rows = db.execute(text(f"SELECT * FROM herramientas WHERE {' AND '.join(where)} ORDER BY fecha DESC, created_at DESC LIMIT 100"), params).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+@router.post("/herramientas", status_code=201)
+def crear_herramienta(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permiso("control_acceso", "write")),
+):
+    rid = str(uuid.uuid4())
+    db.execute(text("""
+        INSERT INTO herramientas (id, fecha, descripcion, cantidad, responsable, observaciones, foto_url, creado_por)
+        VALUES (:id, :fecha, :descripcion, :cantidad, :responsable, :observaciones, :foto_url, :creado_por)
+    """), {
+        "id": rid, "fecha": body.get("fecha"), "descripcion": body.get("descripcion"),
+        "cantidad": body.get("cantidad"), "responsable": body.get("responsable"),
+        "observaciones": body.get("observaciones"), "foto_url": body.get("foto_url"),
+        "creado_por": current_user["id"],
+    })
+    db.commit()
+    return {"id": rid, "message": "Herramienta registrada"}
+
+@router.put("/herramientas/{id}")
+def actualizar_herramienta(
+    id: str, body: dict,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("control_acceso", "write")),
+):
+    campos = ["fecha", "descripcion", "cantidad", "responsable", "observaciones", "foto_url"]
+    vals = {c: body[c] for c in campos if c in body}
+    if not vals:
+        raise HTTPException(400, "Sin campos")
+    vals["id"] = id
+    sets = ", ".join(f"{c} = :{c}" for c in vals if c != "id")
+    db.execute(text(f"UPDATE herramientas SET {sets}, updated_at = NOW() WHERE id = :id"), vals)
+    db.commit()
+    return {"message": "Actualizado"}
+
+@router.delete("/herramientas/{id}")
+def eliminar_herramienta(
+    id: str, db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("control_acceso", "delete")),
+):
+    db.execute(text("DELETE FROM herramientas WHERE id = :id"), {"id": id})
+    db.commit()
+    return {"message": "Eliminado"}
+
+
 # ── BD MAESTRO ────────────────────────────────────────────────────
 
 @router.get("/bd/buscar")

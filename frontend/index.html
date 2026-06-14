@@ -1180,8 +1180,99 @@ function RegistrosPage(){
   );
 }
 
+/* ── SUSTANCIAS / HERRAMIENTAS SUB-PAGE ── */
+function ItemAccesoPage({tipo,user}){
+  const cfg = tipo==='sustancias'
+    ? {endpoint:'/control-acceso/sustancias',titulo:'Sustancias',icono:'alert',color:'#e11d48',bg:'#fee2e2'}
+    : {endpoint:'/control-acceso/herramientas',titulo:'Herramientas',icono:'key',color:'#d97706',bg:'#fef3c7'};
+
+  const [view,setView]       = useState('list');
+  const [records,setRecords] = useState([]);
+  const [loading,setLoading] = useState(true);
+  const [saving,setSaving]   = useState(false);
+  const [alert,setAlert]     = useState(null);
+  const [confirm,setConfirm] = useState(null);
+  const [selected,setSelected]= useState(null);
+  const emptyF = {fecha:today(),descripcion:'',cantidad:'',responsable:'',observaciones:'',foto_url:null};
+  const [form,setForm]       = useState(emptyF);
+
+  const load = useCallback(()=>{
+    setLoading(true);
+    api.get(cfg.endpoint).then(setRecords).catch(()=>setAlert({type:'err',msg:'Error cargando datos'})).finally(()=>setLoading(false));
+  },[cfg.endpoint]);
+  useEffect(()=>load(),[load]);
+
+  const handleSave = async()=>{
+    if(!form.descripcion.trim()) return setAlert({type:'err',msg:'La descripción es obligatoria'});
+    setSaving(true);
+    try{
+      if(selected) await api.put(`${cfg.endpoint}/${selected.id}`,form);
+      else await api.post(cfg.endpoint,form);
+      setAlert({type:'ok',msg:'Registro guardado'});
+      setView('list');setForm(emptyF);setSelected(null);load();
+    }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
+    finally{setSaving(false);}
+  };
+
+  if(view==='form') return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:cfg.icono,s:12}),' Datos del registro'),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,onChange:e=>setForm(p=>({...p,fecha:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Cantidad'),h('input',{type:'text',value:form.cantidad,onChange:e=>setForm(p=>({...p,cantidad:e.target.value})),placeholder:'Ej: 2 unidades'}))
+        ),
+        h('div',{className:'fg'},
+          h('label',null,'Descripción',h('span',{className:'req'},'*')),
+          h('input',{type:'text',value:form.descripcion,onChange:e=>setForm(p=>({...p,descripcion:e.target.value})),placeholder:tipo==='sustancias'?'Ej: Thinner, pintura...':'Ej: Taladro, llave inglesa...'})
+        ),
+        h('div',{className:'fg'},h('label',null,'Responsable / Persona asociada'),h('input',{type:'text',value:form.responsable,onChange:e=>setForm(p=>({...p,responsable:e.target.value})),placeholder:'Nombre'})),
+        h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:3,placeholder:'—'}))
+      ),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'camera',s:12}),' Foto (opcional)'),
+        h(CameraField,{value:form.foto_url,onChange:v=>setForm(p=>({...p,foto_url:v}))})
+      )
+    ),
+    h('div',{className:'sticky-cta'},
+      h('button',{className:'btn-cancel',onClick:()=>{setView('list');setForm(emptyF);setSelected(null);}},h(Ico,{n:'x',s:15})),
+      h('button',{className:'btn-primary',onClick:handleSave,disabled:saving},
+        saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),saving?'Guardando...':'Guardar'
+      )
+    )
+  );
+
+  return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{style:{display:'flex',padding:'8px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
+      h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+        h(Ico,{n:'plus',s:15}),' Nuevo'
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      loading?h(LoadingDots):
+      records.length===0?h('div',{className:'empty'},h(Ico,{n:cfg.icono,s:44}),h('p',null,'Sin registros')):
+      records.map(r=>h('div',{key:r.id,className:'list-item'},
+        h('div',{className:'li-icon',style:{background:cfg.bg}},h(Ico,{n:cfg.icono,s:18,style:{color:cfg.color}})),
+        h('div',{className:'li-body',onClick:()=>{setForm({...emptyF,...r});setSelected(r);setView('form');}},
+          h('div',{className:'li-title'},r.descripcion),
+          h('div',{className:'li-sub'},r.cantidad?`Cantidad: ${r.cantidad}`:''),
+          r.responsable&&h('div',{className:'li-sub'},'Responsable: ',r.responsable)
+        ),
+        h('div',{className:'li-right'},
+          h('span',{className:'li-date'},fmtDate(r.fecha)),
+          !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2,marginTop:4}},h(Ico,{n:'trash',s:14}))
+        )
+      ))
+    ),
+    confirm&&h(ConfirmSheet,{msg:`Se eliminará el registro de ${cfg.titulo.toLowerCase()}.`,onOk:async()=>{await api.del(`${cfg.endpoint}/${confirm}`);setConfirm(null);load();},onCancel:()=>setConfirm(null)})
+  );
+}
+
 /* ── ACCESO PAGE ── */
 function AccesoPage({user,online,addOffline}){
+  const [tab,setTab] = useState('personas');
   const [view,setView]       = useState('list');
   const [records,setRecords] = useState([]);
   const [loading,setLoading] = useState(true);
@@ -1287,10 +1378,32 @@ function AccesoPage({user,online,addOffline}){
     )
   );
 
+  const accesoTabs = [
+    {id:'personas',   label:'Personas',    icon:'userCheck'},
+    {id:'sustancias', label:'Sustancias',  icon:'alert'},
+    {id:'herramientas',label:'Herramientas',icon:'key'},
+  ];
+
+  if(tab!=='personas') return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{style:{display:'flex',gap:6,padding:'8px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0,overflowX:'auto'}},
+      accesoTabs.map(t=>h('button',{key:t.id,onClick:()=>{setTab(t.id);setView('list');},
+        style:{flexShrink:0,padding:'7px 12px',borderRadius:8,fontSize:11,fontWeight:700,border:'1.5px solid',cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:4,
+          background:tab===t.id?'var(--navy2)':'none',color:tab===t.id?'#fff':'var(--slate)',borderColor:tab===t.id?'var(--navy2)':'var(--border)'}},
+        h(Ico,{n:t.icon,s:12}),t.label
+      ))
+    ),
+    h(ItemAccesoPage,{tipo:tab,user})
+  );
+
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
-    h('div',{style:{display:'flex',gap:8,padding:'10px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
-      h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
-        h(Ico,{n:'plus',s:15}),' Nuevo'
+    h('div',{style:{display:'flex',gap:6,padding:'8px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0,overflowX:'auto'}},
+      accesoTabs.map(t=>h('button',{key:t.id,onClick:()=>{setTab(t.id);setView('list');},
+        style:{flexShrink:0,padding:'7px 12px',borderRadius:8,fontSize:11,fontWeight:700,border:'1.5px solid',cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:4,
+          background:tab===t.id?'var(--navy2)':'none',color:tab===t.id?'#fff':'var(--slate)',borderColor:tab===t.id?'var(--navy2)':'var(--border)'}},
+        h(Ico,{n:t.icon,s:12}),t.label
+      )),
+      h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:11,fontWeight:700,fontFamily:'inherit'}},
+        h(Ico,{n:'plus',s:14}),' Nuevo'
       )
     ),
     h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
