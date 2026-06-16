@@ -636,7 +636,7 @@ function HomePage({setPage,user}){
 
   const allMods = [
     {id:'flota', label:'Flota Propia',     desc:'Salidas de vehículos',   cls:'m-flota',icon:'truck',    roles:['admin','supervisor','operador','guarda_bodega','guarda_vehicular'],cnt:resumen?.flota?.hoy},
-    {id:'prov',  label:'TGN · Proveedores',desc:'Vehículos terceros',     cls:'m-prov', icon:'package',  roles:['admin','supervisor','operador','guarda_vehicular'],cnt:resumen?.proveedores?.hoy},
+    {id:'prov',  label:'TGN · Proveedores',desc:'Vehículos terceros',     cls:'m-prov', icon:'package',  roles:['admin','supervisor','operador','guarda_vehicular','guarda_bodega'],cnt:resumen?.proveedores?.hoy},
     {id:'acceso',label:'Control Acceso',   desc:'Entrada/salida personal',cls:'m-acc',  icon:'userCheck',roles:['admin','supervisor','operador','guarda_peatonal'],  cnt:resumen?.control_acceso?.hoy},
     {id:'visit', label:'Visitantes',       desc:'Registro de visitas',    cls:'m-vis',  icon:'users',    roles:['admin','supervisor','operador','guarda_peatonal'],  cnt:resumen?.visitantes?.hoy},
     {id:'sust',  label:'Sustancias',        desc:'Control de sustancias',  cls:'m-sust', icon:'alert',    roles:['admin','supervisor','operador','guarda_peatonal'],cnt:null},
@@ -654,7 +654,7 @@ function HomePage({setPage,user}){
 
   const showFlotaStats   = isAdmin||isGuardaBodega||isGuardaVehicular;
   const showAccesoStats  = isAdmin||isGuardaPeatonal;
-  const showProvStats    = isAdmin||isGuardaVehicular;
+  const showProvStats    = isAdmin||isGuardaVehicular||isGuardaBodega;
 
   return h('div',{className:'scroll-body'},
     h('div',{style:{padding:'12px 14px 0'}},
@@ -1632,6 +1632,7 @@ function ProveedoresPage({user,online,addOffline}){
   const [horaSalida,setHoraSalida] = useState('');
   const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',tipo_vehiculo:'',empresa:'',muelle_descargue:'',carga_compartida:false,hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',actividad_a_desarrollar:'',dependencia_autoriza:'',fecha_pago_arl:'',observaciones:'',foto_url:null};
   const [form,setForm] = useState(emptyF);
+  const esBodega = user?.rol==='guarda_bodega';
 
   const load = useCallback(()=>{
     setLoading(true);
@@ -1652,6 +1653,49 @@ function ProveedoresPage({user,online,addOffline}){
   };
 
   const tiposVehiculo = ['Camión','Camioneta','Moto','Furgón','Tractomula','Otro'];
+
+  if(view==='form' && esBodega) return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{className:'header'},
+      h('div',{className:'header-inner'},
+        h('button',{onClick:()=>{setView('list');setForm(emptyF);setSelected(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
+          h(Ico,{n:'arrowLeft',s:18}),' Volver'
+        ),
+        h('div',{className:'header-brand'},h('h1',null,'Evidencia de Rechazo'),h('span',null,'TGN · Proveedores'))
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'package',s:12}),' Proveedor'),
+        h('div',{className:'fg'},h('label',null,'Empresa'),h('p',{style:{fontWeight:600,padding:'4px 0',color:'var(--text)'}},form.empresa||'—')),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Conductor'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.nombre_conductor||'—')),
+          h('div',{className:'fg'},h('label',null,'Placa'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.placa_vehiculo||'—'))
+        ),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Muelle'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.muelle_descargue||'—')),
+          h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.hora_ingreso||'—'))
+        )
+      ),
+      h('div',{className:'fcard',style:{border:'1.5px solid #fca5a5'}},
+        h('p',{className:'sec-ttl',style:{color:'#dc2626'}},h(Ico,{n:'alert',s:12}),' Motivo del rechazo'),
+        h('div',{className:'fg'},
+          h('label',null,'Observaciones'),
+          h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:4,placeholder:'Describe el motivo del rechazo, novedades o instrucciones...',style:{borderColor:'#fca5a5'}})
+        )
+      ),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'camera',s:12}),' Fotografía de evidencia'),
+        h(CameraField,{value:form.foto_url,onChange:v=>setForm(p=>({...p,foto_url:v}))})
+      )
+    ),
+    h('div',{className:'sticky-cta'},
+      h('button',{className:'btn-cancel',onClick:()=>{setView('list');setForm(emptyF);setSelected(null);}},h(Ico,{n:'x',s:15})),
+      h('button',{className:'btn-primary',onClick:handleSave,disabled:saving},
+        saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),saving?'Guardando...':'Guardar evidencia'
+      )
+    )
+  );
 
   if(view==='form') return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{className:'header'},
@@ -1717,12 +1761,13 @@ function ProveedoresPage({user,online,addOffline}){
 
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{display:'flex',gap:8,padding:'10px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
-      h('button',{onClick:()=>api.exportar('proveedores'),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
+      !esBodega&&h('button',{onClick:()=>api.exportar('proveedores'),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
         h(Ico,{n:'download',s:14}),' Excel'
       ),
-      h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+      !esBodega&&h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
         h(Ico,{n:'plus',s:15}),' Nuevo'
-      )
+      ),
+      esBodega&&h('p',{style:{fontSize:12,color:'var(--slate)',alignSelf:'center',margin:'0 0 0 4px'}},h(Ico,{n:'alert',s:12}),' Toca un registro para agregar evidencia de rechazo')
     ),
     h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
@@ -1740,12 +1785,13 @@ function ProveedoresPage({user,online,addOffline}){
         h('div',{className:'li-right'},
           h('span',{className:'li-date'},fmtDate(r.fecha)),
           h('div',{style:{display:'flex',gap:4,marginTop:3}},
-            r.hora_ingreso&&!r.hora_salida&&h('button',{
+            !esBodega&&r.hora_ingreso&&!r.hora_salida&&h('button',{
               title:'Registrar salida',
               onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(new Date().toTimeString().slice(0,5));},
               style:{background:'#d97706',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Salida'),
-            h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
+            esBodega&&(r.observaciones||r.foto_url)&&h('span',{style:{fontSize:10,background:'#fef3c7',color:'#92400e',borderRadius:4,padding:'2px 6px',fontWeight:600}},'Con evidencia'),
+            !esBodega&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
           )
         )
       ))
@@ -2314,7 +2360,7 @@ function App(){
 
   const rol = user?.rol||'';
   const navItems =
-    rol==='guarda_bodega'   ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'}]
+    rol==='guarda_bodega'   ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'TGN',icon:'package'}]
     :rol==='guarda_peatonal' ? [{id:'home',label:'Inicio',icon:'home'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'},{id:'sust',label:'Sust.',icon:'alert'},{id:'herr',label:'Herram.',icon:'key'}]
     :rol==='guarda_vehicular'? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'TGN',icon:'package'}]
     :[
