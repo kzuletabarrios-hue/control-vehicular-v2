@@ -97,7 +97,7 @@
     <h1>Sistema de Control de Acceso y Operaciones</h1>
     <p>Guía de uso para guardas de seguridad — CEDI R10</p>
     <div class="meta">
-      <div class="meta-item"><span>Versión</span><strong>2.0</strong></div>
+      <div class="meta-item"><span>Versión</span><strong>2.1</strong></div>
       <div class="meta-item"><span>Fecha</span><strong>Junio 2026</strong></div>
       <div class="meta-item"><span>Clasificación</span><strong>Interno</strong></div>
     </div>
@@ -141,6 +141,7 @@
         <li>Registra carga (pallets, muelle)</li>
         <li>Selecciona conductor y tiendas</li>
         <li>Registra temperatura y sello</li>
+        <li>Agrega evidencia de rechazo en TGN</li>
       </ul>
     </div>
     <div class="rol-card rol-vehicular">
@@ -150,7 +151,8 @@
         <li>Registra salida de vehículos flota</li>
         <li>Registra regreso de vehículos</li>
         <li>Registra sellos de salida/entrada</li>
-        <li>Registra proveedores TGN</li>
+        <li>Registra y gestiona proveedores TGN</li>
+        <li>Ve evidencia de rechazo de bodega</li>
       </ul>
     </div>
     <div class="rol-card rol-peatonal">
@@ -216,10 +218,35 @@
 
   <div class="warn">Si un vehículo aparece con badge "En ruta" al iniciar el turno, significa que quedó pendiente del turno anterior. Notifica al supervisor antes de registrar una nueva salida para el mismo vehículo.</div>
 
-  <!-- 4. ACCESO PEATONAL -->
-  <h2>4. Control de Acceso Peatonal</h2>
+  <!-- 4. TGN PROVEEDORES -->
+  <h2>4. TGN · Proveedores (vehículos terceros)</h2>
+  <p>El módulo TGN registra la entrada y salida de vehículos de proveedores y terceros. <strong>Bodega</strong> puede agregar evidencia de rechazo; <strong>Vehicular</strong> crea los registros y da la salida.</p>
 
-  <h3>4.1 Registro de contratistas (Control Acceso)</h3>
+  <h3>4.1 Guarda Vehicular — Registrar proveedor</h3>
+  <div class="pasos">
+    <div class="paso"><div class="paso-num">1</div><div class="paso-body"><h4>Ir a módulo TGN → "Nuevo"</h4><p>Toca el botón amarillo. Completa placa, conductor, empresa, tipo de vehículo, muelle y hora de ingreso (se llena automática).</p></div></div>
+    <div class="paso"><div class="paso-num">2</div><div class="paso-body"><h4>Guardar</h4><p>El vehículo aparece en la lista. Cuando salga, usa el botón naranja <strong>"Salida"</strong> para registrar la hora de salida.</p></div></div>
+  </div>
+
+  <h3>4.2 Guarda Vehicular — Identificar rechazos</h3>
+  <p>Cuando el guarda de bodega registra un rechazo, el vehículo muestra el badge <span class="badge badge-yellow">Con evidencia</span> en la lista. Esto indica que bodega dejó observaciones o una foto. Toca el registro para ver el detalle antes de dar la salida.</p>
+  <div class="tip">Siempre revisa el badge "Con evidencia" antes de registrar la salida de un vehículo proveedor. Puede haber instrucciones o novedades de bodega.</div>
+
+  <h3>4.3 Guarda Bodega — Agregar evidencia de rechazo</h3>
+  <p>Si un proveedor es rechazado en bodega, puedes dejar evidencia directamente desde tu módulo TGN:</p>
+  <div class="pasos">
+    <div class="paso"><div class="paso-num">1</div><div class="paso-body"><h4>Ir al módulo TGN</h4><p>Verás la lista de vehículos de proveedores registrados por vehicular. No puedes crear ni eliminar registros.</p></div></div>
+    <div class="paso"><div class="paso-num">2</div><div class="paso-body"><h4>Tocar el registro del vehículo rechazado</h4><p>Se abre el formulario de evidencia de rechazo con los datos del vehículo (empresa, conductor, placa, muelle).</p></div></div>
+    <div class="paso"><div class="paso-num">3</div><div class="paso-body"><h4>Escribir el motivo del rechazo</h4><p>Describe en el campo de observaciones el motivo: documentos, carga, temperatura, etc.</p></div></div>
+    <div class="paso"><div class="paso-num">4</div><div class="paso-body"><h4>Agregar foto (recomendado)</h4><p>Toma una foto como evidencia del rechazo.</p></div></div>
+    <div class="paso"><div class="paso-num">5</div><div class="paso-body"><h4>Guardar evidencia</h4><p>El registro queda marcado con el badge <span class="badge badge-yellow">Con evidencia</span> visible para el guarda vehicular.</p></div></div>
+  </div>
+  <div class="warn">El guarda de bodega NO puede crear nuevos registros TGN, exportar a Excel ni eliminar registros. Solo puede agregar evidencia de rechazo a registros existentes.</div>
+
+  <!-- 5. ACCESO PEATONAL -->
+  <h2>5. Control de Acceso Peatonal</h2>
+
+  <h3>5.1 Registro de contratistas (Control Acceso)</h3>
   <table>
     <tr><th>Campo</th><th>Descripción</th><th>Obligatorio</th></tr>
     <tr><td>Cédula</td><td>Busca automáticamente el nombre y empresa del contratista</td><td><span class="badge badge-red">Sí</span></td></tr>
@@ -232,7 +259,7 @@
   </table>
   <div class="tip">Al escribir la cédula, el sistema busca automáticamente el nombre y la empresa. Si no aparece, el contratista no está registrado en la base de datos — notifica al administrador.</div>
 
-  <h3>4.2 Registro de visitantes</h3>
+  <h3>5.2 Registro de visitantes</h3>
   <p>A diferencia de los contratistas, los visitantes se pueden registrar con datos libres (sin necesidad de estar en la base de datos).</p>
   <table>
     <tr><th>Campo</th><th>Descripción</th><th>Obligatorio</th></tr>
@@ -242,7 +269,7 @@
     <tr><td>Hora ingreso</td><td>Automática al abrir el formulario</td><td><span class="badge badge-blue">No</span></td></tr>
   </table>
 
-  <h3>4.3 Registro de sustancias</h3>
+  <h3>5.3 Registro de sustancias</h3>
   <p>Para el ingreso de cualquier sustancia que requiera control (thinner, pinturas, químicos, etc.):</p>
   <table>
     <tr><th>Campo</th><th>Descripción</th></tr>
@@ -253,7 +280,7 @@
     <tr><td>Foto</td><td>Evidencia fotográfica (recomendada)</td></tr>
   </table>
 
-  <h3>4.4 Registro de herramientas</h3>
+  <h3>5.4 Registro de herramientas</h3>
   <p>Para el ingreso de herramientas o equipos:</p>
   <table>
     <tr><th>Campo</th><th>Descripción</th></tr>
@@ -264,8 +291,8 @@
     <tr><td>Foto</td><td>Evidencia fotográfica (recomendada)</td></tr>
   </table>
 
-  <!-- 5. TIPS -->
-  <h2>5. Consejos importantes</h2>
+  <!-- 6. TIPS -->
+  <h2>6. Consejos importantes</h2>
   <table>
     <tr><th>Situación</th><th>Qué hacer</th></tr>
     <tr><td>No puedo iniciar sesión</td><td>Verifica el correo y contraseña. Si persiste, contacta al administrador.</td></tr>
@@ -274,10 +301,12 @@
     <tr><td>Un contratista no aparece al buscar la cédula</td><td>Notifica al administrador para que lo registre en la base de datos.</td></tr>
     <tr><td>El sello es obligatorio y no lo tengo</td><td>No se puede registrar salida/llegada sin número de sello. Espera a tener el sello físico.</td></tr>
     <tr><td>Hay vehículos "En ruta" al iniciar turno</td><td>Notifica al supervisor. Son vehículos pendientes del turno anterior.</td></tr>
+    <tr><td>Un proveedor fue rechazado en bodega</td><td>El guarda bodega registra la evidencia en TGN. El guarda vehicular verá el badge "Con evidencia" y puede revisar las observaciones antes de dar salida.</td></tr>
+    <tr><td>No veo el botón "Nuevo" en TGN (soy bodega)</td><td>Normal. El guarda bodega solo puede agregar evidencia de rechazo, no crear nuevos registros TGN.</td></tr>
   </table>
 
   <div style="margin-top:48px;text-align:center;color:#94a3b8;font-size:11px;border-top:1px solid #e2e8f0;padding-top:20px">
-    Manual de Usuario · Sistema de Control de Acceso y Operaciones · CEDI R10 · Versión 2.0 · Junio 2026 · Confidencial — Solo para uso interno
+    Manual de Usuario · Sistema de Control de Acceso y Operaciones · CEDI R10 · Versión 2.1 · Junio 2026 · Confidencial — Solo para uso interno
   </div>
 
 </div>
