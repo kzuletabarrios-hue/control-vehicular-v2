@@ -1632,7 +1632,8 @@ function ProveedoresPage({user,online,addOffline}){
   const [horaSalida,setHoraSalida] = useState('');
   const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',tipo_vehiculo:'',empresa:'',muelle_descargue:'',carga_compartida:false,hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',actividad_a_desarrollar:'',dependencia_autoriza:'',fecha_pago_arl:'',observaciones:'',foto_url:null};
   const [form,setForm] = useState(emptyF);
-  const esBodega = user?.rol==='guarda_bodega';
+  const esBodega    = user?.rol==='guarda_bodega';
+  const esVehicular = user?.rol==='guarda_vehicular';
 
   const load = useCallback(()=>{
     setLoading(true);
@@ -1790,7 +1791,7 @@ function ProveedoresPage({user,online,addOffline}){
               onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(new Date().toTimeString().slice(0,5));},
               style:{background:'#d97706',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Salida'),
-            esBodega&&(r.observaciones||r.foto_url)&&h('span',{style:{fontSize:10,background:'#fef3c7',color:'#92400e',borderRadius:4,padding:'2px 6px',fontWeight:600}},'Con evidencia'),
+            (esBodega||esVehicular)&&(r.observaciones||r.foto_url)&&h('span',{style:{fontSize:10,background:'#fef3c7',color:'#92400e',borderRadius:4,padding:'2px 6px',fontWeight:600}},'Con evidencia'),
             !esBodega&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
           )
         )
