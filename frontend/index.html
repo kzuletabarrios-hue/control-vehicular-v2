@@ -13,6 +13,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
@@ -128,6 +129,8 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 .m-carga {background:linear-gradient(135deg,#065f46,#059669)}
 .m-sust  {background:linear-gradient(135deg,#7f1d1d,#dc2626)}
 .m-herr  {background:linear-gradient(135deg,#451a03,#b45309)}
+.m-ronda {background:linear-gradient(135deg,#064e3b,#059669)}
+.m-nov   {background:linear-gradient(135deg,#7c2d12,#ea580c)}
 
 /* ── CARGA MASIVA ── */
 .upload-zone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:2px dashed var(--border);border-radius:var(--radius-sm);padding:24px 16px;cursor:pointer;background:var(--bg);text-align:center;transition:border-color .2s;width:100%}
@@ -307,6 +310,10 @@ const Icons = {
   key:`<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>`,
   copy:`<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>`,
   upload:`<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>`,
+  mapPin:`<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>`,
+  bell:`<path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>`,
+  clipboard:`<path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>`,
+  qrCode:`<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="5" y="5" width="3" height="3"/><rect x="16" y="5" width="3" height="3"/><rect x="16" y="16" width="3" height="3"/><rect x="5" y="16" width="3" height="3"/>`,
 };
 const Ico = ({n,s=20,c=''}) => SVG(Icons[n]||'',s,c);
 
@@ -357,6 +364,7 @@ const api = {
   post: (p,b)   => api._fetch(p,{method:'POST', body:JSON.stringify(b)}),
   put:  (p,b)   => api._fetch(p,{method:'PUT',  body:JSON.stringify(b)}),
   del:  (p)     => api._fetch(p,{method:'DELETE'}),
+  patch:(p,b)   => api._fetch(p,{method:'PATCH', body:JSON.stringify(b)}),
   exportar: async (tabla,fi,ff) => {
     const token = getToken();
     let url = `${API_BASE}/export/${tabla}`;
@@ -627,9 +635,10 @@ function HomePage({setPage,user}){
   const fechaHoy = new Date().toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'});
   const rol = user?.rol||'';
   const isAdmin = ['admin','supervisor','operador'].includes(rol);
-  const isGuardaBodega   = rol==='guarda_bodega';
-  const isGuardaPeatonal = rol==='guarda_peatonal';
-  const isGuardaVehicular= rol==='guarda_vehicular';
+  const isGuardaBodega    = rol==='guarda_bodega';
+  const isGuardaPeatonal  = rol==='guarda_peatonal';
+  const isGuardaVehicular = rol==='guarda_vehicular';
+  const isRecorredor      = rol==='recorredor_externo';
 
   const cargar = ()=>api.get('/dashboard/resumen').then(setResumen).catch(()=>{});
   useEffect(()=>{ cargar(); const t=setInterval(cargar,60000); return ()=>clearInterval(t); },[]);
@@ -643,7 +652,9 @@ function HomePage({setPage,user}){
     {id:'herr',  label:'Herramientas',     desc:'Control de herramientas',cls:'m-herr', icon:'key',      roles:['admin','supervisor','operador','guarda_peatonal'],cnt:null},
     {id:'bd',    label:'Base de Datos',    desc:'Catálogos maestros',     cls:'m-bd',   icon:'database', roles:['admin','supervisor'],cnt:null},
     {id:'carga', label:'Carga Masiva',     desc:'Importar desde Excel',   cls:'m-carga',icon:'upload',   roles:['admin'],cnt:null},
-    {id:'reg',   label:'Reportes',         desc:'Historial y Excel',      cls:'m-reg',  icon:'fileText', roles:['admin','supervisor','consulta'],cnt:null},
+    {id:'reg',       label:'Reportes',    desc:'Historial y Excel',      cls:'m-reg',  icon:'fileText', roles:['admin','supervisor','consulta'],cnt:null},
+    {id:'ronda',     label:'Ronda',       desc:'Marcación de puntos',    cls:'m-ronda',icon:'mapPin',   roles:['recorredor_externo'],cnt:null},
+    {id:'novedades', label:'Novedades',   desc:'Registro de incidencias',cls:'m-nov',  icon:'bell',     roles:['admin','supervisor','recorredor_externo'],cnt:null},
   ];
   const mods = allMods.filter(m=>m.roles.includes(rol));
 
@@ -2165,6 +2176,7 @@ function BdConductoresTab(){
 const ROL_LABELS = {
   admin:'Administrador', supervisor:'Supervisor', operador:'Operador', consulta:'Consulta',
   guarda_bodega:'Guarda - Bodega', guarda_peatonal:'Guarda - Peatonal', guarda_vehicular:'Guarda - Vehicular',
+  recorredor_externo:'Recorredor Externo',
 };
 
 function BdUsuariosTab(){
@@ -2292,6 +2304,401 @@ function BaseDatosPage({user}){
   );
 }
 
+/* ── QR SCANNER ── */
+function QRScanner({onScan,onClose}){
+  const scannerRef = useRef(null);
+  const activeRef  = useRef(true);
+
+  useEffect(()=>{
+    activeRef.current = true;
+    const Lib = window.Html5Qrcode;
+    if(!Lib){ onClose(); return; }
+    const scanner = new Lib('qr-scan-region');
+    scannerRef.current = scanner;
+    scanner.start(
+      {facingMode:'environment'},
+      {fps:10,qrbox:{width:240,height:240}},
+      (text)=>{
+        if(!activeRef.current) return;
+        scanner.stop().catch(()=>{}).finally(()=>{ if(activeRef.current) onScan(text); });
+      },
+      ()=>{}
+    ).catch(()=>{});
+    return ()=>{
+      activeRef.current = false;
+      if(scannerRef.current) scannerRef.current.stop().catch(()=>{});
+    };
+  },[]);
+
+  return h('div',{style:{position:'fixed',inset:0,background:'#000',zIndex:300,display:'flex',flexDirection:'column'}},
+    h('div',{style:{padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',background:'rgba(0,0,0,0.85)',flexShrink:0}},
+      h('span',{style:{color:'#fff',fontWeight:700,fontSize:14}},h(Ico,{n:'qrCode',s:16}),' Apunta al QR del punto'),
+      h('button',{onClick:()=>{ if(scannerRef.current) scannerRef.current.stop().catch(()=>{}); onClose(); },
+        style:{background:'none',border:'none',color:'#fff',cursor:'pointer',padding:4}},
+        h(Ico,{n:'x',s:24})
+      )
+    ),
+    h('div',{id:'qr-scan-region',style:{flex:1}}),
+    h('div',{style:{padding:'12px 16px',background:'rgba(0,0,0,0.85)',textAlign:'center',flexShrink:0}},
+      h('p',{style:{color:'rgba(255,255,255,0.65)',fontSize:12}},'Centra el código QR en el recuadro')
+    )
+  );
+}
+
+/* ── BOTÓN FLOTANTE NOVEDAD ── */
+function BtnNovedad({user,moduloActual}){
+  const [open,setOpen]     = useState(false);
+  const [saving,setSaving] = useState(false);
+  const [alert,setAlert]   = useState(null);
+  const emptyF = {modulo_origen:moduloActual||'general',categoria:'otro',descripcion:'',fotografia:null};
+  const [form,setForm]     = useState(emptyF);
+
+  useEffect(()=>{ setForm(p=>({...p,modulo_origen:moduloActual||'general'})); },[moduloActual]);
+
+  const handleSave = async()=>{
+    if(!form.descripcion.trim()) return setAlert({type:'err',msg:'La descripción es requerida'});
+    setSaving(true);
+    try{
+      await api.post('/novedades',form);
+      setAlert({type:'ok',msg:'Novedad registrada correctamente'});
+      setTimeout(()=>{ setOpen(false); setAlert(null); setForm(emptyF); },1400);
+    }catch(e){ setAlert({type:'err',msg:'Error: '+e.message}); }
+    finally{ setSaving(false); }
+  };
+
+  return h(React.Fragment,null,
+    h('button',{
+      onClick:()=>setOpen(true),
+      title:'Registrar novedad',
+      style:{position:'fixed',bottom:'68px',right:'14px',width:46,height:46,
+        background:'var(--amber)',color:'var(--navy)',border:'none',borderRadius:'50%',
+        cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
+        boxShadow:'0 4px 16px rgba(245,158,11,0.55)',zIndex:90}
+    }, h(Ico,{n:'bell',s:19})),
+
+    open&&h('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'flex-end'}},
+      h('div',{style:{background:'var(--white)',borderRadius:'20px 20px 0 0',width:'100%',maxHeight:'92vh',overflowY:'auto'}},
+        h('div',{className:'sheet-handle'}),
+        h('div',{className:'sheet-header',style:{padding:'0 16px 12px'}},
+          h('h2',null,h(Ico,{n:'bell',s:16}),' Registrar Novedad'),
+          h('button',{className:'btn-icon',onClick:()=>{setOpen(false);setAlert(null);}},h(Ico,{n:'x',s:15}))
+        ),
+        h('div',{style:{padding:'0 16px 24px'}},
+          alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+          h('div',{className:'fg'},
+            h('label',null,'Módulo de origen'),
+            h('select',{value:form.modulo_origen,onChange:e=>setForm(p=>({...p,modulo_origen:e.target.value}))},
+              h('option',{value:'general'},'General'),
+              h('option',{value:'flota'},'Flota Propia'),
+              h('option',{value:'tgn'},'TGN / Proveedores'),
+              h('option',{value:'acceso'},'Control Acceso'),
+              h('option',{value:'visitantes'},'Visitantes'),
+              h('option',{value:'ronda'},'Ronda')
+            )
+          ),
+          h('div',{className:'fg'},
+            h('label',null,'Categoría'),
+            h('select',{value:form.categoria,onChange:e=>setForm(p=>({...p,categoria:e.target.value}))},
+              h('option',{value:'seguridad'},'Seguridad'),
+              h('option',{value:'mantenimiento'},'Mantenimiento'),
+              h('option',{value:'logistica'},'Logística'),
+              h('option',{value:'otro'},'Otro')
+            )
+          ),
+          h('div',{className:'fg'},
+            h('label',null,'Descripción',h('span',{className:'req'},'*')),
+            h('textarea',{value:form.descripcion,onChange:e=>setForm(p=>({...p,descripcion:e.target.value})),
+              rows:4,placeholder:'Describe la novedad encontrada...'})
+          ),
+          h('div',{className:'fg'},
+            h('label',null,'Foto de evidencia (opcional)'),
+            h(CameraField,{value:form.fotografia,onChange:v=>setForm(p=>({...p,fotografia:v}))})
+          ),
+          h('button',{className:'btn-primary',onClick:handleSave,disabled:saving,style:{width:'100%',marginTop:4}},
+            saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),
+            saving?'Guardando...':'Registrar novedad'
+          )
+        )
+      )
+    )
+  );
+}
+
+/* ── RONDA PAGE ── */
+function RondaPage({user}){
+  const [puntos,setPuntos]           = useState([]);
+  const [marcaciones,setMarcaciones] = useState([]);
+  const [loading,setLoading]         = useState(true);
+  const [view,setView]               = useState('list'); // list | scanning | confirmar
+  const [selPunto,setSelPunto]       = useState(null);
+  const [codEscaneado,setCodEscaneado] = useState('');
+  const emptyConf = {estado:'ok',observacion:'',fotografia:null};
+  const [conf,setConf]   = useState(emptyConf);
+  const [saving,setSaving] = useState(false);
+  const [alert,setAlert]   = useState(null);
+
+  const esAdmin     = ['admin','supervisor'].includes(user?.rol);
+  const esRecorredor = user?.rol==='recorredor_externo';
+
+  const load = useCallback(()=>{
+    setLoading(true);
+    Promise.all([
+      api.get('/rondas/puntos').then(r=>setPuntos(Array.isArray(r)?r:[])),
+      api.get('/rondas/hoy').then(r=>setMarcaciones(Array.isArray(r)?r:[])),
+    ]).finally(()=>setLoading(false));
+  },[]);
+  useEffect(()=>{ load(); },[load]);
+
+  const statusMap = {};
+  marcaciones.forEach(m=>{ statusMap[m.punto_id]=m; });
+
+  const handleScan = (codigo)=>{ setCodEscaneado(codigo); setView('confirmar'); };
+
+  const handleMarcar = async()=>{
+    if(!selPunto) return;
+    setSaving(true); setAlert(null);
+    try{
+      await api.post('/rondas/marcar',{
+        punto_id:selPunto.id,codigo_escaneado:codEscaneado,
+        estado:conf.estado,observacion:conf.observacion||null,fotografia:conf.fotografia||null,
+      });
+      setAlert({type:'ok',msg:`Punto "${selPunto.nombre}" marcado correctamente`});
+      setView('list'); setSelPunto(null); setCodEscaneado(''); setConf(emptyConf);
+      load();
+    }catch(e){
+      let msg=e.message;
+      try{msg=JSON.parse(msg).detail||msg;}catch{}
+      setAlert({type:'err',msg});
+    }finally{ setSaving(false); }
+  };
+
+  const ST = {
+    ok:      {bg:'#d1fae5',color:'#065f46',label:'OK',icon:'checkCircle'},
+    novedad: {bg:'#fef3c7',color:'#92400e',label:'Novedad',icon:'alert'},
+    omitido: {bg:'#f1f5f9',color:'#64748b',label:'Omitido',icon:'x'},
+  };
+
+  if(view==='scanning') return h(QRScanner,{onScan:handleScan,onClose:()=>setView('list')});
+
+  if(view==='confirmar'&&selPunto) return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{className:'header'},
+      h('div',{className:'header-inner'},
+        h('button',{onClick:()=>setView('list'),style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
+          h(Ico,{n:'arrowLeft',s:18}),' Volver'
+        ),
+        h('div',{className:'header-brand'},h('h1',null,'Confirmar marcación'),h('span',null,'Ronda'))
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      h('div',{className:'fcard',style:{border:'1.5px solid #86efac'}},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'checkCircle',s:12}),' QR verificado — ', selPunto.nombre),
+        h('div',{className:'fg'},
+          h('label',null,'Código escaneado'),
+          h('p',{style:{fontFamily:'monospace',fontSize:11,padding:'4px 0',color:'var(--slate)',wordBreak:'break-all'}},codEscaneado)
+        )
+      ),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'clipboard',s:12}),' Estado del punto'),
+        h('div',{className:'fg'},
+          h('label',null,'Estado'),
+          h('select',{value:conf.estado,onChange:e=>setConf(p=>({...p,estado:e.target.value}))},
+            h('option',{value:'ok'},'✓ Todo bien'),
+            h('option',{value:'novedad'},'⚠ Novedad encontrada'),
+            h('option',{value:'omitido'},'— Punto inaccesible / omitido')
+          )
+        ),
+        (conf.estado==='novedad'||conf.estado==='omitido')&&h('div',{className:'fg'},
+          h('label',null,conf.estado==='omitido'?'Motivo de omisión':'Descripción de la novedad',
+            conf.estado==='omitido'&&h('span',{className:'req'},'*')
+          ),
+          h('textarea',{value:conf.observacion,onChange:e=>setConf(p=>({...p,observacion:e.target.value})),rows:3,
+            placeholder:conf.estado==='omitido'?'¿Por qué no se pudo acceder al punto?':'Describe lo encontrado...'})
+        ),
+        conf.estado==='novedad'&&h('div',{className:'fg'},
+          h('label',null,'Foto de evidencia (opcional)'),
+          h(CameraField,{value:conf.fotografia,onChange:v=>setConf(p=>({...p,fotografia:v}))})
+        )
+      )
+    ),
+    h('div',{className:'sticky-cta'},
+      h('button',{className:'btn-cancel',onClick:()=>setView('list')},h(Ico,{n:'x',s:15})),
+      h('button',{className:'btn-primary',onClick:handleMarcar,disabled:saving},
+        saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),
+        saving?'Guardando...':'Confirmar marcación'
+      )
+    )
+  );
+
+  // LIST
+  const total    = puntos.length;
+  const marcados = puntos.filter(p=>statusMap[p.id]).length;
+  const progreso = total>0?Math.round((marcados/total)*100):0;
+
+  return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{className:'header'},
+      h('div',{className:'header-inner'},
+        h('div',{className:'header-brand'},
+          h('h1',null,'Ronda de Marcación'),
+          h('span',null,'CEDI R10')
+        ),
+        esAdmin&&h('button',{
+          onClick:()=>window.open('/api/rondas/puntos/qr-print','_blank'),
+          style:{background:'rgba(255,255,255,0.15)',border:'none',color:'#fff',borderRadius:8,
+            padding:'6px 10px',cursor:'pointer',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',gap:4}
+        },h(Ico,{n:'download',s:13}),' QR')
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      total>0&&h('div',{className:'fcard',style:{marginBottom:10}},
+        h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}},
+          h('span',{style:{fontSize:13,fontWeight:700}},`${marcados} / ${total} puntos completados`),
+          h('span',{style:{fontSize:14,fontWeight:800,color:progreso===100?'#059669':'var(--navy2)'}},`${progreso}%`)
+        ),
+        h('div',{style:{height:6,background:'#e2e8f0',borderRadius:3,overflow:'hidden'}},
+          h('div',{style:{height:'100%',background:progreso===100?'#059669':'var(--amber)',borderRadius:3,
+            width:`${progreso}%`,transition:'width .4s'}})
+        )
+      ),
+      loading?h(LoadingDots):
+      total===0?h('div',{className:'empty'},h(Ico,{n:'mapPin',s:44}),
+        h('p',null,esAdmin?'No hay puntos configurados. Crea los puntos desde BD > Puntos.':'Sin puntos de ronda asignados')):
+      puntos.map(p=>{
+        const marc=statusMap[p.id];
+        const st=marc?ST[marc.estado]||ST.ok:null;
+        return h('div',{key:p.id,className:'list-item',
+          onClick:()=>{
+            if(esRecorredor&&!marc){
+              setSelPunto(p); setConf(emptyConf); setCodEscaneado(''); setView('scanning');
+            }
+          },
+          style:{cursor:esRecorredor&&!marc?'pointer':'default'}
+        },
+          h('div',{className:'li-icon',style:{background:marc?(st?.bg||'#d1fae5'):'#dbeafe'}},
+            h(Ico,{n:marc?(marc.estado==='ok'?'checkCircle':marc.estado==='novedad'?'alert':'x'):'mapPin',
+              s:18,style:{color:marc?(st?.color||'#065f46'):'#1d4ed8'}})
+          ),
+          h('div',{className:'li-body'},
+            h('div',{className:'li-title'},`${p.orden}. ${p.nombre}`),
+            marc
+              ? h('div',{className:'li-sub'},(marc.hora_marcacion||'').slice(0,5)+(marc.recorredor_nombre?' · '+marc.recorredor_nombre:''))
+              : esRecorredor
+                ? h('div',{className:'li-sub',style:{color:'#1d4ed8'}},h(Ico,{n:'qrCode',s:11}),' Toca para escanear QR')
+                : h('div',{className:'li-sub'},'Pendiente')
+          ),
+          h('div',{className:'li-right'},
+            marc
+              ? h('span',{className:'pill',style:{background:st?.bg,color:st?.color}},st?.label||marc.estado)
+              : h('span',{className:'pill pill-blue'},'Pendiente')
+          )
+        );
+      })
+    )
+  );
+}
+
+/* ── NOVEDADES PAGE ── */
+function NovedadesPage({user}){
+  const [items,setItems]       = useState([]);
+  const [loading,setLoading]   = useState(true);
+  const [alert,setAlert]       = useState(null);
+  const [filtroEst,setFiltroEst] = useState('');
+  const [filtroMod,setFiltroMod] = useState('');
+
+  const esAdmin = ['admin','supervisor'].includes(user?.rol);
+
+  const load = useCallback(()=>{
+    setLoading(true);
+    let url='/novedades';
+    const ps=[];
+    if(filtroEst) ps.push('estado='+filtroEst);
+    if(filtroMod) ps.push('modulo='+filtroMod);
+    if(ps.length) url+='?'+ps.join('&');
+    api.get(url).then(r=>setItems(Array.isArray(r)?r:[])).catch(()=>{}).finally(()=>setLoading(false));
+  },[filtroEst,filtroMod]);
+  useEffect(()=>{ load(); },[load]);
+
+  const cambiarEstado = async(id,estado)=>{
+    try{
+      await api.patch(`/novedades/${id}/estado`,{estado});
+      setAlert({type:'ok',msg:'Estado actualizado'});
+      load();
+    }catch(e){ setAlert({type:'err',msg:'Error: '+e.message}); }
+  };
+
+  const EPILLS = {
+    abierta:    {cls:'pill-red',  label:'Abierta'},
+    en_revision:{cls:'pill-amber',label:'En revisión'},
+    cerrada:    {cls:'pill-slate',label:'Cerrada'},
+  };
+  const MODS = {general:'General',flota:'Flota',tgn:'TGN',acceso:'Acceso',visitantes:'Visitantes',ronda:'Ronda'};
+  const CATS = {seguridad:'Seguridad',mantenimiento:'Mantenimiento',logistica:'Logística',otro:'Otro'};
+
+  return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{className:'header'},
+      h('div',{className:'header-inner'},
+        h('div',{className:'header-brand'},
+          h('h1',null,'Novedades'),
+          h('span',null,'Incidencias del sistema')
+        )
+      )
+    ),
+    h('div',{style:{display:'flex',gap:6,padding:'8px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
+      h('select',{value:filtroEst,onChange:e=>setFiltroEst(e.target.value),
+        style:{flex:1,fontSize:12,padding:'6px 8px',border:'1.5px solid var(--border)',borderRadius:8,background:'#f8fafc',fontFamily:'inherit',appearance:'none'}},
+        h('option',{value:''},'Todos los estados'),
+        h('option',{value:'abierta'},'Abiertas'),
+        h('option',{value:'en_revision'},'En revisión'),
+        h('option',{value:'cerrada'},'Cerradas')
+      ),
+      h('select',{value:filtroMod,onChange:e=>setFiltroMod(e.target.value),
+        style:{flex:1,fontSize:12,padding:'6px 8px',border:'1.5px solid var(--border)',borderRadius:8,background:'#f8fafc',fontFamily:'inherit',appearance:'none'}},
+        h('option',{value:''},'Todos los módulos'),
+        Object.entries(MODS).map(([v,l])=>h('option',{key:v,value:v},l))
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      loading?h(LoadingDots):
+      items.length===0?h('div',{className:'empty'},h(Ico,{n:'bell',s:44}),h('p',null,'Sin novedades')):
+      items.map(item=>{
+        const ep=EPILLS[item.estado]||EPILLS.abierta;
+        const dotColor=item.estado==='abierta'?'#dc2626':item.estado==='en_revision'?'#d97706':'#94a3b8';
+        const dotBg  =item.estado==='abierta'?'#fee2e2':item.estado==='en_revision'?'#fef3c7':'#f1f5f9';
+        return h('div',{key:item.id,className:'list-item',style:{flexDirection:'column',alignItems:'stretch',gap:8,cursor:'default'}},
+          h('div',{style:{display:'flex',alignItems:'flex-start',gap:10}},
+            h('div',{className:'li-icon',style:{background:dotBg,flexShrink:0}},
+              h(Ico,{n:'bell',s:18,style:{color:dotColor}})
+            ),
+            h('div',{style:{flex:1,minWidth:0}},
+              h('div',{className:'li-title',style:{whiteSpace:'normal',lineHeight:1.3}},item.descripcion),
+              h('div',{className:'li-sub',style:{marginTop:3}},
+                (MODS[item.modulo_origen]||item.modulo_origen)+' · '+(CATS[item.categoria]||item.categoria)
+              ),
+              h('div',{style:{fontSize:10,color:'var(--slate)',marginTop:2}},
+                (item.usuario_nombre||'—')+' · '+fmtDate(item.fecha)+(item.hora?' '+item.hora.slice(0,5):'')
+              )
+            ),
+            h('span',{className:`pill ${ep.cls}`,style:{flexShrink:0,alignSelf:'flex-start'}},ep.label)
+          ),
+          item.fotografia&&h('img',{src:item.fotografia,style:{width:'100%',borderRadius:8,maxHeight:130,objectFit:'cover'}}),
+          esAdmin&&item.estado!=='cerrada'&&h('div',{style:{display:'flex',gap:6,justifyContent:'flex-end'}},
+            item.estado==='abierta'&&h('button',{
+              onClick:()=>cambiarEstado(item.id,'en_revision'),
+              style:{fontSize:11,padding:'4px 10px',borderRadius:6,border:'1.5px solid #d97706',color:'#d97706',background:'none',cursor:'pointer',fontWeight:600}
+            },'En revisión'),
+            h('button',{
+              onClick:()=>cambiarEstado(item.id,'cerrada'),
+              style:{fontSize:11,padding:'4px 10px',borderRadius:6,border:'1.5px solid var(--slate)',color:'var(--slate)',background:'none',cursor:'pointer',fontWeight:600}
+            },'Cerrar')
+          )
+        );
+      })
+    )
+  );
+}
+
 /* ── PLACEHOLDER PAGE ── */
 function PlaceholderPage({label,setPage}){
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
@@ -2361,9 +2768,10 @@ function App(){
 
   const rol = user?.rol||'';
   const navItems =
-    rol==='guarda_bodega'   ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'TGN',icon:'package'}]
-    :rol==='guarda_peatonal' ? [{id:'home',label:'Inicio',icon:'home'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'},{id:'sust',label:'Sust.',icon:'alert'},{id:'herr',label:'Herram.',icon:'key'}]
-    :rol==='guarda_vehicular'? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'TGN',icon:'package'}]
+    rol==='guarda_bodega'        ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'TGN',icon:'package'}]
+    :rol==='guarda_peatonal'     ? [{id:'home',label:'Inicio',icon:'home'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'},{id:'sust',label:'Sust.',icon:'alert'},{id:'herr',label:'Herram.',icon:'key'}]
+    :rol==='guarda_vehicular'    ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'TGN',icon:'package'}]
+    :rol==='recorredor_externo'  ? [{id:'home',label:'Inicio',icon:'home'},{id:'ronda',label:'Ronda',icon:'mapPin'},{id:'novedades',label:'Novedades',icon:'bell'}]
     :[
       {id:'home',  label:'Inicio',  icon:'home'},
       {id:'flota', label:'Flota',   icon:'truck'},
@@ -2380,9 +2788,11 @@ function App(){
     visit:  h(VisitantesPage,{user,online,addOffline}),
     sust:   h(ItemAccesoPage,{tipo:'sustancias',user}),
     herr:   h(ItemAccesoPage,{tipo:'herramientas',user}),
-    bd:     h(BaseDatosPage,{user}),
-    carga:  h(CargaMasivaPage,null),
-    reg:    h(RegistrosPage,null),
+    bd:        h(BaseDatosPage,{user}),
+    carga:     h(CargaMasivaPage,null),
+    reg:       h(RegistrosPage,null),
+    ronda:     h(RondaPage,{user}),
+    novedades: h(NovedadesPage,{user}),
   };
 
   return h('div',{style:{display:'flex',flexDirection:'column',height:'100vh',position:'relative'}},
@@ -2393,6 +2803,7 @@ function App(){
       h('button',{onClick:syncQueue},'Sincronizar ahora')
     ),
     pageContent[page]||pageContent['home'],
+    h(BtnNovedad,{user,moduloActual:page}),
     h('nav',{className:'bnav'},
       navItems.map(it=>h('button',{key:it.id,className:`nav-btn ${page===it.id?'act':''}`,onClick:()=>navigate(it.id)},
         page===it.id&&h('div',{className:'nav-dot'}),
