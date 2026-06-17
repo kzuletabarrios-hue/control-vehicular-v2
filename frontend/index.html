@@ -653,7 +653,7 @@ function HomePage({setPage,user}){
     {id:'bd',    label:'Base de Datos',    desc:'Catálogos maestros',     cls:'m-bd',   icon:'database', roles:['admin','supervisor'],cnt:null},
     {id:'carga', label:'Carga Masiva',     desc:'Importar desde Excel',   cls:'m-carga',icon:'upload',   roles:['admin'],cnt:null},
     {id:'reg',       label:'Reportes',    desc:'Historial y Excel',      cls:'m-reg',  icon:'fileText', roles:['admin','supervisor','consulta'],cnt:null},
-    {id:'ronda',     label:'Ronda',       desc:'Marcación de puntos',    cls:'m-ronda',icon:'mapPin',   roles:['recorredor_externo'],cnt:null},
+    {id:'ronda',     label:'Ronda',       desc:'Marcación de puntos',    cls:'m-ronda',icon:'mapPin',   roles:['admin','supervisor','recorredor_externo'],cnt:null},
     {id:'novedades', label:'Novedades',   desc:'Registro de incidencias',cls:'m-nov',  icon:'bell',     roles:['admin','supervisor','recorredor_externo'],cnt:null},
   ];
   const mods = allMods.filter(m=>m.roles.includes(rol));
