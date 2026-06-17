@@ -2543,10 +2543,16 @@ function RondaPage({user}){
           h('span',null,'CEDI R10')
         ),
         esAdmin&&h('button',{
-          onClick:()=>window.open('/api/rondas/puntos/qr-print','_blank'),
+          onClick:()=>{
+            const tok=localStorage.getItem('token');
+            fetch('/api/rondas/puntos/qr-print',{headers:{'Authorization':'Bearer '+tok}})
+              .then(r=>r.text())
+              .then(html=>{const w=window.open('','_blank');w.document.write(html);w.document.close();})
+              .catch(()=>alert('Error al generar QR'));
+          },
           style:{background:'rgba(255,255,255,0.15)',border:'none',color:'#fff',borderRadius:8,
             padding:'6px 10px',cursor:'pointer',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',gap:4}
-        },h(Ico,{n:'download',s:13}),' QR')
+        },h(Ico,{n:'download',s:13}),' Imprimir QR')
       )
     ),
     h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
