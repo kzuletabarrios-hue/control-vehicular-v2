@@ -2546,13 +2546,18 @@ function RondaPage({user}){
           onClick:()=>{
             const tok=localStorage.getItem('cv_token');
             fetch('/api/rondas/puntos/qr-print',{headers:{'Authorization':'Bearer '+tok}})
-              .then(r=>r.text())
+              .then(r=>{
+                if(!r.ok) return r.text().then(t=>{throw new Error('HTTP '+r.status+': '+t)});
+                return r.text();
+              })
               .then(html=>{
+                if(!html||html.trim().length<50){throw new Error('Respuesta vacía del servidor')}
                 const blob=new Blob([html],{type:'text/html'});
                 const url=URL.createObjectURL(blob);
-                window.open(url,'_blank');
+                const w=window.open(url,'_blank');
+                if(!w) alert('El navegador bloqueó la ventana emergente. Permite popups para este sitio y vuelve a intentarlo.');
               })
-              .catch(()=>alert('Error al generar QR'));
+              .catch(e=>alert('Error QR: '+(e.message||e)));
           },
           style:{background:'rgba(255,255,255,0.15)',border:'none',color:'#fff',borderRadius:8,
             padding:'6px 10px',cursor:'pointer',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',gap:4}
