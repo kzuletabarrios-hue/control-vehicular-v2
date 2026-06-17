@@ -2544,7 +2544,7 @@ function RondaPage({user}){
         ),
         esAdmin&&h('button',{
           onClick:()=>{
-            const tok=localStorage.getItem('token');
+            const tok=localStorage.getItem('cv_token');
             fetch('/api/rondas/puntos/qr-print',{headers:{'Authorization':'Bearer '+tok}})
               .then(r=>r.text())
               .then(html=>{const w=window.open('','_blank');w.document.write(html);w.document.close();})
