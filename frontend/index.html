@@ -2547,7 +2547,11 @@ function RondaPage({user}){
             const tok=localStorage.getItem('cv_token');
             fetch('/api/rondas/puntos/qr-print',{headers:{'Authorization':'Bearer '+tok}})
               .then(r=>r.text())
-              .then(html=>{const w=window.open('','_blank');w.document.write(html);w.document.close();})
+              .then(html=>{
+                const blob=new Blob([html],{type:'text/html'});
+                const url=URL.createObjectURL(blob);
+                window.open(url,'_blank');
+              })
               .catch(()=>alert('Error al generar QR'));
           },
           style:{background:'rgba(255,255,255,0.15)',border:'none',color:'#fff',borderRadius:8,
