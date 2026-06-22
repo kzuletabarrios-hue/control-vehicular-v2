@@ -2308,11 +2308,12 @@ function BaseDatosPage({user}){
 function QRScanner({onScan,onClose}){
   const scannerRef = useRef(null);
   const activeRef  = useRef(true);
+  const [error,setError] = useState(null);
 
   useEffect(()=>{
     activeRef.current = true;
     const Lib = window.Html5Qrcode;
-    if(!Lib){ onClose(); return; }
+    if(!Lib){ setError('No se pudo cargar el escáner. Verifica tu conexión a internet y vuelve a intentar.'); return; }
     const scanner = new Lib('qr-scan-region');
     scannerRef.current = scanner;
     scanner.start(
@@ -2323,7 +2324,17 @@ function QRScanner({onScan,onClose}){
         scanner.stop().catch(()=>{}).finally(()=>{ if(activeRef.current) onScan(text); });
       },
       ()=>{}
-    ).catch(()=>{});
+    ).catch(err=>{
+      if(!activeRef.current) return;
+      const msg = (err && (err.message||err.name)) || String(err);
+      setError(
+        /NotAllowedError|Permission/i.test(msg)
+          ? 'Permiso de cámara denegado. Habilítalo en los ajustes del navegador y vuelve a intentar.'
+          : /NotFoundError/i.test(msg)
+            ? 'No se encontró ninguna cámara en este dispositivo.'
+            : 'No se pudo abrir la cámara: '+msg
+      );
+    });
     return ()=>{
       activeRef.current = false;
       if(scannerRef.current) scannerRef.current.stop().catch(()=>{});
@@ -2338,8 +2349,14 @@ function QRScanner({onScan,onClose}){
         h(Ico,{n:'x',s:24})
       )
     ),
-    h('div',{id:'qr-scan-region',style:{flex:1}}),
-    h('div',{style:{padding:'12px 16px',background:'rgba(0,0,0,0.85)',textAlign:'center',flexShrink:0}},
+    error
+      ? h('div',{style:{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'24px',gap:14}},
+          h(Ico,{n:'alert',s:36,style:{color:'#f59e0b'}}),
+          h('p',{style:{color:'#fff',fontSize:13,textAlign:'center',maxWidth:280}},error),
+          h('button',{className:'btn-primary',onClick:onClose,style:{padding:'8px 20px'}},'Volver')
+        )
+      : h('div',{id:'qr-scan-region',style:{flex:1}}),
+    !error&&h('div',{style:{padding:'12px 16px',background:'rgba(0,0,0,0.85)',textAlign:'center',flexShrink:0}},
       h('p',{style:{color:'rgba(255,255,255,0.65)',fontSize:12}},'Centra el código QR en el recuadro')
     )
   );
