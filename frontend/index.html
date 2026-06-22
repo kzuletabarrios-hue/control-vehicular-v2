@@ -2308,7 +2308,15 @@ function BaseDatosPage({user}){
 function QRScanner({onScan,onClose}){
   const scannerRef = useRef(null);
   const activeRef  = useRef(true);
+  const runningRef = useRef(false);
   const [error,setError] = useState(null);
+
+  const safeStop = ()=>{
+    if(!runningRef.current || !scannerRef.current) return Promise.resolve();
+    runningRef.current = false;
+    try{ return scannerRef.current.stop().catch(()=>{}); }
+    catch(err){ return Promise.resolve(); }
+  };
 
   const reportError = (err)=>{
     if(!activeRef.current) return;
@@ -2340,23 +2348,23 @@ function QRScanner({onScan,onClose}){
         {fps:10,qrbox:{width:240,height:240}},
         (text)=>{
           if(!activeRef.current) return;
-          scanner.stop().catch(()=>{}).finally(()=>{ if(activeRef.current) onScan(text); });
+          safeStop().finally(()=>{ if(activeRef.current) onScan(text); });
         },
         ()=>{}
-      ).catch(reportError);
+      ).then(()=>{ runningRef.current = true; }).catch(reportError);
     }catch(err){
       reportError(err);
     }
     return ()=>{
       activeRef.current = false;
-      if(scannerRef.current) scannerRef.current.stop().catch(()=>{});
+      safeStop();
     };
   },[]);
 
   return h('div',{style:{position:'fixed',inset:0,background:'#000',zIndex:300,display:'flex',flexDirection:'column'}},
     h('div',{style:{padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',background:'rgba(0,0,0,0.85)',flexShrink:0}},
       h('span',{style:{color:'#fff',fontWeight:700,fontSize:14}},h(Ico,{n:'qrCode',s:16}),' Apunta al QR del punto'),
-      h('button',{onClick:()=>{ if(scannerRef.current) scannerRef.current.stop().catch(()=>{}); onClose(); },
+      h('button',{onClick:()=>{ safeStop(); onClose(); },
         style:{background:'none',border:'none',color:'#fff',cursor:'pointer',padding:4}},
         h(Ico,{n:'x',s:24})
       )
