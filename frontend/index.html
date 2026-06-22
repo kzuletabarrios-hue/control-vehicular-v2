@@ -2310,31 +2310,43 @@ function QRScanner({onScan,onClose}){
   const activeRef  = useRef(true);
   const [error,setError] = useState(null);
 
+  const reportError = (err)=>{
+    if(!activeRef.current) return;
+    const msg = (err && (err.message||err.name)) || String(err);
+    setError(
+      /NotAllowedError|Permission/i.test(msg)
+        ? 'Permiso de cámara denegado. Habilítalo en los ajustes del navegador y vuelve a intentar.'
+        : /NotFoundError/i.test(msg)
+          ? 'No se encontró ninguna cámara en este dispositivo.'
+          : /NotSupportedError|secure context/i.test(msg)
+            ? 'Este navegador no soporta acceso a la cámara en esta conexión. Asegúrate de usar https.'
+            : 'No se pudo abrir la cámara: '+msg
+    );
+  };
+
   useEffect(()=>{
     activeRef.current = true;
-    const Lib = window.Html5Qrcode;
-    if(!Lib){ setError('No se pudo cargar el escáner. Verifica tu conexión a internet y vuelve a intentar.'); return; }
-    const scanner = new Lib('qr-scan-region');
-    scannerRef.current = scanner;
-    scanner.start(
-      {facingMode:'environment'},
-      {fps:10,qrbox:{width:240,height:240}},
-      (text)=>{
-        if(!activeRef.current) return;
-        scanner.stop().catch(()=>{}).finally(()=>{ if(activeRef.current) onScan(text); });
-      },
-      ()=>{}
-    ).catch(err=>{
-      if(!activeRef.current) return;
-      const msg = (err && (err.message||err.name)) || String(err);
-      setError(
-        /NotAllowedError|Permission/i.test(msg)
-          ? 'Permiso de cámara denegado. Habilítalo en los ajustes del navegador y vuelve a intentar.'
-          : /NotFoundError/i.test(msg)
-            ? 'No se encontró ninguna cámara en este dispositivo.'
-            : 'No se pudo abrir la cámara: '+msg
-      );
-    });
+    try{
+      const Lib = window.Html5Qrcode;
+      if(!Lib){ setError('No se pudo cargar el escáner. Verifica tu conexión a internet y vuelve a intentar.'); return; }
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+        setError('Este navegador no permite acceso a la cámara. Prueba con Chrome o Safari actualizado.');
+        return;
+      }
+      const scanner = new Lib('qr-scan-region');
+      scannerRef.current = scanner;
+      scanner.start(
+        {facingMode:'environment'},
+        {fps:10,qrbox:{width:240,height:240}},
+        (text)=>{
+          if(!activeRef.current) return;
+          scanner.stop().catch(()=>{}).finally(()=>{ if(activeRef.current) onScan(text); });
+        },
+        ()=>{}
+      ).catch(reportError);
+    }catch(err){
+      reportError(err);
+    }
     return ()=>{
       activeRef.current = false;
       if(scannerRef.current) scannerRef.current.stop().catch(()=>{});
