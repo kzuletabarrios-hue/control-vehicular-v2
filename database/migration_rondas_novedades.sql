@@ -57,7 +57,7 @@ CREATE INDEX IF NOT EXISTS idx_rondas_punto      ON rondas(punto_id);
 CREATE TABLE IF NOT EXISTS novedades (
     id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     usuario_id    UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-    modulo_origen TEXT NOT NULL DEFAULT 'general',   -- flota|tgn|acceso|visitantes|ronda|general
+    modulo_origen TEXT NOT NULL DEFAULT 'general',   -- flota|proveedores|acceso|visitantes|ronda|general
     categoria     TEXT NOT NULL DEFAULT 'otro',       -- seguridad|mantenimiento|logistica|otro
     descripcion   TEXT NOT NULL,
     fotografia    TEXT,

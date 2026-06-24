@@ -11,7 +11,7 @@ from routers.auth import get_current_user
 router = APIRouter()
 
 ROLES_GESTION = ('admin', 'supervisor')
-MODULOS_VALIDOS   = ('flota', 'tgn', 'acceso', 'visitantes', 'ronda', 'general')
+MODULOS_VALIDOS   = ('flota', 'proveedores', 'acceso', 'visitantes', 'ronda', 'general')
 CATEGORIAS_VALIDAS = ('seguridad', 'mantenimiento', 'logistica', 'otro')
 ESTADOS_VALIDOS    = ('abierta', 'en_revision', 'cerrada')
 

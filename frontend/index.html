@@ -2430,7 +2430,7 @@ function BtnNovedad({user,moduloActual}){
             h('select',{value:form.modulo_origen,onChange:e=>setForm(p=>({...p,modulo_origen:e.target.value}))},
               h('option',{value:'general'},'General'),
               h('option',{value:'flota'},'Flota Propia'),
-              h('option',{value:'tgn'},'Proveedores'),
+              h('option',{value:'proveedores'},'Proveedores'),
               h('option',{value:'acceso'},'Control Acceso'),
               h('option',{value:'visitantes'},'Visitantes'),
               h('option',{value:'ronda'},'Ronda')
@@ -2877,7 +2877,7 @@ function NovedadesPage({user}){
     en_revision:{cls:'pill-amber',label:'En revisión'},
     cerrada:    {cls:'pill-slate',label:'Cerrada'},
   };
-  const MODS = {general:'General',flota:'Flota',tgn:'Proveedores',acceso:'Acceso',visitantes:'Visitantes',ronda:'Ronda'};
+  const MODS = {general:'General',flota:'Flota',proveedores:'Proveedores',acceso:'Acceso',visitantes:'Visitantes',ronda:'Ronda'};
   const CATS = {seguridad:'Seguridad',mantenimiento:'Mantenimiento',logistica:'Logística',otro:'Otro'};
 
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
