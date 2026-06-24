@@ -388,7 +388,7 @@ class Migrador:
         self.log(f"  → {len(filas)} visitantes migrados")
 
     def migrar_proveedores(self, df: pd.DataFrame):
-        self.log("Migrando PROVEEDORES (TGN)...")
+        self.log("Migrando PROVEEDORES...")
         col_map = COLUMNAS["proveedores"]
         df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
         filas = []
@@ -418,7 +418,7 @@ class Migrador:
         """, filas)
         self.conn.commit()
         self.totales["proveedores"] = len(filas)
-        self.log(f"  → {len(filas)} registros TGN migrados")
+        self.log(f"  → {len(filas)} registros de proveedores migrados")
 
     def resumen(self):
         print("\n" + "="*50)

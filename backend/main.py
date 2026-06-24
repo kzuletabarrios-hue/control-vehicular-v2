@@ -26,7 +26,7 @@ app.add_middleware(
 app.include_router(auth.router,           prefix="/api/auth",          tags=["Autenticación"])
 app.include_router(flota.router,          prefix="/api/flota",         tags=["Flota Propia"])
 app.include_router(conductores.router,    prefix="/api/conductores",   tags=["Conductores"])
-app.include_router(proveedores.router,    prefix="/api/proveedores",   tags=["Proveedores TGN"])
+app.include_router(proveedores.router,    prefix="/api/proveedores",   tags=["Proveedores"])
 app.include_router(control_acceso.router, prefix="/api/control-acceso",tags=["Control Acceso"])
 app.include_router(visitantes.router,     prefix="/api/visitantes",    tags=["Visitantes"])
 app.include_router(bd_maestros.router,    prefix="/api/maestros",      tags=["Maestros BD"])

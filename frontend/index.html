@@ -576,7 +576,7 @@ function CambiarPasswordSheet({onClose,onSuccess}){
 function AppHeader({user,page,setPage,online,offlineQueue}){
   const [menuOpen,setMenuOpen] = useState(false);
   const [pwOpen,setPwOpen]     = useState(false);
-  const titleMap = {home:'Inicio',flota:'Flota Propia',prov:'TGN · Proveedores',acceso:'Control Acceso',visit:'Visitantes',bd:'Base de Datos',reg:'Registros',carga:'Carga Masiva'};
+  const titleMap = {home:'Inicio',flota:'Flota Propia',prov:'Proveedores',acceso:'Control Acceso',visit:'Visitantes',bd:'Base de Datos',reg:'Registros',carga:'Carga Masiva'};
 
   const logout = async () => {
     try{ await api.post('/auth/logout',{refresh_token:getRefresh()}); }catch(e){}
@@ -647,7 +647,7 @@ function HomePage({setPage,user}){
 
   const allMods = [
     {id:'flota', label:'Flota Propia',     desc:'Salidas de vehículos',   cls:'m-flota',icon:'truck',    roles:['admin','supervisor','operador','guarda_bodega','guarda_vehicular'],cnt:resumen?.flota?.hoy},
-    {id:'prov',  label:'TGN · Proveedores',desc:'Vehículos terceros',     cls:'m-prov', icon:'package',  roles:['admin','supervisor','operador','guarda_vehicular','guarda_bodega'],cnt:resumen?.proveedores?.hoy},
+    {id:'prov',  label:'Proveedores',desc:'Vehículos terceros',     cls:'m-prov', icon:'package',  roles:['admin','supervisor','operador','guarda_vehicular','guarda_bodega'],cnt:resumen?.proveedores?.hoy},
     {id:'acceso',label:'Control Acceso',   desc:'Entrada/salida personal',cls:'m-acc',  icon:'userCheck',roles:['admin','supervisor','operador','guarda_peatonal'],  cnt:resumen?.control_acceso?.hoy},
     {id:'visit', label:'Visitantes',       desc:'Registro de visitas',    cls:'m-vis',  icon:'users',    roles:['admin','supervisor','operador','guarda_peatonal'],  cnt:resumen?.visitantes?.hoy},
     {id:'sust',  label:'Sustancias',        desc:'Control de sustancias',  cls:'m-sust', icon:'alert',    roles:['admin','supervisor','operador','guarda_peatonal'],cnt:null},
@@ -678,7 +678,7 @@ function HomePage({setPage,user}){
         showFlotaStats&&h(StatCard,{label:'En ruta',          value:resumen.flota.en_ruta,      color:'#f59e0b',icon:'truck'}),
         showAccesoStats&&h(StatCard,{label:'Acceso hoy',     value:resumen.control_acceso.hoy, color:'#7c3aed',icon:'userCheck'}),
         showAccesoStats&&h(StatCard,{label:'Sin salida',     value:accesoPend,                  color:'#e11d48',icon:'userCheck'}),
-        showProvStats&&h(StatCard,{label:'TGN hoy',          value:resumen.proveedores.hoy,    color:'#d97706',icon:'package'}),
+        showProvStats&&h(StatCard,{label:'Proveedores hoy',          value:resumen.proveedores.hoy,    color:'#d97706',icon:'package'}),
         showProvStats&&h(StatCard,{label:'Visitantes hoy',   value:resumen.visitantes.hoy,     color:'#059669',icon:'users'})
       ),
       ((isGuardaPeatonal?accesoPend>0:(flotaPend>0||accesoPend>0)))&&h('div',{style:{background:'#fff',border:'2px solid #fcd34d',borderRadius:12,padding:12,marginBottom:12}},
@@ -1190,7 +1190,7 @@ function RegistrosPage(){
   const [modulo,setModulo] = useState('flota');
   const [fi,setFi] = useState('');
   const [ff,setFf] = useState(today());
-  const mods = [{id:'flota',l:'Flota'},{id:'proveedores',l:'TGN'},{id:'control-acceso',l:'Acceso'},{id:'visitantes',l:'Visitas'},{id:'conductores',l:'Conductores'},{id:'bd-proveedores',l:'BD Prov.'}];
+  const mods = [{id:'flota',l:'Flota'},{id:'proveedores',l:'Proveedores'},{id:'control-acceso',l:'Acceso'},{id:'visitantes',l:'Visitas'},{id:'conductores',l:'Conductores'},{id:'bd-proveedores',l:'BD Prov.'}];
 
   return h('div',{className:'scroll-body'},
     h('div',{className:'pad'},
@@ -1675,7 +1675,7 @@ function ProveedoresPage({user,online,addOffline}){
         h('button',{onClick:()=>{setView('list');setForm(emptyF);setSelected(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
           h(Ico,{n:'arrowLeft',s:18}),' Volver'
         ),
-        h('div',{className:'header-brand'},h('h1',null,'Evidencia de Rechazo'),h('span',null,'TGN · Proveedores'))
+        h('div',{className:'header-brand'},h('h1',null,'Evidencia de Rechazo'),h('span',null,'Proveedores'))
       )
     ),
     h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
@@ -1718,7 +1718,7 @@ function ProveedoresPage({user,online,addOffline}){
         h('button',{onClick:()=>{setView('list');setForm(emptyF);setSelected(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
           h(Ico,{n:'arrowLeft',s:18}),' Volver'
         ),
-        h('div',{className:'header-brand'},h('h1',null,selected?'Editar TGN':'Nuevo TGN'),h('span',null,'Proveedores'))
+        h('div',{className:'header-brand'},h('h1',null,selected?'Editar Proveedor':'Nuevo Proveedor'),h('span',null,'Proveedores'))
       )
     ),
     h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
@@ -2430,7 +2430,7 @@ function BtnNovedad({user,moduloActual}){
             h('select',{value:form.modulo_origen,onChange:e=>setForm(p=>({...p,modulo_origen:e.target.value}))},
               h('option',{value:'general'},'General'),
               h('option',{value:'flota'},'Flota Propia'),
-              h('option',{value:'tgn'},'TGN / Proveedores'),
+              h('option',{value:'tgn'},'Proveedores'),
               h('option',{value:'acceso'},'Control Acceso'),
               h('option',{value:'visitantes'},'Visitantes'),
               h('option',{value:'ronda'},'Ronda')
@@ -2877,7 +2877,7 @@ function NovedadesPage({user}){
     en_revision:{cls:'pill-amber',label:'En revisión'},
     cerrada:    {cls:'pill-slate',label:'Cerrada'},
   };
-  const MODS = {general:'General',flota:'Flota',tgn:'TGN',acceso:'Acceso',visitantes:'Visitantes',ronda:'Ronda'};
+  const MODS = {general:'General',flota:'Flota',tgn:'Proveedores',acceso:'Acceso',visitantes:'Visitantes',ronda:'Ronda'};
   const CATS = {seguridad:'Seguridad',mantenimiento:'Mantenimiento',logistica:'Logística',otro:'Otro'};
 
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
@@ -3013,9 +3013,9 @@ function App(){
 
   const rol = user?.rol||'';
   const navItems =
-    rol==='guarda_bodega'        ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'TGN',icon:'package'}]
+    rol==='guarda_bodega'        ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'}]
     :rol==='guarda_peatonal'     ? [{id:'home',label:'Inicio',icon:'home'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'},{id:'sust',label:'Sust.',icon:'alert'},{id:'herr',label:'Herram.',icon:'key'}]
-    :rol==='guarda_vehicular'    ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'TGN',icon:'package'}]
+    :rol==='guarda_vehicular'    ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'}]
     :rol==='recorredor_externo'  ? [{id:'home',label:'Inicio',icon:'home'},{id:'ronda',label:'Ronda',icon:'mapPin'},{id:'novedades',label:'Novedades',icon:'bell'}]
     :[
       {id:'home',  label:'Inicio',  icon:'home'},

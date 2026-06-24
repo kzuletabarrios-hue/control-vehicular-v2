@@ -107,7 +107,7 @@ CREATE TRIGGER trg_updated_at_bd_proveedores
     FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 
--- ── PROVEEDORES TGN (registros diarios) ─────────────────────────
+-- ── PROVEEDORES (registros diarios) ─────────────────────────
 CREATE TABLE IF NOT EXISTS proveedores (
     id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     fecha                   DATE NOT NULL DEFAULT CURRENT_DATE,

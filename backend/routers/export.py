@@ -119,7 +119,7 @@ def export_proveedores(
 
     wb = Workbook()
     ws = wb.active
-    ws.title = "Proveedores TGN"
+    ws.title = "Proveedores"
 
     headers = [
         "Fecha", "Placa", "Conductor", "Tipo Vehículo", "Empresa",
