@@ -2478,6 +2478,9 @@ function RondaPage({user}){
   const [conf,setConf]     = useState(emptyConf);
   const [saving,setSaving] = useState(false);
   const [alert,setAlert]   = useState(null);
+  const [showPausa,setShowPausa] = useState(false);
+  const [pausaMotivo,setPausaMotivo] = useState('Baño');
+  const [pausaOtro,setPausaOtro] = useState('');
 
   const esAdmin      = ['admin','supervisor'].includes(user?.rol);
   const esRecorredor = user?.rol==='recorredor_externo';
@@ -2502,6 +2505,7 @@ function RondaPage({user}){
   const ITEM_ST = {
     pendiente:  {bg:'#f1f5f9',color:'#64748b',label:'Pendiente'},
     en_curso:   {bg:'#dbeafe',color:'#1d4ed8',label:'En curso'},
+    pausada:    {bg:'#fef3c7',color:'#92400e',label:'En pausa'},
     completa:   {bg:'#d1fae5',color:'#065f46',label:'Completa'},
     completo:   {bg:'#d1fae5',color:'#065f46',label:'Completo'},
     incompleta: {bg:'#fee2e2',color:'#991b1b',label:'Incompleta'},
@@ -2536,6 +2540,32 @@ function RondaPage({user}){
       let msg=e.message; try{msg=JSON.parse(msg).detail||msg;}catch{}
       setAlert({type:'err',msg});
     }finally{ setSaving(false); }
+  };
+
+  const handlePausar = async()=>{
+    setAlert(null);
+    const motivo = pausaMotivo==='Otro'?(pausaOtro.trim()||'Otro'):pausaMotivo;
+    try{
+      await api.post('/rondas/ciclo/pausar',{motivo});
+      setShowPausa(false); setPausaOtro('');
+      setAlert({type:'ok',msg:'Ronda en pausa'});
+      load();
+    }catch(e){
+      let msg=e.message; try{msg=JSON.parse(msg).detail||msg;}catch{}
+      setAlert({type:'err',msg});
+    }
+  };
+
+  const handleReanudar = async()=>{
+    setAlert(null);
+    try{
+      await api.post('/rondas/ciclo/reanudar',{});
+      setAlert({type:'ok',msg:'Ronda reanudada'});
+      load();
+    }catch(e){
+      let msg=e.message; try{msg=JSON.parse(msg).detail||msg;}catch{}
+      setAlert({type:'err',msg});
+    }
   };
 
   const handleScanApoyo = async(codigo)=>{
@@ -2691,10 +2721,36 @@ function RondaPage({user}){
               completadas<objetivo&&!apoyoEnCurso&&h('button',{className:'btn-primary',style:{marginTop:10},onClick:handleIniciarRonda},
                 h(Ico,{n:'mapPin',s:16}),' Iniciar ronda desde Tanques')
             )
-          : h(React.Fragment,null,
+          : ciclo.ciclo.estado==='pausada' ? h(React.Fragment,null,
+              h('div',{className:'fcard',style:{marginBottom:10,border:'1.5px solid #fcd34d',background:'#fffbeb'}},
+                h('p',{className:'sec-ttl'},h(Ico,{n:'alert',s:12}),' Ronda en pausa'),
+                h('p',{style:{fontSize:12,fontWeight:700,color:'#92400e',margin:'2px 0'}},ciclo.ciclo.pausa_motivo||'Pausa breve'),
+                h('p',{style:{fontSize:11,color:'var(--slate)'}},'Reanuda la ronda para seguir marcando puntos.')
+              ),
+              h('button',{className:'btn-primary',onClick:handleReanudar},h(Ico,{n:'checkCircle',s:16}),' Reanudar ronda')
+            ) : h(React.Fragment,null,
               h('div',{className:'fcard',style:{marginBottom:10,border:'1.5px solid #93c5fd'}},
                 h('p',{className:'sec-ttl'},h(Ico,{n:'mapPin',s:12}),` Ronda ${ciclo.ciclo.numero_ronda} en curso`),
                 h('p',{style:{fontSize:11,color:'var(--slate)'}},'Recorre los puntos pendientes y regresa a Tanques para cerrar la ronda.')
+              ),
+              !showPausa && h('button',{className:'btn-cancel',style:{marginBottom:10,width:'100%'},onClick:()=>setShowPausa(true)},
+                h(Ico,{n:'clock',s:14}),' Pausar ronda (baño, llaves, etc.)'),
+              showPausa && h('div',{className:'fcard',style:{marginBottom:10}},
+                h('p',{className:'sec-ttl'},h(Ico,{n:'clock',s:12}),' Motivo de la pausa'),
+                h('div',{className:'fg'},
+                  h('select',{value:pausaMotivo,onChange:e=>setPausaMotivo(e.target.value)},
+                    h('option',{value:'Baño'},'Baño'),
+                    h('option',{value:'Entrega de llaves'},'Entrega de llaves'),
+                    h('option',{value:'Otro'},'Otro')
+                  )
+                ),
+                pausaMotivo==='Otro' && h('div',{className:'fg'},
+                  h('textarea',{value:pausaOtro,onChange:e=>setPausaOtro(e.target.value),rows:2,placeholder:'Describe el motivo...'})
+                ),
+                h('div',{style:{display:'flex',gap:8}},
+                  h('button',{className:'btn-cancel',onClick:()=>setShowPausa(false)},'Cancelar'),
+                  h('button',{className:'btn-primary',style:{flex:1},onClick:handlePausar},h(Ico,{n:'clock',s:14}),' Confirmar pausa')
+                )
               ),
               ciclo.pendientes.map(p=>h('div',{key:p.id,className:'list-item',onClick:()=>{
                   setSelPunto(p); setConf(emptyConf); setCodEscaneado(''); setView('scanning');
@@ -2764,6 +2820,8 @@ function RondaPanelPage({user}){
           h('span',{style:{fontSize:13,fontWeight:700}},`${d.rondas_completadas} / ${d.rondas_completadas + d.rondas_pendientes}`)
         ),
         d.ronda_en_curso&&h('div',{style:{fontSize:11,color:'#1d4ed8',marginBottom:4}},`Ronda ${d.ronda_en_curso.numero_ronda} en curso`),
+        d.ronda_en_pausa&&h('div',{style:{fontSize:11,color:'#92400e',marginBottom:4,fontWeight:700}},
+          `En pausa: ${d.ronda_en_pausa.motivo} (${d.ronda_en_pausa.minutos} min)`),
         d.apoyo_en_curso&&h('div',{style:{fontSize:11,color:'#0f766e',marginBottom:4}},`En apoyo: ${d.apoyo_en_curso.motivo}`),
         h('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:4}},
           h('span',{style:{fontSize:12,color:'var(--slate)'}},'Último QR'),

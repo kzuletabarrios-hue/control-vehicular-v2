@@ -378,7 +378,7 @@ def ciclo_activo(
 ):
     ciclo = db.execute(text("""
         SELECT * FROM rondas_ciclos
-        WHERE recorredor_id = :uid AND estado = 'en_curso'
+        WHERE recorredor_id = :uid AND estado IN ('en_curso', 'pausada')
         ORDER BY hora_inicio DESC LIMIT 1
     """), {"uid": user["id"]}).fetchone()
     if not ciclo:
@@ -419,7 +419,7 @@ def ciclo_iniciar(
     hoy = str(date.today())
 
     activo = db.execute(text("""
-        SELECT 1 FROM rondas_ciclos WHERE recorredor_id = :uid AND estado = 'en_curso'
+        SELECT 1 FROM rondas_ciclos WHERE recorredor_id = :uid AND estado IN ('en_curso', 'pausada')
     """), {"uid": user["id"]}).fetchone()
     if activo:
         raise HTTPException(409, "Ya tienes una ronda en curso. Complétala antes de iniciar otra.")
@@ -450,6 +450,56 @@ def ciclo_iniciar(
     """), {"id": rid, "uid": user["id"], "hoy": hoy, "turno": turno, "num": completadas + 1})
     db.commit()
     return {"id": rid, "numero_ronda": completadas + 1, "message": "Ronda iniciada desde Tanques"}
+
+
+# ── PAUSA CORTA DE LA RONDA (baño, entrega de llaves, etc.) ──────
+
+@router.post("/ciclo/pausar", status_code=201)
+def ciclo_pausar(
+    body: dict = None,
+    db: Session = Depends(get_db),
+    user: dict = Depends(_require_roles(*ROLES_RONDA)),
+):
+    body = body or {}
+    motivo = (body.get("motivo") or "").strip() or "Pausa breve"
+
+    ciclo = db.execute(text("""
+        SELECT * FROM rondas_ciclos WHERE recorredor_id = :uid AND estado = 'en_curso'
+        ORDER BY hora_inicio DESC LIMIT 1
+    """), {"uid": user["id"]}).fetchone()
+    if not ciclo:
+        raise HTTPException(404, "No tienes una ronda en curso para pausar")
+
+    db.execute(text("""
+        UPDATE rondas_ciclos SET estado = 'pausada', pausa_motivo = :motivo, pausa_inicio = NOW()
+        WHERE id = :id
+    """), {"motivo": motivo, "id": ciclo.id})
+    db.commit()
+    return {"id": str(ciclo.id), "message": "Ronda en pausa"}
+
+
+@router.post("/ciclo/reanudar", status_code=201)
+def ciclo_reanudar(
+    db: Session = Depends(get_db),
+    user: dict = Depends(_require_roles(*ROLES_RONDA)),
+):
+    ciclo = db.execute(text("""
+        SELECT * FROM rondas_ciclos WHERE recorredor_id = :uid AND estado = 'pausada'
+        ORDER BY hora_inicio DESC LIMIT 1
+    """), {"uid": user["id"]}).fetchone()
+    if not ciclo:
+        raise HTTPException(404, "No tienes una ronda en pausa")
+
+    db.execute(text("""
+        UPDATE rondas_ciclos
+        SET estado = 'en_curso',
+            pausa_acumulada_min = pausa_acumulada_min + GREATEST(0, ROUND(EXTRACT(EPOCH FROM (NOW() - pausa_inicio)) / 60)),
+            pausa_inicio = NULL,
+            pausa_motivo = NULL
+        WHERE id = :id
+    """), {"id": ciclo.id})
+    db.commit()
+    return {"id": str(ciclo.id), "message": "Ronda reanudada"}
 
 
 # ── MARCAR PUNTO DENTRO DE UN CICLO ──────────────────────────────
@@ -483,6 +533,8 @@ def marcar_punto(
     """), {"cid": ciclo_id, "uid": user["id"]}).fetchone()
     if not ciclo:
         raise HTTPException(404, "Ronda no encontrada")
+    if ciclo.estado == "pausada":
+        raise HTTPException(409, "La ronda está en pausa. Reanúdala antes de marcar un punto.")
     if ciclo.estado != "en_curso":
         raise HTTPException(409, "Esta ronda ya fue cerrada")
 
@@ -685,6 +737,7 @@ def panel(
         """), {"uid": u.id, "hoy": hoy}).fetchall()
         completadas = sum(1 for c in ciclos if c.estado == 'completa')
         en_curso    = next((c for c in ciclos if c.estado == 'en_curso'), None)
+        pausada     = next((c for c in ciclos if c.estado == 'pausada'), None)
 
         apoyos = db.execute(text("""
             SELECT * FROM apoyos_operativos WHERE recorredor_id = :uid AND fecha = :hoy
@@ -716,7 +769,16 @@ def panel(
             minutos_sin_movimiento is not None
             and minutos_sin_movimiento > ALERTA_ATRASO_MIN
             and not apoyo_en_curso
+            and not pausada
         )
+
+        pausa_info = None
+        if pausada:
+            pausa_info = {
+                "motivo": pausada.pausa_motivo,
+                "minutos": round((datetime.now(pausada.pausa_inicio.tzinfo) - pausada.pausa_inicio).total_seconds() / 60)
+                    if pausada.pausa_inicio else 0,
+            }
 
         resultado.append({
             "recorredor_id": str(u.id),
@@ -724,6 +786,7 @@ def panel(
             "rondas_completadas": completadas,
             "rondas_pendientes": max(0, RONDAS_POR_TURNO - completadas),
             "ronda_en_curso": dict(en_curso._mapping) if en_curso else None,
+            "ronda_en_pausa": pausa_info,
             "ultimo_evento": {"tipo": ultimo[0], "detalle": ultimo[2]} if ultimo else None,
             "minutos_sin_movimiento": minutos_sin_movimiento,
             "alerta_atraso": alerta,
