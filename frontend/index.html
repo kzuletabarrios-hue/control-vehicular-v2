@@ -132,6 +132,7 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 .m-ronda {background:linear-gradient(135deg,#064e3b,#059669)}
 .m-nov   {background:linear-gradient(135deg,#7c2d12,#ea580c)}
 .m-rondapanel {background:linear-gradient(135deg,#1e293b,#0f766e)}
+.m-visitavh {background:linear-gradient(135deg,#0c4a6e,#0284c7)}
 
 /* ── CARGA MASIVA ── */
 .upload-zone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:2px dashed var(--border);border-radius:var(--radius-sm);padding:24px 16px;cursor:pointer;background:var(--bg);text-align:center;transition:border-color .2s;width:100%}
@@ -638,7 +639,7 @@ function AppHeader({user,page,setPage,online,offlineQueue}){
   const [menuOpen,setMenuOpen] = useState(false);
   const [pwOpen,setPwOpen]     = useState(false);
   const [buscarOpen,setBuscarOpen] = useState(false);
-  const titleMap = {home:'Inicio',flota:'Flota Propia',prov:'Proveedores',acceso:'Control Acceso',visit:'Visitantes',bd:'Base de Datos',reg:'Registros',carga:'Carga Masiva'};
+  const titleMap = {home:'Inicio',flota:'Flota Propia',prov:'Proveedores',acceso:'Control Acceso',visit:'Visitantes',visitavh:'Visita Vehicular',bd:'Base de Datos',reg:'Registros',carga:'Carga Masiva'};
 
   const logout = async () => {
     try{ await api.post('/auth/logout',{refresh_token:getRefresh()}); }catch(e){}
@@ -712,6 +713,7 @@ function HomePage({setPage,user}){
   const allMods = [
     {id:'flota', label:'Flota Propia',     desc:'Salidas de vehículos',   cls:'m-flota',icon:'truck',    roles:['admin','supervisor','operador','guarda_bodega','guarda_vehicular'],cnt:resumen?.flota?.hoy},
     {id:'prov',  label:'Proveedores',desc:'Vehículos terceros',     cls:'m-prov', icon:'package',  roles:['admin','supervisor','operador','guarda_vehicular','guarda_bodega'],cnt:resumen?.proveedores?.hoy},
+    {id:'visitavh',label:'Visita Vehicular',desc:'Visitas puntuales en vehículo', cls:'m-visitavh', icon:'truck', roles:['admin','supervisor','operador','guarda_bodega','guarda_vehicular'],cnt:resumen?.visita_vehicular?.hoy},
     {id:'acceso',label:'Control Acceso',   desc:'Entrada/salida personal',cls:'m-acc',  icon:'userCheck',roles:['admin','supervisor','operador','guarda_peatonal'],  cnt:resumen?.control_acceso?.hoy},
     {id:'visit', label:'Visitantes',       desc:'Registro de visitas',    cls:'m-vis',  icon:'users',    roles:['admin','supervisor','operador','guarda_peatonal'],  cnt:resumen?.visitantes?.hoy},
     {id:'sust',  label:'Sustancias',        desc:'Control de sustancias',  cls:'m-sust', icon:'alert',    roles:['admin','supervisor','operador','guarda_peatonal'],cnt:null},
@@ -1694,6 +1696,149 @@ function VisitantesPage({user,online,addOffline}){
       )
     ),
     confirm&&h(ConfirmSheet,{msg:'Se eliminará el registro de visitantes.',onOk:async()=>{await api.del(`/visitantes/${confirm}`);setConfirm(null);load();setAlert({type:'ok',msg:'Eliminado'});},onCancel:()=>setConfirm(null)})
+  );
+}
+
+/* ── VISITA VEHICULAR PAGE ── */
+function VisitaVehicularPage({user,online,addOffline}){
+  const [view,setView]       = useState('list');
+  const [records,setRecords] = useState([]);
+  const [loading,setLoading] = useState(true);
+  const [saving,setSaving]   = useState(false);
+  const [alert,setAlert]     = useState(null);
+  const [confirm,setConfirm] = useState(null);
+  const [selected,setSelected]= useState(null);
+  const [salida,setSalida]         = useState(null);
+  const [horaSalida,setHoraSalida] = useState('');
+  const [obsSalida,setObsSalida]   = useState('');
+  const [fotoSalida,setFotoSalida] = useState(null);
+  const emptyF = {fecha:today(),placa:'',conductor:'',motivo_visita:'',hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',observaciones:'',foto_url:null};
+  const [form,setForm] = useState(emptyF);
+
+  const load = useCallback(()=>{
+    setLoading(true);
+    api.get('/visita-vehicular').then(r=>setRecords(r.items||r)).catch(()=>setAlert({type:'err',msg:'Error cargando datos'})).finally(()=>setLoading(false));
+  },[]);
+  useEffect(()=>load(),[load]);
+
+  const handleSave = async()=>{
+    if(!form.placa||!form.conductor) return setAlert({type:'err',msg:'Placa y conductor son obligatorios'});
+    setSaving(true);
+    const body = Object.fromEntries(Object.entries(form).filter(([,v])=>v!=null&&v!==''));
+    try{
+      if(selected) await api.put(`/visita-vehicular/${selected.id}`,body);
+      else await api.post('/visita-vehicular',body);
+      setAlert({type:'ok',msg:'Registro guardado'});
+      setView('list');setForm(emptyF);setSelected(null);load();
+    }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
+    finally{setSaving(false);}
+  };
+
+  if(view==='form') return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{className:'header'},
+      h('div',{className:'header-inner'},
+        h('button',{onClick:()=>{setView('list');setForm(emptyF);setSelected(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
+          h(Ico,{n:'arrowLeft',s:18}),' Volver'
+        ),
+        h('div',{className:'header-brand'},h('h1',null,selected?'Editar visita':'Nueva visita vehicular'),h('span',null,'Visita Vehicular'))
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'truck',s:12}),' Datos del vehículo'),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,onChange:e=>setForm(p=>({...p,fecha:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Placa',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.placa,onChange:e=>setForm(p=>({...p,placa:e.target.value.toUpperCase()})),placeholder:'ABC123'}))
+        ),
+        h('div',{className:'fg'},h('label',null,'Conductor',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.conductor,onChange:e=>setForm(p=>({...p,conductor:e.target.value})),placeholder:'Nombre completo'})),
+        h('div',{className:'fg'},h('label',null,'Motivo de la visita'),h('input',{type:'text',value:form.motivo_visita,onChange:e=>setForm(p=>({...p,motivo_visita:e.target.value})),placeholder:'Ej: visita a empleado, entidad de gobierno...'}))
+      ),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'check',s:12}),' Horarios'),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('input',{type:'time',value:form.hora_ingreso,onChange:e=>setForm(p=>({...p,hora_ingreso:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida,onChange:e=>setForm(p=>({...p,hora_salida:e.target.value}))}))
+        ),
+        h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:3,placeholder:'—'}))
+      ),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'camera',s:12}),' Fotografía'),
+        h(CameraField,{value:form.foto_url,onChange:v=>setForm(p=>({...p,foto_url:v}))})
+      )
+    ),
+    h('div',{className:'sticky-cta'},
+      h('button',{className:'btn-cancel',onClick:()=>{setView('list');setForm(emptyF);setSelected(null);}},h(Ico,{n:'x',s:15})),
+      h('button',{className:'btn-primary',onClick:handleSave,disabled:saving},
+        saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),saving?'Guardando...':'Guardar registro'
+      )
+    )
+  );
+
+  return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{style:{display:'flex',gap:8,padding:'10px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
+      h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+        h(Ico,{n:'plus',s:15}),' Nuevo'
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      loading?h(LoadingDots):
+      records.length===0?h('div',{className:'empty'},h(Ico,{n:'truck',s:44}),h('p',null,'Sin visitas vehiculares hoy')):
+      records.map(r=>h('div',{key:r.id,className:'list-item'},
+        h('div',{className:'li-icon',style:{background:'#e0f2fe'}},
+          h(Ico,{n:'truck',s:18,style:{color:'#0284c7'}})
+        ),
+        h('div',{className:'li-body',onClick:()=>{setForm({...emptyF,...r,hora_ingreso:r.hora_ingreso||'',hora_salida:r.hora_salida||''});setSelected(r);setView('form');}},
+          h('div',{className:'li-title'},r.placa),
+          h('div',{className:'li-sub'},r.conductor),
+          r.hora_ingreso&&h('div',{className:'li-sub'},'Ingreso: ',r.hora_ingreso,r.hora_salida&&(' · Salida: '+r.hora_salida))
+        ),
+        h('div',{className:'li-right'},
+          h('span',{className:'li-date'},r.motivo_visita||'—'),
+          h('div',{style:{display:'flex',gap:4,marginTop:3}},
+            r.hora_ingreso&&!r.hora_salida&&h('button',{
+              title:'Registrar salida',
+              onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(new Date().toTimeString().slice(0,5));},
+              style:{background:'#0284c7',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
+            },'Salida'),
+            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
+          )
+        )
+      ))
+    ),
+    salida&&h('div',{className:'overlay',onClick:()=>setSalida(null)},
+      h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
+        h('div',{className:'sheet-header'},
+          h('span',{style:{fontWeight:700,fontSize:15}},'Registrar salida'),
+          h('button',{className:'btn-icon',onClick:()=>setSalida(null)},h(Ico,{n:'x',s:16}))
+        ),
+        h('p',{style:{fontSize:13,color:'var(--slate)',marginBottom:12}},salida.placa,' · ',salida.conductor||''),
+        h('div',{className:'fg'},
+          h('label',null,'Hora de salida'),
+          h('input',{type:'time',value:horaSalida,onChange:e=>setHoraSalida(e.target.value)})
+        ),
+        h('div',{className:'fg'},
+          h('label',null,'Observaciones (opcional)'),
+          h('textarea',{value:obsSalida,onChange:e=>setObsSalida(e.target.value),rows:2,placeholder:'—'})
+        ),
+        h('div',{className:'fg'},
+          h('label',null,'Foto (opcional)'),
+          h(CameraField,{value:fotoSalida,onChange:setFotoSalida})
+        ),
+        h('div',{style:{display:'flex',gap:8,marginTop:14}},
+          h('button',{className:'btn-cancel',onClick:()=>setSalida(null)},'Cancelar'),
+          h('button',{className:'btn-primary',style:{background:'#0284c7'},onClick:async()=>{
+            const upd={hora_salida:horaSalida};
+            if(obsSalida) upd.observaciones=obsSalida;
+            if(fotoSalida) upd.foto_url=fotoSalida;
+            await api.put(`/visita-vehicular/${salida.id}`,upd);
+            setSalida(null);setObsSalida('');setFotoSalida(null);load();setAlert({type:'ok',msg:'Salida registrada'});
+          }},h(Ico,{n:'check',s:16}),'Confirmar salida')
+        )
+      )
+    ),
+    confirm&&h(ConfirmSheet,{msg:'Se eliminará el registro de visita vehicular.',onOk:async()=>{await api.del(`/visita-vehicular/${confirm}`);setConfirm(null);load();setAlert({type:'ok',msg:'Eliminado'});},onCancel:()=>setConfirm(null)})
   );
 }
 
@@ -3077,9 +3222,9 @@ function App(){
 
   const rol = user?.rol||'';
   const navItems =
-    rol==='guarda_bodega'        ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'}]
+    rol==='guarda_bodega'        ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'visitavh',label:'Visita Vh.',icon:'truck'}]
     :rol==='guarda_peatonal'     ? [{id:'home',label:'Inicio',icon:'home'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'},{id:'sust',label:'Sust.',icon:'alert'},{id:'herr',label:'Herram.',icon:'key'}]
-    :rol==='guarda_vehicular'    ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'}]
+    :rol==='guarda_vehicular'    ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'visitavh',label:'Visita Vh.',icon:'truck'}]
     :rol==='recorredor_externo'  ? [{id:'home',label:'Inicio',icon:'home'},{id:'ronda',label:'Ronda',icon:'mapPin'},{id:'novedades',label:'Novedades',icon:'bell'}]
     :[
       {id:'home',  label:'Inicio',  icon:'home'},
@@ -3093,6 +3238,7 @@ function App(){
     home:   h(HomePage,{setPage:navigate,user}),
     flota:  h(FlotaPage,{user,online,addOffline}),
     prov:   h(ProveedoresPage,{user,online,addOffline}),
+    visitavh: h(VisitaVehicularPage,{user,online,addOffline}),
     acceso: h(AccesoPage,{user,online,addOffline}),
     visit:  h(VisitantesPage,{user,online,addOffline}),
     sust:   h(ItemAccesoPage,{tipo:'sustancias',user}),

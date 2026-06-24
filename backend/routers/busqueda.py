@@ -105,6 +105,23 @@ def buscar(
                 "estado": "Registrado",
             })
 
+    if "read" in permisos.get("visita_vehicular", []):
+        rows = db.execute(text("""
+            SELECT id, fecha, placa, conductor, hora_salida
+            FROM visita_vehicular
+            WHERE placa ILIKE :q OR conductor ILIKE :q
+            ORDER BY fecha DESC LIMIT 10
+        """), {"q": like}).fetchall()
+        for r in rows:
+            d = dict(r._mapping)
+            estado = "Salió" if d["hora_salida"] else "Dentro"
+            items.append({
+                "modulo": "visitavh", "modulo_label": "Visita Vehicular",
+                "id": d["id"], "fecha": d["fecha"],
+                "identificador": d["placa"], "detalle": d["conductor"],
+                "estado": estado,
+            })
+
     if "read" in permisos.get("visitantes", []):
         rows = db.execute(text("""
             SELECT id, fecha, nombre, empresa, cedula, hora_salida

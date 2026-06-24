@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers import (
     auth, flota, conductores, proveedores,
     control_acceso, visitantes, bd_maestros, export, dashboard, carga_masiva,
-    rondas, novedades, busqueda
+    rondas, novedades, busqueda, visita_vehicular
 )
 
 app = FastAPI(
@@ -36,6 +36,7 @@ app.include_router(carga_masiva.router,   prefix="/api/carga",         tags=["Ca
 app.include_router(rondas.router,         prefix="/api/rondas",        tags=["Rondas"])
 app.include_router(novedades.router,      prefix="/api/novedades",     tags=["Novedades"])
 app.include_router(busqueda.router,       prefix="/api/busqueda",      tags=["Búsqueda"])
+app.include_router(visita_vehicular.router,prefix="/api/visita-vehicular",tags=["Visita Vehicular"])
 
 @app.get("/health", tags=["Sistema"])
 def health():

@@ -38,6 +38,8 @@ def resumen(
 
     vis_hoy        = count("visitantes",    "fecha = :hoy",   {"hoy": hoy})
 
+    visitavh_hoy   = count("visita_vehicular", "fecha = :hoy", {"hoy": hoy})
+
     # Últimas 5 placas flota
     ultimas_placas = db.execute(text("""
         SELECT DISTINCT ON (placa) placa, conductor, fecha
@@ -92,6 +94,9 @@ def resumen(
         },
         "visitantes": {
             "hoy": vis_hoy,
+        },
+        "visita_vehicular": {
+            "hoy": visitavh_hoy,
         },
         "ultimas_placas": [dict(r._mapping) for r in ultimas_placas],
         "top_empresas_proveedores": [dict(r._mapping) for r in empresas],
