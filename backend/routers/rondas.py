@@ -391,8 +391,13 @@ def ciclo_activo(
     """), {"cid": ciclo.id}).fetchall()
     marcados_ids = {m.punto_id for m in marcados}
 
-    obligatorios = _puntos_obligatorios(db)
-    pendientes = [dict(p._mapping) for p in obligatorios if str(p.id) not in {str(x) for x in marcados_ids}]
+    todos_puntos = db.execute(text(
+        "SELECT * FROM puntos_ronda WHERE activo=TRUE ORDER BY orden ASC"
+    )).fetchall()
+    marcados_ids_str = {str(x) for x in marcados_ids}
+    pendientes = [dict(p._mapping) for p in todos_puntos if str(p.id) not in marcados_ids_str]
+    # Tanques (es_base) va siempre al final: es el cierre del ciclo, no un punto más a recorrer
+    pendientes.sort(key=lambda p: p["es_base"])
 
     return {
         "activo": True,
