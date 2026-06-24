@@ -316,6 +316,7 @@ const Icons = {
   clipboard:`<path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>`,
   qrCode:`<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="5" y="5" width="3" height="3"/><rect x="16" y="5" width="3" height="3"/><rect x="16" y="16" width="3" height="3"/><rect x="5" y="16" width="3" height="3"/>`,
   clock:`<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>`,
+  search:`<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>`,
 };
 const Ico = ({n,s=20,c=''}) => SVG(Icons[n]||'',s,c);
 
@@ -573,9 +574,70 @@ function CambiarPasswordSheet({onClose,onSuccess}){
 }
 
 /* ── HEADER COMPONENT ── */
+function BusquedaSheet({onClose}){
+  const [q,setQ]           = useState('');
+  const [items,setItems]   = useState([]);
+  const [loading,setLoading]=useState(false);
+  const [err,setErr]       = useState(null);
+
+  useEffect(()=>{
+    const term = q.trim();
+    if(term.length<2){ setItems([]); setErr(null); return; }
+    setLoading(true);
+    const t = setTimeout(async()=>{
+      try{
+        const r = await api.get('/busqueda?q='+encodeURIComponent(term));
+        setItems(r.items||[]); setErr(null);
+      }catch(e){ setErr('Error al buscar'); }
+      finally{ setLoading(false); }
+    },350);
+    return ()=>clearTimeout(t);
+  },[q]);
+
+  const estadoColor = (estado)=> (estado==='Dentro'||estado==='En ruta') ? 'pill-amber'
+    : (estado==='Salió'||estado==='Regresó') ? 'pill-slate'
+    : (estado==='En bodega') ? 'pill-blue' : 'pill-slate';
+
+  return h('div',{className:'overlay',onClick:onClose},
+    h('div',{className:'sheet',style:{maxHeight:'85vh',display:'flex',flexDirection:'column'},onClick:e=>e.stopPropagation()},
+      h('div',{className:'sheet-handle'}),
+      h('div',{className:'sheet-header',style:{padding:'0 16px 10px'}},
+        h('h2',null,h(Ico,{n:'search',s:16}),' Buscar ingreso'),
+        h('button',{className:'btn-icon',onClick:onClose},h(Ico,{n:'x',s:15}))
+      ),
+      h('div',{style:{padding:'0 16px 10px'}},
+        h('input',{
+          autoFocus:true, value:q, onChange:e=>setQ(e.target.value),
+          placeholder:'Placa, cédula o nombre...',
+          style:{width:'100%',padding:'10px 12px',borderRadius:8,border:'1.5px solid var(--border)',fontSize:14}
+        })
+      ),
+      h('div',{style:{padding:'0 16px 20px',overflowY:'auto',flex:1}},
+        loading&&h('div',{style:{textAlign:'center',padding:20,color:'var(--slate)',fontSize:13}},'Buscando...'),
+        err&&h('div',{style:{textAlign:'center',padding:20,color:'var(--red)',fontSize:13}},err),
+        !loading&&!err&&q.trim().length>=2&&items.length===0&&
+          h('div',{style:{textAlign:'center',padding:20,color:'var(--slate)',fontSize:13}},'Sin resultados'),
+        !loading&&q.trim().length<2&&
+          h('div',{style:{textAlign:'center',padding:20,color:'var(--slate)',fontSize:12}},'Escribe al menos 2 caracteres'),
+        items.map((it,i)=>h('div',{key:it.modulo+it.id+i,style:{
+          display:'flex',justifyContent:'space-between',alignItems:'center',
+          padding:'10px 12px',borderRadius:8,background:'#f8fafc',marginBottom:6
+        }},
+          h('div',null,
+            h('div',{style:{fontWeight:700,fontSize:13}},it.identificador||'—'),
+            h('div',{style:{fontSize:11,color:'var(--slate)'}},[it.detalle,it.modulo_label,it.fecha].filter(Boolean).join(' · '))
+          ),
+          h('span',{className:'pill '+estadoColor(it.estado)},it.estado)
+        ))
+      )
+    )
+  );
+}
+
 function AppHeader({user,page,setPage,online,offlineQueue}){
   const [menuOpen,setMenuOpen] = useState(false);
   const [pwOpen,setPwOpen]     = useState(false);
+  const [buscarOpen,setBuscarOpen] = useState(false);
   const titleMap = {home:'Inicio',flota:'Flota Propia',prov:'Proveedores',acceso:'Control Acceso',visit:'Visitantes',bd:'Base de Datos',reg:'Registros',carga:'Carga Masiva'};
 
   const logout = async () => {
@@ -592,12 +654,14 @@ function AppHeader({user,page,setPage,online,offlineQueue}){
       h('div',{className:'header-right'},
         !online&&h('span',{className:'offline-badge'},h(Ico,{n:'wifiOff',s:11}),' Sin red'),
         offlineQueue>0&&h('span',{className:'offline-badge',style:{background:'rgba(245,158,11,.25)',borderColor:'rgba(245,158,11,.5)'}},`${offlineQueue} pendientes`),
+        h('button',{className:'btn-icon',title:'Buscar ingreso',onClick:()=>setBuscarOpen(true)},h(Ico,{n:'search',s:15})),
         h('div',{className:'user-chip',onClick:()=>setMenuOpen(v=>!v)},
           h('div',{className:'user-avatar'},initials(user?.nombre||'')),
           h('span',{className:'user-name'},user?.nombre?.split(' ')[0]||'Usuario')
         )
       )
     ),
+    buscarOpen&&h(BusquedaSheet,{onClose:()=>setBuscarOpen(false)}),
     menuOpen&&h('div',{style:{position:'absolute',top:60,right:12,zIndex:200},onClick:()=>setMenuOpen(false)},
       h('div',{className:'user-menu',onClick:e=>e.stopPropagation()},
         h('div',{className:'user-menu-header'},
