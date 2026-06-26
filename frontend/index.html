@@ -1570,6 +1570,7 @@ function AccesoPage({user,online,addOffline}){
   const emptyF = {fecha:today(),cedula:'',nombre:'',contratista:'',hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',observaciones:''};
   const [form,setForm] = useState(emptyF);
   const [filtro,setFiltro] = useState('pendientes');
+  const [busqueda,setBusqueda] = useState('');
 
   const load = useCallback(()=>{
     setLoading(true);
@@ -1661,21 +1662,29 @@ function AccesoPage({user,online,addOffline}){
   );
 
   const nPend = records.filter(r=>!r.hora_salida).length;
-  const visibles = filtro==='pendientes' ? records.filter(r=>!r.hora_salida) : records;
+  const visibles = records
+    .filter(r=>filtro==='pendientes'?!r.hora_salida:true)
+    .filter(r=>{if(!busqueda.trim())return true;const q=busqueda.trim().toLowerCase();return (r.nombre&&r.nombre.toLowerCase().includes(q))||(r.cedula&&String(r.cedula).includes(q));});
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
-    h('div',{style:{display:'flex',gap:8,padding:'8px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
-      h('div',{style:{display:'flex',gap:6,alignItems:'center'}},
-        h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
-        h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
+    h('div',{style:{background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
+      h('div',{style:{display:'flex',gap:8,padding:'8px 14px 6px'}},
+        h('div',{style:{display:'flex',gap:6,alignItems:'center'}},
+          h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
+          h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
+        ),
+        h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+          h(Ico,{n:'plus',s:15}),' Nuevo'
+        )
       ),
-      h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
-        h(Ico,{n:'plus',s:15}),' Nuevo'
+      h('div',{style:{padding:'0 14px 8px',position:'relative'}},
+        h(Ico,{n:'search',s:14,style:{position:'absolute',left:24,top:'50%',transform:'translateY(-50%)',color:'var(--slate)',pointerEvents:'none'}}),
+        h('input',{type:'text',value:busqueda,onChange:e=>setBusqueda(e.target.value),placeholder:'Buscar nombre o cédula para salida rápida...',style:{width:'100%',paddingLeft:30,fontSize:12,boxSizing:'border-box'}})
       )
     ),
     h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
       loading?h(LoadingDots):
-      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'userCheck',s:44}),h('p',null,filtro==='pendientes'?'Sin personas activas':'Sin registros hoy')):
+      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'userCheck',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='pendientes'?'Sin personas activas':'Sin registros hoy')):
       visibles.map(r=>h('div',{key:r.id,className:'list-item'},
         h('div',{className:'li-icon',style:{background: r.hora_salida?'#dcfce7':'#dbeafe'}},
           h(Ico,{n:'userCheck',s:18,style:{color: r.hora_salida?'#16a34a':'#1d4ed8'}})
