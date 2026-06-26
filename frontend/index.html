@@ -768,6 +768,7 @@ function StatCard({label,value,color,icon}){
 
 function HomePage({setPage,user}){
   const [resumen,setResumen] = useState(null);
+  const [tab,setTab]         = useState('dashboard');
   const fechaHoy = new Date().toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'});
   const rol = user?.rol||'';
   const isAdmin = ['admin','supervisor','operador'].includes(rol);
@@ -804,41 +805,59 @@ function HomePage({setPage,user}){
   const showFlotaStats   = isAdmin||isGuardaBodega||isGuardaVehicular;
   const showAccesoStats  = isAdmin||isGuardaPeatonal;
   const showProvStats    = isAdmin||isGuardaVehicular||isGuardaBodega;
+  const showDashboard    = !isRecorredor;
+
+  const tabBtn = (id,label,icon)=>h('button',{
+    onClick:()=>setTab(id),
+    style:{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:5,padding:'7px 0',borderRadius:20,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',transition:'all .15s',
+      background:tab===id?'var(--navy)':'transparent',
+      color:tab===id?'#fff':'var(--slate)',
+      borderColor:tab===id?'var(--navy)':'var(--border)'}
+  },h(Ico,{n:icon,s:12}),label);
 
   return h('div',{className:'scroll-body'},
     h('div',{style:{padding:'12px 14px 4px'}},
       h('p',{style:{fontSize:11,color:'var(--slate)',textTransform:'capitalize',fontWeight:500}},fechaHoy)
     ),
-    resumen&&(showFlotaStats||showAccesoStats||showProvStats)&&h('div',{style:{padding:'0 14px'}},
-      h('p',{className:'sec-ttl'},h(Ico,{n:'clipboard',s:12}),' Resumen de hoy'),
-      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginBottom:4}},
-        showFlotaStats&&h(StatCard,{label:'Flota hoy',       value:resumen.flota.hoy,          color:'#1e4570',icon:'truck'}),
-        showFlotaStats&&h(StatCard,{label:'En ruta',          value:resumen.flota.en_ruta,      color:'#f59e0b',icon:'truck'}),
-        showAccesoStats&&h(StatCard,{label:'Acceso hoy',     value:resumen.control_acceso.hoy, color:'#7c3aed',icon:'userCheck'}),
-        showAccesoStats&&h(StatCard,{label:'Sin salida',     value:accesoPend,                  color:'#e11d48',icon:'userCheck'}),
-        showProvStats&&h(StatCard,{label:'Proveedores hoy',          value:resumen.proveedores.hoy,    color:'#d97706',icon:'package'}),
-        showProvStats&&h(StatCard,{label:'Visitantes hoy',   value:resumen.visitantes.hoy,     color:'#059669',icon:'users'})
-      )
+    showDashboard&&h('div',{style:{display:'flex',gap:6,padding:'6px 14px 10px'}},
+      tabBtn('dashboard','Dashboard','clipboard'),
+      tabBtn('modulos','Módulos','home')
     ),
-    ((isGuardaPeatonal?accesoPend>0:(flotaPend>0||accesoPend>0)))&&h('div',{style:{padding:'0 14px'}},
-      h('p',{className:'sec-ttl'},h(Ico,{n:'alert',s:12}),' Pendientes de cierre'),
-      h('div',{style:{background:'#fffbeb',border:'1.5px solid #fcd34d',borderRadius:12,padding:12}},
-        !isGuardaPeatonal&&flotaPend>0&&h('div',null,
-          h('p',{style:{fontSize:12,fontWeight:600,color:'#1e4570',marginBottom:4}},`${flotaPend} vehículo(s) fuera sin llegada:`),
-          pendFlota.map((v,i)=>h('div',{key:i,style:{fontSize:11,color:'var(--slate)',padding:'3px 8px',background:'#f8fafc',borderRadius:6,marginBottom:3}},
-            h('strong',null,v.placa),' · ',v.conductor||'—',' · Salió: ',v.hora_salida||'—',' (',v.fecha,')'
-          ))
-        ),
-        !isGuardaPeatonal&&flotaPend>0&&accesoPend>0&&h('div',{style:{height:1,background:'#fde68a',margin:'8px 0'}}),
-        accesoPend>0&&h('div',null,
-          h('p',{style:{fontSize:12,fontWeight:600,color:'#7c3aed',marginBottom:4}},`${accesoPend} persona(s) dentro sin salida:`),
-          pendAcceso.map((v,i)=>h('div',{key:i,style:{fontSize:11,color:'var(--slate)',padding:'3px 8px',background:'#f8fafc',borderRadius:6,marginBottom:3}},
-            h('strong',null,v.nombre),' · ',v.contratista||'—',' · Ingresó: ',v.hora_ingreso||'—',' (',v.fecha,')'
-          ))
+    tab==='dashboard'&&showDashboard&&h('div',null,
+      resumen&&(showFlotaStats||showAccesoStats||showProvStats)&&h('div',{style:{padding:'0 14px'}},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'clipboard',s:12}),' Resumen de hoy'),
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginBottom:4}},
+          showFlotaStats&&h(StatCard,{label:'Flota hoy',       value:resumen.flota.hoy,          color:'#1e4570',icon:'truck'}),
+          showFlotaStats&&h(StatCard,{label:'En ruta',          value:resumen.flota.en_ruta,      color:'#f59e0b',icon:'truck'}),
+          showAccesoStats&&h(StatCard,{label:'Acceso hoy',     value:resumen.control_acceso.hoy, color:'#7c3aed',icon:'userCheck'}),
+          showAccesoStats&&h(StatCard,{label:'Sin salida',     value:accesoPend,                  color:'#e11d48',icon:'userCheck'}),
+          showProvStats&&h(StatCard,{label:'Proveedores hoy',          value:resumen.proveedores.hoy,    color:'#d97706',icon:'package'}),
+          showProvStats&&h(StatCard,{label:'Visitantes hoy',   value:resumen.visitantes.hoy,     color:'#059669',icon:'users'})
         )
+      ),
+      ((isGuardaPeatonal?accesoPend>0:(flotaPend>0||accesoPend>0)))&&h('div',{style:{padding:'0 14px',marginTop:4}},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'alert',s:12}),' Pendientes de cierre'),
+        h('div',{style:{background:'#fffbeb',border:'1.5px solid #fcd34d',borderRadius:12,padding:12}},
+          !isGuardaPeatonal&&flotaPend>0&&h('div',null,
+            h('p',{style:{fontSize:12,fontWeight:600,color:'#1e4570',marginBottom:4}},`${flotaPend} vehículo(s) fuera sin llegada:`),
+            pendFlota.map((v,i)=>h('div',{key:i,style:{fontSize:11,color:'var(--slate)',padding:'3px 8px',background:'#f8fafc',borderRadius:6,marginBottom:3}},
+              h('strong',null,v.placa),' · ',v.conductor||'—',' · Salió: ',v.hora_salida||'—',' (',v.fecha,')'
+            ))
+          ),
+          !isGuardaPeatonal&&flotaPend>0&&accesoPend>0&&h('div',{style:{height:1,background:'#fde68a',margin:'8px 0'}}),
+          accesoPend>0&&h('div',null,
+            h('p',{style:{fontSize:12,fontWeight:600,color:'#7c3aed',marginBottom:4}},`${accesoPend} persona(s) dentro sin salida:`),
+            pendAcceso.map((v,i)=>h('div',{key:i,style:{fontSize:11,color:'var(--slate)',padding:'3px 8px',background:'#f8fafc',borderRadius:6,marginBottom:3}},
+              h('strong',null,v.nombre),' · ',v.contratista||'—',' · Ingresó: ',v.hora_ingreso||'—',' (',v.fecha,')'
+            ))
+          )
+        )
+      ),
+      !resumen&&h('div',{style:{padding:'40px 14px',textAlign:'center',color:'var(--slate)',fontSize:13}},
+        h(LoadingDots)
       )
     ),
-    h('div',{className:'pad'},
+    (tab==='modulos'||isRecorredor)&&h('div',{className:'pad'},
       h('p',{className:'sec-ttl'},h(Ico,{n:'home',s:12}),' Módulos'),
       h('div',{className:'mgrid'},
         mods.map(m=>h('button',{key:m.id,className:`mcard ${m.cls}`,onClick:()=>setPage(m.id)},
