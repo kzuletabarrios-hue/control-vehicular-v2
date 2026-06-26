@@ -176,6 +176,10 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 .sec-ttl{font-size:10px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.8px;margin:14px 0 8px;display:flex;align-items:center;gap:6px}
 .sec-ttl::after{content:'';flex:1;height:1px;background:var(--border)}
 
+/* ── DASHBOARD ── */
+.dash-section{padding:0 14px}
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
 /* ── FORM ── */
 .fcard{background:var(--white);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,0.05)}
 .fg{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
@@ -285,6 +289,8 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
   .chips{gap:12px;padding:12px 16px 8px}
   .pad{padding:18px}
   .fgrid2{grid-template-columns:repeat(3,1fr)}
+  .sgrid{grid-template-columns:repeat(3,1fr)}
+  .dash-section{padding:0 18px}
 }
 
 /* ── RESPONSIVE · DESKTOP (≥1024px) ── */
@@ -314,6 +320,8 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
   /* Grids */
   .mgrid{grid-template-columns:repeat(4,1fr)}
   .fgrid2{grid-template-columns:repeat(3,1fr)}
+  .sgrid{grid-template-columns:repeat(3,1fr)}
+  .dash-section{padding:0 24px;max-width:960px;margin-left:auto;margin-right:auto}
   /* Sheets → centred modal */
   .overlay{align-items:center;justify-content:center;padding:24px}
   .sheet{border-radius:20px;max-width:600px;width:100%;margin:0 auto;max-height:85vh}
@@ -819,14 +827,14 @@ function HomePage({setPage,user}){
     h('div',{style:{padding:'12px 14px 4px'}},
       h('p',{style:{fontSize:11,color:'var(--slate)',textTransform:'capitalize',fontWeight:500}},fechaHoy)
     ),
-    showDashboard&&h('div',{style:{display:'flex',gap:6,padding:'6px 14px 10px'}},
+    showDashboard&&h('div',{className:'dash-section',style:{display:'flex',gap:6,paddingTop:6,paddingBottom:10}},
       tabBtn('dashboard','Dashboard','clipboard'),
       tabBtn('modulos','Módulos','home')
     ),
     tab==='dashboard'&&showDashboard&&h('div',null,
-      resumen&&(showFlotaStats||showAccesoStats||showProvStats)&&h('div',{style:{padding:'0 14px'}},
+      resumen&&(showFlotaStats||showAccesoStats||showProvStats)&&h('div',{className:'dash-section'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'clipboard',s:12}),' Resumen de hoy'),
-        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginBottom:4}},
+        h('div',{className:'sgrid',style:{marginBottom:4}},
           showFlotaStats&&h(StatCard,{label:'Flota hoy',       value:resumen.flota.hoy,          color:'#1e4570',icon:'truck'}),
           showFlotaStats&&h(StatCard,{label:'En ruta',          value:resumen.flota.en_ruta,      color:'#f59e0b',icon:'truck'}),
           showAccesoStats&&h(StatCard,{label:'Acceso hoy',     value:resumen.control_acceso.hoy, color:'#7c3aed',icon:'userCheck'}),
@@ -835,7 +843,7 @@ function HomePage({setPage,user}){
           showProvStats&&h(StatCard,{label:'Visitantes hoy',   value:resumen.visitantes.hoy,     color:'#059669',icon:'users'})
         )
       ),
-      ((isGuardaPeatonal?accesoPend>0:(flotaPend>0||accesoPend>0)))&&h('div',{style:{padding:'0 14px',marginTop:4}},
+      ((isGuardaPeatonal?accesoPend>0:(flotaPend>0||accesoPend>0)))&&h('div',{className:'dash-section',style:{marginTop:4}},
         h('p',{className:'sec-ttl'},h(Ico,{n:'alert',s:12}),' Pendientes de cierre'),
         h('div',{style:{background:'#fffbeb',border:'1.5px solid #fcd34d',borderRadius:12,padding:12}},
           !isGuardaPeatonal&&flotaPend>0&&h('div',null,
