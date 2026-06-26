@@ -378,6 +378,44 @@ def export_herramientas(
     return _stream(wb, f"herramientas_{date.today()}.xlsx")
 
 
+@router.get("/apoyos")
+def export_apoyos(
+    fecha_desde: str = Query(default=None),
+    fecha_hasta: str = Query(default=None),
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("flota", "export")),
+):
+    where = ["1=1"]
+    params = {}
+    if fecha_desde:
+        where.append("a.fecha >= :desde")
+        params["desde"] = fecha_desde
+    if fecha_hasta:
+        where.append("a.fecha <= :hasta")
+        params["hasta"] = fecha_hasta
+
+    rows = db.execute(text(f"""
+        SELECT u.nombre AS recorredor,
+               a.fecha, a.motivo, a.tipo,
+               a.hora_llegada, a.hora_salida
+        FROM apoyos_operativos a
+        JOIN usuarios u ON u.id = a.recorredor_id
+        WHERE {' AND '.join(where)}
+        ORDER BY a.fecha DESC, a.hora_llegada ASC
+    """), params).fetchall()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Apoyos Operativos"
+
+    headers = ["Recorredor", "Fecha", "Motivo", "Tipo", "H. Llegada", "H. Salida"]
+    _header_style(ws, headers)
+    for row in rows:
+        ws.append(list(row))
+    _autowidth(ws)
+    return _stream(wb, f"apoyos_operativos_{date.today()}.xlsx")
+
+
 @router.get("/rondas")
 def export_rondas(
     fecha_desde: str = Query(default=None),
