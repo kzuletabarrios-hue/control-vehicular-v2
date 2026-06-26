@@ -62,10 +62,11 @@ def export_flota(
         params["hasta"] = fecha_hasta
 
     rows = db.execute(text(f"""
-        SELECT fecha, placa, conductor, n_pallets, n_contenedores,
+        SELECT placa, conductor, n_pallets, n_contenedores,
                cant_volumen_externo, muelle_cargue,
-               ultima_tienda_visitada, protocolo, sello, sello_entrada,
-               hora_salida_muelle, temperatura,
+               fecha, hora_salida_muelle,
+               ultima_tienda_visitada, protocolo, temperatura,
+               sello, sello_entrada,
                fecha_salida, hora_salida_cedi,
                fecha_llegada, hora_llegada,
                observacion
@@ -79,9 +80,11 @@ def export_flota(
     ws.title = "Flota Propia"
 
     headers = [
-        "Fecha Registro", "Placa", "Conductor", "Pallets", "Contenedores",
-        "Vol. Externo", "Muelle", "Última Tienda", "Protocolo",
-        "Sello", "Sello Entrada", "H. Salida Muelle", "Temperatura",
+        "Placa", "Conductor", "Pallets", "Contenedores",
+        "Vol. Externo", "Muelle",
+        "Fecha Registro", "H. Sal. Muelle",
+        "Última Tienda", "Protocolo", "Temperatura",
+        "Sello", "Sello Entrada",
         "Fecha Salida", "H. Salida CEDI",
         "Fecha Llegada", "H. Llegada", "Observación",
     ]
@@ -373,3 +376,47 @@ def export_herramientas(
         ws.append(list(row))
     _autowidth(ws)
     return _stream(wb, f"herramientas_{date.today()}.xlsx")
+
+
+@router.get("/rondas")
+def export_rondas(
+    fecha_desde: str = Query(default=None),
+    fecha_hasta: str = Query(default=None),
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("flota", "export")),
+):
+    where = ["1=1"]
+    params = {}
+    if fecha_desde:
+        where.append("r.fecha >= :desde")
+        params["desde"] = fecha_desde
+    if fecha_hasta:
+        where.append("r.fecha <= :hasta")
+        params["hasta"] = fecha_hasta
+
+    rows = db.execute(text(f"""
+        SELECT u.nombre AS recorredor,
+               r.fecha, rc.turno, rc.numero_ronda,
+               p.nombre AS punto, p.orden AS orden_punto,
+               r.hora_marcacion, r.estado, r.observacion
+        FROM rondas r
+        JOIN rondas_ciclos rc ON rc.id = r.ciclo_id
+        JOIN puntos_ronda p   ON p.id  = r.punto_id
+        JOIN usuarios u       ON u.id  = r.recorredor_id
+        WHERE {' AND '.join(where)}
+        ORDER BY r.fecha DESC, rc.numero_ronda ASC, p.orden ASC
+    """), params).fetchall()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Rondas"
+
+    headers = [
+        "Recorredor", "Fecha", "Turno", "N° Ronda",
+        "Punto", "Orden", "H. Marcación", "Estado", "Observación",
+    ]
+    _header_style(ws, headers)
+    for row in rows:
+        ws.append(list(row))
+    _autowidth(ws)
+    return _stream(wb, f"rondas_{date.today()}.xlsx")
