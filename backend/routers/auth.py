@@ -280,6 +280,42 @@ def crear_usuario(
     return {"id": uid, "message": f"Usuario '{nombre}' creado con rol '{rol}'"}
 
 
+@router.put("/usuarios/{uid}")
+def editar_usuario(
+    uid: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("usuarios", "write"))
+):
+    campos = {}
+    if "nombre" in body and body["nombre"]:
+        campos["nombre"] = body["nombre"]
+    if "email" in body and body["email"]:
+        campos["email"] = body["email"].lower().strip()
+    if "rol" in body and body["rol"]:
+        rol_row = db.execute(
+            text("SELECT id FROM roles WHERE nombre = :r"), {"r": body["rol"]}
+        ).fetchone()
+        if not rol_row:
+            raise HTTPException(status_code=400, detail=f"Rol '{body['rol']}' no existe")
+        campos["rol_id"] = rol_row.id
+    if "password" in body and body["password"]:
+        pw = body["password"]
+        if len(pw) < 8:
+            raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 8 caracteres")
+        hashed = bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode().replace("$2b$", "$2a$")
+        campos["password_hash"] = hashed
+
+    if not campos:
+        raise HTTPException(status_code=400, detail="Sin campos para actualizar")
+
+    set_clause = ", ".join(f"{k} = :{k}" for k in campos)
+    campos["id"] = uid
+    db.execute(text(f"UPDATE usuarios SET {set_clause}, updated_at = NOW() WHERE id = :id"), campos)
+    db.commit()
+    return {"message": "Usuario actualizado"}
+
+
 @router.put("/usuarios/{uid}/rol")
 def cambiar_rol(
     uid: str,

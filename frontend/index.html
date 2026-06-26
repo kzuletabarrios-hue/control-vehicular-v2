@@ -2708,8 +2708,11 @@ function BdUsuariosTab(){
     setSaving(true);
     try{
       if(selected){
-        await api.put(`/auth/usuarios/${selected.id}/rol`,{rol:form.rol});
-        setAlert({type:'ok',msg:'Rol actualizado'});
+        if(!form.nombre||!form.email) return setAlert({type:'err',msg:'Nombre y email son requeridos'});
+        const body={nombre:form.nombre,email:form.email,rol:form.rol};
+        if(form.password) body.password=form.password;
+        await api.put(`/auth/usuarios/${selected.id}`,body);
+        setAlert({type:'ok',msg:'Usuario actualizado'});
       } else {
         if(!form.nombre||!form.email||!form.password) return setAlert({type:'err',msg:'Nombre, email y contraseña son requeridos'});
         await api.post('/auth/usuarios',form);
@@ -2732,13 +2735,13 @@ function BdUsuariosTab(){
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'user',s:12}),selected?' Editar usuario':' Nuevo usuario'),
         h('div',{className:'fg'},h('label',null,'Nombre',h('span',{className:'req'},'*')),
-          h('input',{type:'text',value:form.nombre,onChange:e=>setForm(p=>({...p,nombre:e.target.value})),placeholder:'Nombre completo',disabled:!!selected})
+          h('input',{type:'text',value:form.nombre,onChange:e=>setForm(p=>({...p,nombre:e.target.value})),placeholder:'Nombre completo'})
         ),
         h('div',{className:'fg'},h('label',null,'Email',h('span',{className:'req'},'*')),
-          h('input',{type:'email',value:form.email,onChange:e=>setForm(p=>({...p,email:e.target.value})),placeholder:'correo@empresa.com',disabled:!!selected})
+          h('input',{type:'email',value:form.email,onChange:e=>setForm(p=>({...p,email:e.target.value})),placeholder:'correo@empresa.com'})
         ),
-        !selected&&h('div',{className:'fg'},h('label',null,'Contraseña',h('span',{className:'req'},'*')),
-          h('input',{type:'password',value:form.password,onChange:e=>setForm(p=>({...p,password:e.target.value})),placeholder:'Mínimo 8 caracteres'})
+        h('div',{className:'fg'},h('label',null,selected?'Nueva contraseña (dejar vacío para no cambiar)':'Contraseña',!selected&&h('span',{className:'req'},'*')),
+          h('input',{type:'password',value:form.password,onChange:e=>setForm(p=>({...p,password:e.target.value})),placeholder:selected?'Nueva contraseña (opcional)':'Mínimo 8 caracteres'})
         ),
         h('div',{className:'fg'},h('label',null,'Rol'),
           h('select',{value:form.rol,onChange:e=>setForm(p=>({...p,rol:e.target.value}))},
