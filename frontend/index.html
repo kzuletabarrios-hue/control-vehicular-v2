@@ -1333,6 +1333,9 @@ function ItemAccesoPage({tipo,user}){
   const [alert,setAlert]     = useState(null);
   const [confirm,setConfirm] = useState(null);
   const [selected,setSelected]= useState(null);
+  const [salidaItem,setSalidaItem]       = useState(null);
+  const [horaSalidaItem,setHoraSalidaItem] = useState('');
+  const [fechaSalidaItem,setFechaSalidaItem] = useState('');
   const emptyF = {fecha:today(),descripcion:'',cantidad:'',responsable:'',observaciones:'',foto_url:null};
   const [form,setForm]       = useState(emptyF);
 
@@ -1394,17 +1397,53 @@ function ItemAccesoPage({tipo,user}){
       loading?h(LoadingDots):
       records.length===0?h('div',{className:'empty'},h(Ico,{n:cfg.icono,s:44}),h('p',null,'Sin registros')):
       records.map(r=>h('div',{key:r.id,className:'list-item'},
-        h('div',{className:'li-icon',style:{background:cfg.bg}},h(Ico,{n:cfg.icono,s:18,style:{color:cfg.color}})),
+        h('div',{className:'li-icon',style:{background:r.hora_salida?'#dcfce7':cfg.bg}},h(Ico,{n:cfg.icono,s:18,style:{color:r.hora_salida?'#16a34a':cfg.color}})),
         h('div',{className:'li-body',onClick:()=>{setForm({...emptyF,...r});setSelected(r);setView('form');}},
           h('div',{className:'li-title'},r.descripcion),
           h('div',{className:'li-sub'},r.cantidad?`Cantidad: ${r.cantidad}`:''),
-          r.responsable&&h('div',{className:'li-sub'},'Responsable: ',r.responsable)
+          r.responsable&&h('div',{className:'li-sub'},'Responsable: ',r.responsable),
+          r.hora_salida&&h('div',{className:'li-sub'},'Salida: ',r.hora_salida)
         ),
         h('div',{className:'li-right'},
-          h('span',{className:'li-date'},fmtDate(r.fecha)),
-          !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2,marginTop:4}},h(Ico,{n:'trash',s:14}))
+          h('span',{className:'li-date'},fmtDate(r.fecha),
+            r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida))
+          ),
+          h('div',{style:{display:'flex',gap:4,marginTop:3}},
+            !r.hora_salida&&h('button',{
+              title:'Registrar salida',
+              onClick:(e)=>{e.stopPropagation();setSalidaItem(r);setHoraSalidaItem(new Date().toTimeString().slice(0,5));setFechaSalidaItem(today());},
+              style:{background:cfg.color,border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
+            },'Salida'),
+            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2,marginTop:4}},h(Ico,{n:'trash',s:14}))
+          )
         )
       ))
+    ),
+    salidaItem&&h('div',{className:'overlay',onClick:()=>setSalidaItem(null)},
+      h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
+        h('div',{className:'sheet-header'},
+          h('span',{style:{fontWeight:700,fontSize:15}},'Registrar salida'),
+          h('button',{className:'btn-icon',onClick:()=>setSalidaItem(null)},h(Ico,{n:'x',s:16}))
+        ),
+        h('p',{style:{fontSize:13,color:'var(--slate)',marginBottom:12}},salidaItem.descripcion,' · ',salidaItem.responsable||''),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},
+            h('label',null,'Fecha de salida'),
+            h('input',{type:'date',value:fechaSalidaItem,onChange:e=>setFechaSalidaItem(e.target.value)})
+          ),
+          h('div',{className:'fg'},
+            h('label',null,'Hora de salida'),
+            h('input',{type:'time',value:horaSalidaItem,onChange:e=>setHoraSalidaItem(e.target.value)})
+          )
+        ),
+        h('div',{style:{display:'flex',gap:8,marginTop:14}},
+          h('button',{className:'btn-cancel',onClick:()=>setSalidaItem(null)},'Cancelar'),
+          h('button',{className:'btn-primary',style:{background:cfg.color},onClick:async()=>{
+            await api.put(`${cfg.endpoint}/${salidaItem.id}`,{hora_salida:horaSalidaItem,fecha_salida:fechaSalidaItem||undefined});
+            setSalidaItem(null);load();setAlert({type:'ok',msg:'Salida registrada'});
+          }},h(Ico,{n:'check',s:16}),'Confirmar salida')
+        )
+      )
     ),
     confirm&&h(ConfirmSheet,{msg:`Se eliminará el registro de ${cfg.titulo.toLowerCase()}.`,onOk:async()=>{await api.del(`${cfg.endpoint}/${confirm}`);setConfirm(null);load();},onCancel:()=>setConfirm(null)})
   );
