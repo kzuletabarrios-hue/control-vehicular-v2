@@ -65,7 +65,9 @@ def export_flota(
         SELECT fecha, placa, conductor, n_pallets, n_contenedores,
                cant_volumen_externo, muelle_cargue,
                ultima_tienda_visitada, protocolo, sello, sello_entrada,
-               hora_salida_muelle, temperatura, hora_salida_cedi, hora_llegada,
+               hora_salida_muelle, temperatura,
+               fecha_salida, hora_salida_cedi,
+               fecha_llegada, hora_llegada,
                observacion
         FROM flota_propia
         WHERE {' AND '.join(where)}
@@ -77,10 +79,11 @@ def export_flota(
     ws.title = "Flota Propia"
 
     headers = [
-        "Fecha", "Placa", "Conductor", "Pallets", "Contenedores",
+        "Fecha Registro", "Placa", "Conductor", "Pallets", "Contenedores",
         "Vol. Externo", "Muelle", "Última Tienda", "Protocolo",
         "Sello", "Sello Entrada", "H. Salida Muelle", "Temperatura",
-        "H. Salida CEDI", "H. Llegada", "Observación",
+        "Fecha Salida", "H. Salida CEDI",
+        "Fecha Llegada", "H. Llegada", "Observación",
     ]
     _header_style(ws, headers)
 
@@ -110,7 +113,8 @@ def export_proveedores(
 
     rows = db.execute(text(f"""
         SELECT fecha, placa_vehiculo, nombre_conductor, tipo_vehiculo, empresa,
-               muelle_descargue, carga_compartida, hora_ingreso, hora_salida,
+               muelle_descargue, carga_compartida, hora_ingreso,
+               fecha_salida, hora_salida,
                actividad_a_desarrollar, dependencia_autoriza, fecha_pago_arl, observaciones
         FROM proveedores
         WHERE {' AND '.join(where)}
@@ -122,8 +126,9 @@ def export_proveedores(
     ws.title = "Proveedores"
 
     headers = [
-        "Fecha", "Placa", "Conductor", "Tipo Vehículo", "Empresa",
-        "Muelle Descargue", "Carga Compartida", "H. Ingreso", "H. Salida",
+        "Fecha Registro", "Placa", "Conductor", "Tipo Vehículo", "Empresa",
+        "Muelle Descargue", "Carga Compartida", "H. Ingreso",
+        "Fecha Salida", "H. Salida",
         "Actividad", "Dependencia Autoriza", "Pago ARL", "Observaciones",
     ]
     _header_style(ws, headers)
@@ -151,8 +156,8 @@ def export_control_acceso(
 
     rows = db.execute(text(f"""
         SELECT ca.fecha, ca.cedula, ca.nombre, ca.contratista,
-               ca.hora_ingreso, ca.hora_salida, ca.observaciones,
-               b.estado AS estado_bd
+               ca.hora_ingreso, ca.fecha_salida, ca.hora_salida,
+               ca.observaciones, b.estado AS estado_bd
         FROM control_acceso ca
         LEFT JOIN bd_control_acceso b ON ca.cedula = b.cedula
         WHERE {' AND '.join(where)}
@@ -163,7 +168,7 @@ def export_control_acceso(
     ws = wb.active
     ws.title = "Control Acceso"
 
-    headers = ["Fecha", "Cédula", "Nombre", "Contratista", "H. Ingreso", "H. Salida", "Observaciones", "Estado BD"]
+    headers = ["Fecha Ingreso", "Cédula", "Nombre", "Contratista", "H. Ingreso", "Fecha Salida", "H. Salida", "Observaciones", "Estado BD"]
     _header_style(ws, headers)
     for row in rows:
         ws.append(list(row))
@@ -188,7 +193,7 @@ def export_visitantes(
         params["hasta"] = fecha_hasta
 
     rows = db.execute(text(f"""
-        SELECT fecha, nombre, cedula, empresa, hora_ingreso, hora_salida, observaciones
+        SELECT fecha, nombre, cedula, empresa, hora_ingreso, fecha_salida, hora_salida, observaciones
         FROM visitantes
         WHERE {' AND '.join(where)}
         ORDER BY fecha DESC
@@ -198,7 +203,7 @@ def export_visitantes(
     ws = wb.active
     ws.title = "Visitantes"
 
-    headers = ["Fecha", "Nombre", "Cédula", "Empresa", "H. Ingreso", "H. Salida", "Observaciones"]
+    headers = ["Fecha Ingreso", "Nombre", "Cédula", "Empresa", "H. Ingreso", "Fecha Salida", "H. Salida", "Observaciones"]
     _header_style(ws, headers)
     for row in rows:
         ws.append(list(row))
@@ -250,3 +255,114 @@ def export_bd_proveedores(
         ws.append(list(row))
     _autowidth(ws)
     return _stream(wb, f"bd_proveedores_{date.today()}.xlsx")
+
+
+@router.get("/visita-vehicular")
+def export_visita_vehicular(
+    fecha_desde: str = Query(default=None),
+    fecha_hasta: str = Query(default=None),
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("visita_vehicular", "export")),
+):
+    where = ["1=1"]
+    params = {}
+    if fecha_desde:
+        where.append("fecha >= :desde")
+        params["desde"] = fecha_desde
+    if fecha_hasta:
+        where.append("fecha <= :hasta")
+        params["hasta"] = fecha_hasta
+
+    rows = db.execute(text(f"""
+        SELECT fecha, placa, conductor, motivo_visita,
+               hora_ingreso, fecha_salida, hora_salida, observaciones
+        FROM visita_vehicular
+        WHERE {' AND '.join(where)}
+        ORDER BY fecha DESC, created_at DESC
+    """), params).fetchall()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Visita Vehicular"
+
+    headers = ["Fecha Ingreso", "Placa", "Conductor", "Motivo Visita",
+               "H. Ingreso", "Fecha Salida", "H. Salida", "Observaciones"]
+    _header_style(ws, headers)
+    for row in rows:
+        ws.append(list(row))
+    _autowidth(ws)
+    return _stream(wb, f"visita_vehicular_{date.today()}.xlsx")
+
+
+@router.get("/sustancias")
+def export_sustancias(
+    fecha_desde: str = Query(default=None),
+    fecha_hasta: str = Query(default=None),
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("control_acceso", "export")),
+):
+    where = ["1=1"]
+    params = {}
+    if fecha_desde:
+        where.append("fecha >= :desde")
+        params["desde"] = fecha_desde
+    if fecha_hasta:
+        where.append("fecha <= :hasta")
+        params["hasta"] = fecha_hasta
+
+    rows = db.execute(text(f"""
+        SELECT fecha, descripcion, cantidad, responsable,
+               fecha_salida, hora_salida, observaciones
+        FROM sustancias
+        WHERE {' AND '.join(where)}
+        ORDER BY fecha DESC, created_at DESC
+    """), params).fetchall()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Sustancias"
+
+    headers = ["Fecha Ingreso", "Descripción", "Cantidad", "Responsable",
+               "Fecha Salida", "H. Salida", "Observaciones"]
+    _header_style(ws, headers)
+    for row in rows:
+        ws.append(list(row))
+    _autowidth(ws)
+    return _stream(wb, f"sustancias_{date.today()}.xlsx")
+
+
+@router.get("/herramientas")
+def export_herramientas(
+    fecha_desde: str = Query(default=None),
+    fecha_hasta: str = Query(default=None),
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("control_acceso", "export")),
+):
+    where = ["1=1"]
+    params = {}
+    if fecha_desde:
+        where.append("fecha >= :desde")
+        params["desde"] = fecha_desde
+    if fecha_hasta:
+        where.append("fecha <= :hasta")
+        params["hasta"] = fecha_hasta
+
+    rows = db.execute(text(f"""
+        SELECT fecha, descripcion, cantidad, responsable,
+               fecha_salida, hora_salida, observaciones
+        FROM herramientas
+        WHERE {' AND '.join(where)}
+        ORDER BY fecha DESC, created_at DESC
+    """), params).fetchall()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Herramientas"
+
+    headers = ["Fecha Ingreso", "Descripción", "Cantidad", "Responsable",
+               "Fecha Salida", "H. Salida", "Observaciones"]
+    _header_style(ws, headers)
+    for row in rows:
+        ws.append(list(row))
+    _autowidth(ws)
+    return _stream(wb, f"herramientas_{date.today()}.xlsx")
