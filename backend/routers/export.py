@@ -112,8 +112,9 @@ def export_proveedores(
         params["hasta"] = fecha_hasta
 
     rows = db.execute(text(f"""
-        SELECT fecha, placa_vehiculo, nombre_conductor, tipo_vehiculo, empresa,
-               muelle_descargue, carga_compartida, hora_ingreso,
+        SELECT placa_vehiculo, nombre_conductor, tipo_vehiculo, empresa,
+               muelle_descargue, carga_compartida,
+               fecha, hora_ingreso,
                fecha_salida, hora_salida,
                actividad_a_desarrollar, dependencia_autoriza, fecha_pago_arl, observaciones
         FROM proveedores
@@ -126,8 +127,9 @@ def export_proveedores(
     ws.title = "Proveedores"
 
     headers = [
-        "Fecha Registro", "Placa", "Conductor", "Tipo Vehículo", "Empresa",
-        "Muelle Descargue", "Carga Compartida", "H. Ingreso",
+        "Placa", "Conductor", "Tipo Vehículo", "Empresa",
+        "Muelle Descargue", "Carga Compartida",
+        "Fecha Ingreso", "H. Ingreso",
         "Fecha Salida", "H. Salida",
         "Actividad", "Dependencia Autoriza", "Pago ARL", "Observaciones",
     ]
@@ -155,8 +157,9 @@ def export_control_acceso(
         params["hasta"] = fecha_hasta
 
     rows = db.execute(text(f"""
-        SELECT ca.fecha, ca.cedula, ca.nombre, ca.contratista,
-               ca.hora_ingreso, ca.fecha_salida, ca.hora_salida,
+        SELECT ca.cedula, ca.nombre, ca.contratista,
+               ca.fecha, ca.hora_ingreso,
+               ca.fecha_salida, ca.hora_salida,
                ca.observaciones, b.estado AS estado_bd
         FROM control_acceso ca
         LEFT JOIN bd_control_acceso b ON ca.cedula = b.cedula
@@ -168,7 +171,7 @@ def export_control_acceso(
     ws = wb.active
     ws.title = "Control Acceso"
 
-    headers = ["Fecha Ingreso", "Cédula", "Nombre", "Contratista", "H. Ingreso", "Fecha Salida", "H. Salida", "Observaciones", "Estado BD"]
+    headers = ["Cédula", "Nombre", "Contratista", "Fecha Ingreso", "H. Ingreso", "Fecha Salida", "H. Salida", "Observaciones", "Estado BD"]
     _header_style(ws, headers)
     for row in rows:
         ws.append(list(row))
@@ -193,7 +196,9 @@ def export_visitantes(
         params["hasta"] = fecha_hasta
 
     rows = db.execute(text(f"""
-        SELECT fecha, nombre, cedula, empresa, hora_ingreso, fecha_salida, hora_salida, observaciones
+        SELECT nombre, cedula, empresa,
+               fecha, hora_ingreso,
+               fecha_salida, hora_salida, observaciones
         FROM visitantes
         WHERE {' AND '.join(where)}
         ORDER BY fecha DESC
@@ -203,7 +208,7 @@ def export_visitantes(
     ws = wb.active
     ws.title = "Visitantes"
 
-    headers = ["Fecha Ingreso", "Nombre", "Cédula", "Empresa", "H. Ingreso", "Fecha Salida", "H. Salida", "Observaciones"]
+    headers = ["Nombre", "Cédula", "Empresa", "Fecha Ingreso", "H. Ingreso", "Fecha Salida", "H. Salida", "Observaciones"]
     _header_style(ws, headers)
     for row in rows:
         ws.append(list(row))
@@ -274,8 +279,9 @@ def export_visita_vehicular(
         params["hasta"] = fecha_hasta
 
     rows = db.execute(text(f"""
-        SELECT fecha, placa, conductor, motivo_visita,
-               hora_ingreso, fecha_salida, hora_salida, observaciones
+        SELECT placa, conductor, motivo_visita,
+               fecha, hora_ingreso,
+               fecha_salida, hora_salida, observaciones
         FROM visita_vehicular
         WHERE {' AND '.join(where)}
         ORDER BY fecha DESC, created_at DESC
@@ -285,8 +291,9 @@ def export_visita_vehicular(
     ws = wb.active
     ws.title = "Visita Vehicular"
 
-    headers = ["Fecha Ingreso", "Placa", "Conductor", "Motivo Visita",
-               "H. Ingreso", "Fecha Salida", "H. Salida", "Observaciones"]
+    headers = ["Placa", "Conductor", "Motivo Visita",
+               "Fecha Ingreso", "H. Ingreso",
+               "Fecha Salida", "H. Salida", "Observaciones"]
     _header_style(ws, headers)
     for row in rows:
         ws.append(list(row))
