@@ -242,6 +242,75 @@ def export_conductores(
     return _stream(wb, f"conductores_{date.today()}.xlsx")
 
 
+@router.get("/bd-tiendas")
+def export_bd_tiendas(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("maestros", "read")),
+):
+    rows = db.execute(text("""
+        SELECT codigo, name, direccion
+        FROM distribucion
+        ORDER BY codigo ASC NULLS LAST, name ASC
+    """)).fetchall()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Tiendas"
+
+    headers = ["Código", "Nombre", "Dirección"]
+    _header_style(ws, headers)
+    for row in rows:
+        ws.append(list(row))
+    _autowidth(ws)
+    return _stream(wb, f"tiendas_{date.today()}.xlsx")
+
+
+@router.get("/bd-vehiculos")
+def export_bd_vehiculos(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("maestros", "read")),
+):
+    rows = db.execute(text("""
+        SELECT placa, marca, modelo, color, anio, tipo, capacidad, activo
+        FROM vehiculos
+        ORDER BY placa ASC
+    """)).fetchall()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Vehículos"
+
+    headers = ["Placa", "Marca", "Modelo", "Color", "Año", "Tipo", "Capacidad", "Activo"]
+    _header_style(ws, headers)
+    for row in rows:
+        ws.append(list(row))
+    _autowidth(ws)
+    return _stream(wb, f"vehiculos_{date.today()}.xlsx")
+
+
+@router.get("/bd-empleados")
+def export_bd_empleados(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("maestros", "read")),
+):
+    rows = db.execute(text("""
+        SELECT cedula, nombre, contratista, estado
+        FROM bd_control_acceso
+        ORDER BY nombre ASC
+    """)).fetchall()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Empleados"
+
+    headers = ["Cédula", "Nombre", "Contratista", "Estado"]
+    _header_style(ws, headers)
+    for row in rows:
+        ws.append(list(row))
+    _autowidth(ws)
+    return _stream(wb, f"empleados_{date.today()}.xlsx")
+
+
 @router.get("/bd-proveedores")
 def export_bd_proveedores(
     db: Session = Depends(get_db),
