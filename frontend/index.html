@@ -1739,6 +1739,7 @@ function VisitaVehicularPage({user,online,addOffline}){
   const [selected,setSelected]= useState(null);
   const [salida,setSalida]         = useState(null);
   const [horaSalida,setHoraSalida] = useState('');
+  const [fechaSalidaVV,setFechaSalidaVV] = useState('');
   const [obsSalida,setObsSalida]   = useState('');
   const [fotoSalida,setFotoSalida] = useState(null);
   const emptyF = {fecha:today(),placa:'',conductor:'',motivo_visita:'',hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',observaciones:'',foto_url:null};
@@ -1824,11 +1825,13 @@ function VisitaVehicularPage({user,online,addOffline}){
           r.hora_ingreso&&h('div',{className:'li-sub'},'Ingreso: ',r.hora_ingreso,r.hora_salida&&(' · Salida: '+r.hora_salida))
         ),
         h('div',{className:'li-right'},
-          h('span',{className:'li-date'},r.motivo_visita||'—'),
+          h('span',{className:'li-date'},r.motivo_visita||'—',
+            r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida))
+          ),
           h('div',{style:{display:'flex',gap:4,marginTop:3}},
             r.hora_ingreso&&!r.hora_salida&&h('button',{
               title:'Registrar salida',
-              onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(new Date().toTimeString().slice(0,5));},
+              onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(new Date().toTimeString().slice(0,5));setFechaSalidaVV(today());},
               style:{background:'#0284c7',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Salida'),
             !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
@@ -1843,9 +1846,15 @@ function VisitaVehicularPage({user,online,addOffline}){
           h('button',{className:'btn-icon',onClick:()=>setSalida(null)},h(Ico,{n:'x',s:16}))
         ),
         h('p',{style:{fontSize:13,color:'var(--slate)',marginBottom:12}},salida.placa,' · ',salida.conductor||''),
-        h('div',{className:'fg'},
-          h('label',null,'Hora de salida'),
-          h('input',{type:'time',value:horaSalida,onChange:e=>setHoraSalida(e.target.value)})
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},
+            h('label',null,'Fecha de salida'),
+            h('input',{type:'date',value:fechaSalidaVV,onChange:e=>setFechaSalidaVV(e.target.value)})
+          ),
+          h('div',{className:'fg'},
+            h('label',null,'Hora de salida'),
+            h('input',{type:'time',value:horaSalida,onChange:e=>setHoraSalida(e.target.value)})
+          )
         ),
         h('div',{className:'fg'},
           h('label',null,'Observaciones (opcional)'),
@@ -1859,6 +1868,7 @@ function VisitaVehicularPage({user,online,addOffline}){
           h('button',{className:'btn-cancel',onClick:()=>setSalida(null)},'Cancelar'),
           h('button',{className:'btn-primary',style:{background:'#0284c7'},onClick:async()=>{
             const upd={hora_salida:horaSalida};
+            if(fechaSalidaVV) upd.fecha_salida=fechaSalidaVV;
             if(obsSalida) upd.observaciones=obsSalida;
             if(fotoSalida) upd.foto_url=fotoSalida;
             await api.put(`/visita-vehicular/${salida.id}`,upd);

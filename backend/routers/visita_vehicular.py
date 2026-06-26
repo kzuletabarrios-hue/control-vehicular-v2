@@ -69,7 +69,7 @@ def crear(
     rid = str(uuid.uuid4())
     campos = [
         "fecha", "placa", "conductor", "motivo_visita",
-        "hora_ingreso", "hora_salida", "observaciones", "foto_url",
+        "hora_ingreso", "hora_salida", "fecha_salida", "observaciones", "foto_url",
     ]
     vals = {c: body.get(c) for c in campos}
     vals["id"] = rid
@@ -97,7 +97,7 @@ def actualizar(
 
     campos = [
         "fecha", "placa", "conductor", "motivo_visita",
-        "hora_ingreso", "hora_salida", "observaciones", "foto_url",
+        "hora_ingreso", "hora_salida", "fecha_salida", "observaciones", "foto_url",
     ]
     vals = {c: body[c] for c in campos if c in body}
     if not vals:
