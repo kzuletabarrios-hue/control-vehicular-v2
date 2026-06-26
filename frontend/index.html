@@ -908,6 +908,7 @@ function FlotaPage({user,online,addOffline}){
   const [sugerCond,setSugerCond]     = useState([]);
   const emptyF = {fecha:today(),placa:'',conductor:'',codigo_conductor:'',n_pallets:'',n_contenedores:'',cant_volumen_externo:'',muelle_cargue:'',tienda_1:'',tienda_2:'',tienda_3:'',tienda_4:'',tienda_5:'',ultima_tienda:'',protocolo:'',sello:'',sello_entrada:'',hora_salida_muelle:new Date().toTimeString().slice(0,5),temperatura:'',hora_salida_cedi:'',hora_llegada:'',observacion:'',foto_url:null};
   const [form,setForm]         = useState(emptyF);
+  const [filtro,setFiltro]      = useState('pendientes');
 
   const buscarConductor = (val)=>{
     setCedulaBusq(val);
@@ -1039,12 +1040,18 @@ function FlotaPage({user,online,addOffline}){
     )
   );
 
+  const nPend = records.filter(r=>!r.hora_llegada).length;
+  const visibles = filtro==='pendientes' ? records.filter(r=>!r.hora_llegada) : records;
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{display:'flex',gap:8,padding:'10px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
       !esVehicular&&h('button',{onClick:()=>api.exportar('flota'),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
         h(Ico,{n:'download',s:14}),' Excel'
       ),
-      !esVehicular&&h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+      !esVehicular&&h('div',{style:{marginLeft:'auto',display:'flex',gap:6,alignItems:'center',flexShrink:0}},
+        h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
+        h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
+      ),
+      !esVehicular&&h('button',{onClick:()=>setView('form'),style:{background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
         h(Ico,{n:'plus',s:15}),esBodega?' Nuevo en bodega':' Nuevo'
       ),
       esVehicular&&h('p',{style:{fontSize:12,color:'var(--slate)',marginLeft:'auto',alignSelf:'center'}},'Registra salida y regreso de vehículos')
@@ -1052,8 +1059,8 @@ function FlotaPage({user,online,addOffline}){
     h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
       loading?h(LoadingDots):
-      records.length===0?h('div',{className:'empty'},h(Ico,{n:'truck',s:44}),h('p',null,'Sin registros hoy')):
-      records.map(r=>h('div',{key:r.id,className:'list-item'},
+      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'truck',s:44}),h('p',null,filtro==='pendientes'?'Sin vehículos activos':'Sin registros hoy')):
+      visibles.map(r=>h('div',{key:r.id,className:'list-item'},
         h('div',{className:'li-icon',style:{background:'#dbeafe'}},h(Ico,{n:'truck',s:18,c:'',style:{color:'#1d4ed8'}})),
         h('div',{className:'li-body',onClick:()=>{ if(!esVehicular){setForm({...emptyF,...r});setSelected(r);setView('form');} }},
           h('div',{className:'li-title'},r.placa,
@@ -1391,6 +1398,7 @@ function ItemAccesoPage({tipo,user}){
   const [fechaSalidaItem,setFechaSalidaItem] = useState('');
   const emptyF = {fecha:today(),descripcion:'',cantidad:'',responsable:'',observaciones:'',foto_url:null};
   const [form,setForm]       = useState(emptyF);
+  const [filtro,setFiltro]   = useState('pendientes');
 
   const load = useCallback(()=>{
     setLoading(true);
@@ -1439,20 +1447,26 @@ function ItemAccesoPage({tipo,user}){
     )
   );
 
+  const nPend = records.filter(r=>!r.hora_salida).length;
+  const visibles = filtro==='pendientes' ? records.filter(r=>!r.hora_salida) : records;
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{display:'flex',gap:8,padding:'8px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
       h('button',{onClick:()=>api.exportar(tipo),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
         h(Ico,{n:'download',s:14}),' Excel'
       ),
-      h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+      h('div',{style:{marginLeft:'auto',display:'flex',gap:6,alignItems:'center',flexShrink:0}},
+        h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
+        h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
+      ),
+      h('button',{onClick:()=>setView('form'),style:{background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
         h(Ico,{n:'plus',s:15}),' Nuevo'
       )
     ),
     h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
       loading?h(LoadingDots):
-      records.length===0?h('div',{className:'empty'},h(Ico,{n:cfg.icono,s:44}),h('p',null,'Sin registros')):
-      records.map(r=>h('div',{key:r.id,className:'list-item'},
+      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:cfg.icono,s:44}),h('p',null,'Sin registros')):
+      visibles.map(r=>h('div',{key:r.id,className:'list-item'},
         h('div',{className:'li-icon',style:{background:r.hora_salida?'#dcfce7':cfg.bg}},h(Ico,{n:cfg.icono,s:18,style:{color:r.hora_salida?'#16a34a':cfg.color}})),
         h('div',{className:'li-body',onClick:()=>{setForm({...emptyF,...r});setSelected(r);setView('form');}},
           h('div',{className:'li-title'},r.descripcion),
@@ -1524,6 +1538,7 @@ function AccesoPage({user,online,addOffline}){
   const [contratistas,setContratistas] = useState([]);
   const emptyF = {fecha:today(),cedula:'',nombre:'',contratista:'',hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',observaciones:''};
   const [form,setForm] = useState(emptyF);
+  const [filtro,setFiltro] = useState('pendientes');
 
   const load = useCallback(()=>{
     setLoading(true);
@@ -1614,8 +1629,14 @@ function AccesoPage({user,online,addOffline}){
     )
   );
 
+  const nPend = records.filter(r=>!r.hora_salida).length;
+  const visibles = filtro==='pendientes' ? records.filter(r=>!r.hora_salida) : records;
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{display:'flex',gap:8,padding:'8px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
+      h('div',{style:{display:'flex',gap:6,alignItems:'center'}},
+        h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
+        h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
+      ),
       h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
         h(Ico,{n:'plus',s:15}),' Nuevo'
       )
@@ -1623,8 +1644,8 @@ function AccesoPage({user,online,addOffline}){
     h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
       loading?h(LoadingDots):
-      records.length===0?h('div',{className:'empty'},h(Ico,{n:'userCheck',s:44}),h('p',null,'Sin registros hoy')):
-      records.map(r=>h('div',{key:r.id,className:'list-item'},
+      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'userCheck',s:44}),h('p',null,filtro==='pendientes'?'Sin personas activas':'Sin registros hoy')):
+      visibles.map(r=>h('div',{key:r.id,className:'list-item'},
         h('div',{className:'li-icon',style:{background: r.hora_salida?'#dcfce7':'#dbeafe'}},
           h(Ico,{n:'userCheck',s:18,style:{color: r.hora_salida?'#16a34a':'#1d4ed8'}})
         ),
@@ -1706,6 +1727,7 @@ function VisitantesPage({user,online,addOffline}){
   const [fotoVisita,setFotoVisita] = useState(null);
   const emptyF = {fecha:today(),cedula:'',nombre:'',empresa:'',hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',observaciones:'',foto_url:null};
   const [form,setForm] = useState(emptyF);
+  const [filtro,setFiltro] = useState('pendientes');
 
   const load = useCallback(()=>{
     setLoading(true);
@@ -1767,8 +1789,14 @@ function VisitantesPage({user,online,addOffline}){
     )
   );
 
+  const nPend = records.filter(r=>!r.hora_salida).length;
+  const visibles = filtro==='pendientes' ? records.filter(r=>!r.hora_salida) : records;
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{display:'flex',gap:8,padding:'10px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
+      h('div',{style:{display:'flex',gap:6,alignItems:'center'}},
+        h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
+        h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
+      ),
       h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
         h(Ico,{n:'plus',s:15}),' Nuevo'
       )
@@ -1776,8 +1804,8 @@ function VisitantesPage({user,online,addOffline}){
     h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
       loading?h(LoadingDots):
-      records.length===0?h('div',{className:'empty'},h(Ico,{n:'users',s:44}),h('p',null,'Sin visitantes hoy')):
-      records.map(r=>h('div',{key:r.id,className:'list-item'},
+      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'users',s:44}),h('p',null,filtro==='pendientes'?'Sin visitantes activos':'Sin visitantes hoy')):
+      visibles.map(r=>h('div',{key:r.id,className:'list-item'},
         h('div',{className:'li-icon',style:{background:'#ede9fe'}},
           h(Ico,{n:'users',s:18,style:{color:'#7c3aed'}})
         ),
@@ -1859,6 +1887,7 @@ function VisitaVehicularPage({user,online,addOffline}){
   const [fotoSalida,setFotoSalida] = useState(null);
   const emptyF = {fecha:today(),placa:'',conductor:'',motivo_visita:'',hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',observaciones:'',foto_url:null};
   const [form,setForm] = useState(emptyF);
+  const [filtro,setFiltro] = useState('pendientes');
 
   const load = useCallback(()=>{
     setLoading(true);
@@ -1920,20 +1949,26 @@ function VisitaVehicularPage({user,online,addOffline}){
     )
   );
 
+  const nPend = records.filter(r=>!r.hora_salida).length;
+  const visibles = filtro==='pendientes' ? records.filter(r=>!r.hora_salida) : records;
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{display:'flex',gap:8,padding:'10px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
       h('button',{onClick:()=>api.exportar('visita-vehicular'),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
         h(Ico,{n:'download',s:14}),' Excel'
       ),
-      h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+      h('div',{style:{marginLeft:'auto',display:'flex',gap:6,alignItems:'center',flexShrink:0}},
+        h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
+        h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
+      ),
+      h('button',{onClick:()=>setView('form'),style:{background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
         h(Ico,{n:'plus',s:15}),' Nuevo'
       )
     ),
     h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
       loading?h(LoadingDots):
-      records.length===0?h('div',{className:'empty'},h(Ico,{n:'truck',s:44}),h('p',null,'Sin visitas vehiculares hoy')):
-      records.map(r=>h('div',{key:r.id,className:'list-item'},
+      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'truck',s:44}),h('p',null,filtro==='pendientes'?'Sin visitas activas':'Sin visitas vehiculares hoy')):
+      visibles.map(r=>h('div',{key:r.id,className:'list-item'},
         h('div',{className:'li-icon',style:{background:'#e0f2fe'}},
           h(Ico,{n:'truck',s:18,style:{color:'#0284c7'}})
         ),
@@ -2013,6 +2048,7 @@ function ProveedoresPage({user,online,addOffline}){
   const [fechaSalidaP,setFechaSalidaP] = useState('');
   const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',tipo_vehiculo:'',empresa:'',muelle_descargue:'',carga_compartida:false,hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',actividad_a_desarrollar:'',dependencia_autoriza:'',fecha_pago_arl:'',observaciones:'',foto_url:null};
   const [form,setForm] = useState(emptyF);
+  const [filtro,setFiltro] = useState('pendientes');
   const esBodega    = user?.rol==='guarda_bodega';
   const esVehicular = user?.rol==='guarda_vehicular';
 
@@ -2141,12 +2177,18 @@ function ProveedoresPage({user,online,addOffline}){
     )
   );
 
+  const nPend = records.filter(r=>!r.hora_salida).length;
+  const visibles = filtro==='pendientes' ? records.filter(r=>!r.hora_salida) : records;
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{display:'flex',gap:8,padding:'10px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
       !esBodega&&h('button',{onClick:()=>api.exportar('proveedores'),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
         h(Ico,{n:'download',s:14}),' Excel'
       ),
-      !esBodega&&h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+      !esBodega&&h('div',{style:{marginLeft:'auto',display:'flex',gap:6,alignItems:'center',flexShrink:0}},
+        h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
+        h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
+      ),
+      !esBodega&&h('button',{onClick:()=>setView('form'),style:{background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
         h(Ico,{n:'plus',s:15}),' Nuevo'
       ),
       esBodega&&h('p',{style:{fontSize:12,color:'var(--slate)',alignSelf:'center',margin:'0 0 0 4px'}},h(Ico,{n:'alert',s:12}),' Toca un registro para agregar evidencia de rechazo')
@@ -2154,8 +2196,8 @@ function ProveedoresPage({user,online,addOffline}){
     h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
       loading?h(LoadingDots):
-      records.length===0?h('div',{className:'empty'},h(Ico,{n:'package',s:44}),h('p',null,'Sin proveedores hoy')):
-      records.map(r=>h('div',{key:r.id,className:'list-item'},
+      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'package',s:44}),h('p',null,filtro==='pendientes'?'Sin proveedores activos':'Sin proveedores hoy')):
+      visibles.map(r=>h('div',{key:r.id,className:'list-item'},
         h('div',{className:'li-icon',style:{background:'#fde68a'}},
           h(Ico,{n:'package',s:18,style:{color:'#d97706'}})
         ),
