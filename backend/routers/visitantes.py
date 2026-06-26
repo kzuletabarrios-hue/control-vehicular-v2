@@ -70,9 +70,9 @@ def crear(
     rid = str(uuid.uuid4())
     db.execute(text("""
         INSERT INTO visitantes
-            (id, fecha, nombre, cedula, empresa, hora_ingreso, hora_salida, observaciones, foto_url, creado_por)
+            (id, fecha, nombre, cedula, empresa, hora_ingreso, hora_salida, fecha_salida, observaciones, foto_url, creado_por)
         VALUES
-            (:id, :fecha, :nombre, :cedula, :empresa, :hora_ingreso, :hora_salida, :observaciones, :foto_url, :creado_por)
+            (:id, :fecha, :nombre, :cedula, :empresa, :hora_ingreso, :hora_salida, :fecha_salida, :observaciones, :foto_url, :creado_por)
     """), {
         "id": rid,
         "fecha": body.get("fecha"),
@@ -81,6 +81,7 @@ def crear(
         "empresa": body.get("empresa"),
         "hora_ingreso": body.get("hora_ingreso"),
         "hora_salida": body.get("hora_salida"),
+        "fecha_salida": body.get("fecha_salida"),
         "observaciones": body.get("observaciones"),
         "foto_url": body.get("foto_url"),
         "creado_por": current_user["id"],
@@ -102,7 +103,7 @@ def actualizar(
     if not existe:
         raise HTTPException(404, "Registro no encontrado")
 
-    campos = ["fecha", "nombre", "cedula", "empresa", "hora_ingreso", "hora_salida", "observaciones", "foto_url"]
+    campos = ["fecha", "nombre", "cedula", "empresa", "hora_ingreso", "hora_salida", "fecha_salida", "observaciones", "foto_url"]
     vals = {c: body[c] for c in campos if c in body}
     if not vals:
         raise HTTPException(400, "Sin campos para actualizar")

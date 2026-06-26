@@ -221,15 +221,16 @@ def crear(
         "contratista": body.get("contratista"),
         "hora_ingreso": body.get("hora_ingreso"),
         "hora_salida": body.get("hora_salida"),
+        "fecha_salida": body.get("fecha_salida"),
         "observaciones": body.get("observaciones"),
         "foto_url": body.get("foto_url"),
         "creado_por": current_user["id"],
     }
     db.execute(text("""
         INSERT INTO control_acceso
-            (id, fecha, cedula, nombre, contratista, hora_ingreso, hora_salida, observaciones, foto_url, creado_por)
+            (id, fecha, cedula, nombre, contratista, hora_ingreso, hora_salida, fecha_salida, observaciones, foto_url, creado_por)
         VALUES
-            (:id, :fecha, :cedula, :nombre, :contratista, :hora_ingreso, :hora_salida, :observaciones, :foto_url, :creado_por)
+            (:id, :fecha, :cedula, :nombre, :contratista, :hora_ingreso, :hora_salida, :fecha_salida, :observaciones, :foto_url, :creado_por)
     """), vals)
     db.commit()
     return {"id": rid, "message": "Registro creado"}
@@ -248,7 +249,7 @@ def actualizar(
     if not existe:
         raise HTTPException(404, "Registro no encontrado")
 
-    campos = ["fecha", "cedula", "nombre", "contratista", "hora_ingreso", "hora_salida", "observaciones", "foto_url"]
+    campos = ["fecha", "cedula", "nombre", "contratista", "hora_ingreso", "hora_salida", "fecha_salida", "observaciones", "foto_url"]
     vals = {c: body[c] for c in campos if c in body}
     if "cedula" in vals and vals["cedula"]:
         existe_en_bd = db.execute(
