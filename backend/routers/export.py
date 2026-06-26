@@ -378,6 +378,44 @@ def export_herramientas(
     return _stream(wb, f"herramientas_{date.today()}.xlsx")
 
 
+@router.get("/novedades")
+def export_novedades(
+    fecha_desde: str = Query(default=None),
+    fecha_hasta: str = Query(default=None),
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("flota", "export")),
+):
+    where = ["1=1"]
+    params = {}
+    if fecha_desde:
+        where.append("n.fecha >= :desde")
+        params["desde"] = fecha_desde
+    if fecha_hasta:
+        where.append("n.fecha <= :hasta")
+        params["hasta"] = fecha_hasta
+
+    rows = db.execute(text(f"""
+        SELECT u.nombre AS usuario,
+               n.fecha, n.hora, n.modulo_origen, n.categoria,
+               n.descripcion, n.estado
+        FROM novedades n
+        JOIN usuarios u ON u.id = n.usuario_id
+        WHERE {' AND '.join(where)}
+        ORDER BY n.fecha DESC, n.hora DESC
+    """), params).fetchall()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Novedades"
+
+    headers = ["Usuario", "Fecha", "H. Registro", "Módulo", "Categoría", "Descripción", "Estado"]
+    _header_style(ws, headers)
+    for row in rows:
+        ws.append(list(row))
+    _autowidth(ws)
+    return _stream(wb, f"novedades_{date.today()}.xlsx")
+
+
 @router.get("/apoyos")
 def export_apoyos(
     fecha_desde: str = Query(default=None),
