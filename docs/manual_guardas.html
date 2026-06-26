@@ -40,6 +40,17 @@
   .rol-bodega ul li::before{color:#1d4ed8}
   .rol-vehicular ul li::before{color:#15803d}
   .rol-peatonal ul li::before{color:#7c3aed}
+  .rol-rondero{background:#fff7ed;border-color:#fed7aa}
+  .rol-rondero h4{color:#c2410c}
+  .rol-rondero ul li::before{color:#c2410c}
+
+  /* PUNTOS RONDA */
+  .puntos-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:16px 0}
+  .punto-item{display:flex;align-items:center;gap:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px}
+  .punto-num{background:#0f2440;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0}
+  .punto-num.base{background:#d97706;color:#fff}
+  .punto-info{font-size:12px;font-weight:600;color:#1e293b}
+  .punto-info span{display:block;font-size:10px;color:#94a3b8;font-weight:400;font-family:monospace}
 
   /* PASOS */
   .pasos{margin:16px 0}
@@ -132,7 +143,7 @@
 
   <!-- 2. ROLES -->
   <h2>2. Roles y módulos por puesto</h2>
-  <div class="roles-grid">
+  <div class="roles-grid" style="grid-template-columns:repeat(2,1fr)">
     <div class="rol-card rol-bodega">
       <h4>🏭 Guarda Bodega</h4>
       <div class="email">carlos@cedi.com</div>
@@ -163,6 +174,16 @@
         <li>Registro de visitantes</li>
         <li>Registro de sustancias</li>
         <li>Registro de herramientas</li>
+      </ul>
+    </div>
+    <div class="rol-card rol-rondero">
+      <h4>🔦 Recorredor Externo (Rondero)</h4>
+      <ul>
+        <li>Realiza 8 rondas por turno</li>
+        <li>Escanea QR en cada punto del recorrido</li>
+        <li>Registra apoyos en Control de Acceso</li>
+        <li>Registra novedades con foto y ubicación</li>
+        <li>Puede pausar la ronda por motivo justificado</li>
       </ul>
     </div>
   </div>
@@ -291,7 +312,88 @@
     <tr><td>Foto</td><td>Evidencia fotográfica (recomendada)</td></tr>
   </table>
 
-  <!-- 6. TIPS -->
+  <!-- 6. RONDAS -->
+  <h2>6. Recorredor Externo — Módulo Rondas</h2>
+  <p>El Recorredor Externo realiza <strong>8 rondas obligatorias por turno</strong> (06:00–18:00 o 18:00–06:00). Cada ronda es un recorrido completo por todos los puntos físicos del CEDI, comenzando y terminando siempre en <strong>Tanques</strong> (punto base).</p>
+
+  <h3>6.1 Puntos del recorrido (10 puntos activos)</h3>
+  <div class="puntos-grid">
+    <div class="punto-item">
+      <div class="punto-num base">1</div>
+      <div class="punto-info">Tanques <em style="color:#d97706;font-size:10px">(BASE — inicio y fin)</em><span>CEDI-R10-RONDA-TANQUES</span></div>
+    </div>
+    <div class="punto-item">
+      <div class="punto-num">2</div>
+      <div class="punto-info">Loza Técnica<span>CEDI-R10-RONDA-LOZA-TECNICA</span></div>
+    </div>
+    <div class="punto-item">
+      <div class="punto-num">3</div>
+      <div class="punto-info">Parqueadero<span>CEDI-R10-RONDA-PARQUEADERO</span></div>
+    </div>
+    <div class="punto-item">
+      <div class="punto-num">4</div>
+      <div class="punto-info">Malla perimetral Barrio Porvenir<span>CEDI-R10-RONDA-MALLA-PORVENIR</span></div>
+    </div>
+    <div class="punto-item">
+      <div class="punto-num">5</div>
+      <div class="punto-info">Oficina de Conductores<span>CEDI-R10-RONDA-OF-CONDUCTORES</span></div>
+    </div>
+    <div class="punto-item">
+      <div class="punto-num">6</div>
+      <div class="punto-info">Esquina parqueadero de flota propia<span>CEDI-R10-RONDA-ESQ-FLOTA</span></div>
+    </div>
+    <div class="punto-item">
+      <div class="punto-num">7</div>
+      <div class="punto-info">Malla perimetral lado Este<span>CEDI-R10-RONDA-MALLA-ESTE</span></div>
+    </div>
+    <div class="punto-item">
+      <div class="punto-num">8</div>
+      <div class="punto-info">Malla perimetral Este (zona media)<span>CEDI-R10-RONDA-MALLA-ESTE-MEDIA</span></div>
+    </div>
+    <div class="punto-item">
+      <div class="punto-num">9</div>
+      <div class="punto-info">Malla perimetral Norte<span>CEDI-R10-RONDA-MALLA-NORTE</span></div>
+    </div>
+    <div class="punto-item">
+      <div class="punto-num">10</div>
+      <div class="punto-info">Control de Acceso<span>CEDI-R10-RONDA-CONTROL-ACCESO</span></div>
+    </div>
+  </div>
+  <div class="tip">Siempre empieza y termina en Tanques. La app te indica qué puntos faltan escanear para completar la ronda.</div>
+
+  <h3>6.2 Cómo realizar una ronda</h3>
+  <div class="pasos">
+    <div class="paso"><div class="paso-num">1</div><div class="paso-body"><h4>Iniciar la ronda</h4><p>En el módulo Rondas, toca <strong>"Iniciar Ronda"</strong>. El sistema asigna automáticamente el número de ronda según las que ya hayas completado en el turno.</p></div></div>
+    <div class="paso"><div class="paso-num">2</div><div class="paso-body"><h4>Escanear el QR de Tanques (inicio)</h4><p>Dirígete al punto Tanques y escanea el código QR pegado físicamente. Esto marca el inicio del recorrido.</p></div></div>
+    <div class="paso"><div class="paso-num">3</div><div class="paso-body"><h4>Recorrer todos los puntos en orden</h4><p>Escanea el QR de cada punto del 2 al 10. La app muestra en tiempo real cuáles llevas escaneados y cuáles faltan.</p></div></div>
+    <div class="paso"><div class="paso-num">4</div><div class="paso-body"><h4>Escanear Tanques al finalizar</h4><p>Al volver a Tanques, escanea nuevamente su QR. Esto cierra el ciclo y la ronda queda registrada como <span class="badge badge-green">Completa</span>.</p></div></div>
+  </div>
+  <div class="warn">No puedes iniciar una nueva ronda mientras hay una en curso. Si la app muestra que tienes una ronda activa de un turno anterior, comunícate con el supervisor.</div>
+
+  <h3>6.3 Pausar la ronda</h3>
+  <p>Si necesitas hacer una pausa breve (baño, entrega de llaves, otro motivo justificado) sin necesidad de escanear el QR de Apoyo Operativo:</p>
+  <div class="pasos">
+    <div class="paso"><div class="paso-num">1</div><div class="paso-body"><h4>Tocar "Pausar Ronda"</h4><p>En la pantalla de la ronda activa, toca el botón de pausa e indica el motivo.</p></div></div>
+    <div class="paso"><div class="paso-num">2</div><div class="paso-body"><h4>Reanudar cuando estés listo</h4><p>Toca <strong>"Reanudar"</strong> para continuar. El tiempo de pausa queda registrado y el supervisor no verá alerta de retraso mientras estés pausado.</p></div></div>
+  </div>
+
+  <h3>6.4 Apoyo Operativo en Control de Acceso</h3>
+  <p>Cuando el supervisor te asigna apoyo en el Control de Acceso, usa el QR exclusivo de apoyo (diferente a los puntos de ronda):</p>
+  <div class="pasos">
+    <div class="paso"><div class="paso-num">1</div><div class="paso-body"><h4>Escanear QR de Apoyo al llegar</h4><p>Al llegar al Control de Acceso, escanea el código QR de <strong>"Control de Acceso – Apoyo Operativo"</strong>. Registra tu hora de llegada.</p></div></div>
+    <div class="paso"><div class="paso-num">2</div><div class="paso-body"><h4>Escanear QR de Apoyo al salir</h4><p>Al terminar el apoyo, escanea nuevamente el mismo QR. Registra tu hora de salida. Este apoyo no cuenta como ronda completada.</p></div></div>
+  </div>
+  <div class="tip">El QR de Apoyo Operativo es de color diferente al de los puntos de ronda. No lo confundas con el QR de "Control de Acceso" que sí hace parte del recorrido normal.</div>
+
+  <h3>6.5 Registrar una novedad</h3>
+  <p>Si encuentras algo anormal durante la ronda (daño en malla, persona sospechosa, objeto extraño, etc.), registra una novedad:</p>
+  <div class="pasos">
+    <div class="paso"><div class="paso-num">1</div><div class="paso-body"><h4>Ir a Novedades → "Nueva Novedad"</h4><p>Accede desde el menú lateral.</p></div></div>
+    <div class="paso"><div class="paso-num">2</div><div class="paso-body"><h4>Completar el formulario</h4><p>Selecciona el tipo de novedad, describe lo observado, indica la ubicación y adjunta foto si es posible.</p></div></div>
+    <div class="paso"><div class="paso-num">3</div><div class="paso-body"><h4>Guardar</h4><p>La novedad queda registrada y visible para el supervisor inmediatamente.</p></div></div>
+  </div>
+
+  <!-- 7. TIPS -->
   <h2>6. Consejos importantes</h2>
   <table>
     <tr><th>Situación</th><th>Qué hacer</th></tr>

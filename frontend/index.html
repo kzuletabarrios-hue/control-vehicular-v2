@@ -397,6 +397,8 @@ const initials  = n  => (n||'U').split(' ').slice(0,2).map(w=>w[0]).join('').toU
 /* ── CAMERA COMPONENT ── */
 function CameraField({value,onChange}){
   const fileRef = useRef();
+  const [uploading,setUploading] = useState(false);
+  const [errUp,setErrUp]         = useState(null);
   const compress = (file,cb) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -413,10 +415,23 @@ function CameraField({value,onChange}){
   };
   const handleFile = e => {
     const f=e.target.files[0]; if(!f) return;
-    compress(f,b64=>onChange(b64));
+    setErrUp(null); setUploading(true);
+    compress(f, async b64 => {
+      try {
+        const {url} = await api.post('/upload-foto',{data:b64});
+        onChange(url);
+      } catch(err) {
+        setErrUp('Error al subir foto. Intenta de nuevo.');
+      } finally { setUploading(false); }
+    });
   };
+  if(uploading) return h('div',{className:'camera-field'},
+    h(LoadingDots),
+    h('p',{style:{fontSize:12,marginTop:6,color:'var(--text2)'}},'Subiendo foto...')
+  );
   if(value) return h('div',null,
     h('div',{className:'camera-preview'},h('img',{src:value,alt:'foto'})),
+    errUp && h('p',{style:{color:'#e11d48',fontSize:11,marginTop:4}},errUp),
     h('div',{className:'camera-preview-actions'},
       h('button',{className:'btn-sm-outline',style:{borderColor:'#e11d48',color:'#e11d48'},onClick:()=>onChange(null)},
         h(Ico,{n:'trash',s:13}),' Eliminar'
@@ -432,6 +447,7 @@ function CameraField({value,onChange}){
       h(Ico,{n:'camera',s:28}),
       h('p',null,'Toca para tomar foto o seleccionar')
     ),
+    errUp && h('p',{style:{color:'#e11d48',fontSize:11,marginTop:4}},errUp),
     h('input',{ref:fileRef,type:'file',accept:'image/*',capture:'environment',onChange:handleFile,style:{display:'none'}})
   );
 }
