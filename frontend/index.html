@@ -806,20 +806,23 @@ function HomePage({setPage,user}){
   const showProvStats    = isAdmin||isGuardaVehicular||isGuardaBodega;
 
   return h('div',{className:'scroll-body'},
-    h('div',{style:{padding:'12px 14px 0'}},
-      h('p',{style:{fontSize:11,color:'var(--slate)',textTransform:'capitalize',marginBottom:10,fontWeight:500}},fechaHoy),
-      resumen&&h('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginBottom:12}},
+    h('div',{style:{padding:'12px 14px 4px'}},
+      h('p',{style:{fontSize:11,color:'var(--slate)',textTransform:'capitalize',fontWeight:500}},fechaHoy)
+    ),
+    resumen&&(showFlotaStats||showAccesoStats||showProvStats)&&h('div',{style:{padding:'0 14px'}},
+      h('p',{className:'sec-ttl'},h(Ico,{n:'clipboard',s:12}),' Resumen de hoy'),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginBottom:4}},
         showFlotaStats&&h(StatCard,{label:'Flota hoy',       value:resumen.flota.hoy,          color:'#1e4570',icon:'truck'}),
         showFlotaStats&&h(StatCard,{label:'En ruta',          value:resumen.flota.en_ruta,      color:'#f59e0b',icon:'truck'}),
         showAccesoStats&&h(StatCard,{label:'Acceso hoy',     value:resumen.control_acceso.hoy, color:'#7c3aed',icon:'userCheck'}),
         showAccesoStats&&h(StatCard,{label:'Sin salida',     value:accesoPend,                  color:'#e11d48',icon:'userCheck'}),
         showProvStats&&h(StatCard,{label:'Proveedores hoy',          value:resumen.proveedores.hoy,    color:'#d97706',icon:'package'}),
         showProvStats&&h(StatCard,{label:'Visitantes hoy',   value:resumen.visitantes.hoy,     color:'#059669',icon:'users'})
-      ),
-      ((isGuardaPeatonal?accesoPend>0:(flotaPend>0||accesoPend>0)))&&h('div',{style:{background:'#fff',border:'2px solid #fcd34d',borderRadius:12,padding:12,marginBottom:12}},
-        h('p',{style:{fontWeight:700,fontSize:13,color:'#92400e',marginBottom:8,display:'flex',alignItems:'center',gap:6}},
-          h(Ico,{n:'alert',s:14}),'Pendientes de cierre'
-        ),
+      )
+    ),
+    ((isGuardaPeatonal?accesoPend>0:(flotaPend>0||accesoPend>0)))&&h('div',{style:{padding:'0 14px'}},
+      h('p',{className:'sec-ttl'},h(Ico,{n:'alert',s:12}),' Pendientes de cierre'),
+      h('div',{style:{background:'#fffbeb',border:'1.5px solid #fcd34d',borderRadius:12,padding:12}},
         !isGuardaPeatonal&&flotaPend>0&&h('div',null,
           h('p',{style:{fontSize:12,fontWeight:600,color:'#1e4570',marginBottom:4}},`${flotaPend} vehículo(s) fuera sin llegada:`),
           pendFlota.map((v,i)=>h('div',{key:i,style:{fontSize:11,color:'var(--slate)',padding:'3px 8px',background:'#f8fafc',borderRadius:6,marginBottom:3}},
@@ -836,6 +839,7 @@ function HomePage({setPage,user}){
       )
     ),
     h('div',{className:'pad'},
+      h('p',{className:'sec-ttl'},h(Ico,{n:'home',s:12}),' Módulos'),
       h('div',{className:'mgrid'},
         mods.map(m=>h('button',{key:m.id,className:`mcard ${m.cls}`,onClick:()=>setPage(m.id)},
           m.cnt!=null&&h('span',{className:'mcnt'},m.cnt),
