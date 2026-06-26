@@ -73,6 +73,7 @@ def crear(
         "ultima_tienda", "ultima_tienda_visitada",
         "protocolo", "sello", "sello_entrada",
         "hora_salida_muelle", "temperatura", "hora_salida_cedi", "hora_llegada",
+        "fecha_salida", "fecha_llegada",
         "observacion", "foto_url",
         "obs_salida", "foto_salida", "obs_llegada", "foto_llegada",
     ]
@@ -112,6 +113,7 @@ def actualizar(
         "ultima_tienda", "ultima_tienda_visitada",
         "protocolo", "sello", "sello_entrada",
         "hora_salida_muelle", "temperatura", "hora_salida_cedi", "hora_llegada",
+        "fecha_salida", "fecha_llegada",
         "observacion", "foto_url",
         "obs_salida", "foto_salida", "obs_llegada", "foto_llegada",
     ]

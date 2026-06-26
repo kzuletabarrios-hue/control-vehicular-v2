@@ -69,6 +69,7 @@ def crear(
         "empresa", "muelle_descargue", "carga_compartida",
         "hora_ingreso", "hora_salida", "actividad_a_desarrollar",
         "dependencia_autoriza", "fecha_pago_arl", "observaciones", "foto_url",
+        "fecha_salida",
     ]
     vals = {c: body.get(c) for c in campos}
     vals["id"] = rid
@@ -99,6 +100,7 @@ def actualizar(
         "empresa", "muelle_descargue", "carga_compartida",
         "hora_ingreso", "hora_salida", "actividad_a_desarrollar",
         "dependencia_autoriza", "fecha_pago_arl", "observaciones", "foto_url",
+        "fecha_salida",
     ]
     vals = {c: body[c] for c in campos if c in body}
     if not vals:
