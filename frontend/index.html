@@ -2107,6 +2107,7 @@ function ProveedoresPage({user,online,addOffline}){
   const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',tipo_vehiculo:'',empresa:'',muelle_descargue:'',carga_compartida:false,hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',actividad_a_desarrollar:'',dependencia_autoriza:'',fecha_pago_arl:'',observaciones:'',foto_url:null};
   const [form,setForm] = useState(emptyF);
   const [filtro,setFiltro] = useState('pendientes');
+  const [busqueda,setBusqueda] = useState('');
   const esBodega    = user?.rol==='guarda_bodega';
   const esVehicular = user?.rol==='guarda_vehicular';
 
@@ -2236,25 +2237,33 @@ function ProveedoresPage({user,online,addOffline}){
   );
 
   const nPend = records.filter(r=>!r.hora_salida).length;
-  const visibles = filtro==='pendientes' ? records.filter(r=>!r.hora_salida) : records;
+  const visibles = records
+    .filter(r=>filtro==='pendientes'?!r.hora_salida:true)
+    .filter(r=>{if(!busqueda.trim())return true;const q=busqueda.trim().toLowerCase();return (r.empresa&&r.empresa.toLowerCase().includes(q))||(r.nombre_conductor&&r.nombre_conductor.toLowerCase().includes(q))||(r.placa_vehiculo&&r.placa_vehiculo.toLowerCase().includes(q));});
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
-    h('div',{style:{display:'flex',gap:8,padding:'10px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
-      !esBodega&&h('button',{onClick:()=>api.exportar('proveedores'),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
-        h(Ico,{n:'download',s:14}),' Excel'
+    h('div',{style:{background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
+      h('div',{style:{display:'flex',gap:8,padding:'8px 14px 6px'}},
+        !esBodega&&h('button',{onClick:()=>api.exportar('proveedores'),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
+          h(Ico,{n:'download',s:14}),' Excel'
+        ),
+        !esBodega&&h('div',{style:{marginLeft:'auto',display:'flex',gap:6,alignItems:'center',flexShrink:0}},
+          h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
+          h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
+        ),
+        !esBodega&&h('button',{onClick:()=>setView('form'),style:{background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+          h(Ico,{n:'plus',s:15}),' Nuevo'
+        ),
+        esBodega&&h('p',{style:{fontSize:12,color:'var(--slate)',alignSelf:'center',margin:'0 0 0 4px'}},h(Ico,{n:'alert',s:12}),' Toca un registro para agregar evidencia de rechazo')
       ),
-      !esBodega&&h('div',{style:{marginLeft:'auto',display:'flex',gap:6,alignItems:'center',flexShrink:0}},
-        h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
-        h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
-      ),
-      !esBodega&&h('button',{onClick:()=>setView('form'),style:{background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
-        h(Ico,{n:'plus',s:15}),' Nuevo'
-      ),
-      esBodega&&h('p',{style:{fontSize:12,color:'var(--slate)',alignSelf:'center',margin:'0 0 0 4px'}},h(Ico,{n:'alert',s:12}),' Toca un registro para agregar evidencia de rechazo')
+      h('div',{style:{padding:'0 14px 8px',position:'relative'}},
+        h(Ico,{n:'search',s:14,style:{position:'absolute',left:24,top:'50%',transform:'translateY(-50%)',color:'var(--slate)',pointerEvents:'none'}}),
+        h('input',{type:'text',value:busqueda,onChange:e=>setBusqueda(e.target.value),placeholder:'Buscar empresa, conductor o placa...',style:{width:'100%',paddingLeft:30,fontSize:12,boxSizing:'border-box'}})
+      )
     ),
     h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
       loading?h(LoadingDots):
-      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'package',s:44}),h('p',null,filtro==='pendientes'?'Sin proveedores activos':'Sin proveedores hoy')):
+      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'package',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='pendientes'?'Sin proveedores activos':'Sin proveedores hoy')):
       visibles.map(r=>h('div',{key:r.id,className:'list-item'},
         h('div',{className:'li-icon',style:{background:'#fde68a'}},
           h(Ico,{n:'package',s:18,style:{color:'#d97706'}})
