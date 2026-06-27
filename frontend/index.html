@@ -927,9 +927,10 @@ function FlotaPage({user,online,addOffline}){
   const [salida,setSalida2]          = useState(null);
   const [horaSalida2,setHoraSalida2] = useState('');
   const [fechaSalidaV,setFechaSalidaV] = useState('');
-  const [selloSalida,setSelloSalida] = useState('');
-  const [obsSalida,setObsSalida]     = useState('');
-  const [fotoSalida,setFotoSalida]   = useState(null);
+  const [selloSalida,setSelloSalida]   = useState('');
+  const [obsSalida,setObsSalida]       = useState('');
+  const [fotoSalida,setFotoSalida]     = useState(null);
+  const [tempSalida,setTempSalida]     = useState('');
   const [selloLleg,setSelloLleg]     = useState('');
   const [obsLleg,setObsLleg]         = useState('');
   const [fotoLleg,setFotoLleg]       = useState(null);
@@ -1051,7 +1052,7 @@ function FlotaPage({user,online,addOffline}){
           h('div',{className:'fg'},h('label',null,'Salida muelle'),h('input',{type:'time',value:form.hora_salida_muelle||'',onChange:e=>setForm(p=>({...p,hora_salida_muelle:e.target.value}))})),
           !esBodega&&h('div',{className:'fg'},h('label',null,'Salida CEDI'),h('input',{type:'time',value:form.hora_salida_cedi||'',onChange:e=>setForm(p=>({...p,hora_salida_cedi:e.target.value}))})),
           !esBodega&&h('div',{className:'fg'},h('label',null,'Hora llegada'),h('input',{type:'time',value:form.hora_llegada||'',onChange:e=>setForm(p=>({...p,hora_llegada:e.target.value}))})),
-          h('div',{className:'fg'},h('label',null,'Temperatura °C'),h('input',{type:'number',step:'0.1',value:form.temperatura||'',onChange:e=>setForm(p=>({...p,temperatura:e.target.value}))}))
+          !esBodega&&h('div',{className:'fg'},h('label',null,'Temperatura °C'),h('input',{type:'number',step:'0.1',value:form.temperatura||'',onChange:e=>setForm(p=>({...p,temperatura:e.target.value}))}))
         ),
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},h('label',null,'Protocolo'),h('input',{type:'text',value:form.protocolo||'',onChange:e=>setForm(p=>({...p,protocolo:e.target.value}))})),
@@ -1194,9 +1195,15 @@ function FlotaPage({user,online,addOffline}){
             h('input',{type:'time',value:horaSalida2,onChange:e=>setHoraSalida2(e.target.value)})
           )
         ),
-        h('div',{className:'fg'},
-          h('label',null,'N° Sello de salida',h('span',{className:'req'},'*')),
-          h('input',{type:'text',value:selloSalida,onChange:e=>setSelloSalida(e.target.value),placeholder:'Ej: 123456'})
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},
+            h('label',null,'N° Sello de salida',h('span',{className:'req'},'*')),
+            h('input',{type:'text',value:selloSalida,onChange:e=>setSelloSalida(e.target.value),placeholder:'Ej: 123456'})
+          ),
+          h('div',{className:'fg'},
+            h('label',null,'Temperatura °C'),
+            h('input',{type:'number',step:'0.1',value:tempSalida,onChange:e=>setTempSalida(e.target.value),placeholder:'Ej: 4.5'})
+          )
         ),
         h('div',{className:'fg'},
           h('label',null,'Observaciones (opcional)'),
@@ -1210,8 +1217,10 @@ function FlotaPage({user,online,addOffline}){
           h('button',{className:'btn-cancel',onClick:()=>setSalida2(null)},'Cancelar'),
           h('button',{className:'btn-primary',style:{background:'#059669'},onClick:async()=>{
             if(!selloSalida.trim()) return setAlert({type:'err',msg:'El número de sello de salida es obligatorio'});
-            await api.put(`/flota/${salida.id}`,{hora_salida_cedi:horaSalida2,fecha_salida:fechaSalidaV||undefined,sello:selloSalida,obs_salida:obsSalida||undefined,foto_salida:fotoSalida||undefined});
-            setSalida2(null);setSelloSalida('');setObsSalida('');setFotoSalida(null);load();setAlert({type:'ok',msg:'Salida registrada'});
+            const body={hora_salida_cedi:horaSalida2,fecha_salida:fechaSalidaV||undefined,sello:selloSalida,obs_salida:obsSalida||undefined,foto_salida:fotoSalida||undefined};
+            if(tempSalida) body.temperatura=tempSalida;
+            await api.put(`/flota/${salida.id}`,body);
+            setSalida2(null);setSelloSalida('');setObsSalida('');setFotoSalida(null);setTempSalida('');load();setAlert({type:'ok',msg:'Salida registrada'});
           }},h(Ico,{n:'checkCircle',s:16}),'Confirmar salida')
         )
       )
