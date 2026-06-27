@@ -57,6 +57,15 @@ def obtener(
     return dict(row._mapping)
 
 
+CAMPOS_PROVEEDOR = [
+    "fecha", "placa_vehiculo", "nombre_conductor", "cedula_conductor",
+    "tipo_vehiculo", "empresa", "muelle_descargue", "carga_compartida",
+    "hora_ingreso", "hora_salida", "actividad_a_desarrollar",
+    "dependencia_autoriza", "fecha_pago_arl", "observaciones", "foto_url",
+    "fecha_salida",
+]
+
+
 @router.post("", status_code=201)
 def crear(
     body: dict,
@@ -64,14 +73,7 @@ def crear(
     current_user: dict = Depends(require_permiso("proveedores", "write")),
 ):
     rid = str(uuid.uuid4())
-    campos = [
-        "fecha", "placa_vehiculo", "nombre_conductor", "tipo_vehiculo",
-        "empresa", "muelle_descargue", "carga_compartida",
-        "hora_ingreso", "hora_salida", "actividad_a_desarrollar",
-        "dependencia_autoriza", "fecha_pago_arl", "observaciones", "foto_url",
-        "fecha_salida",
-    ]
-    vals = {c: body.get(c) for c in campos}
+    vals = {c: body.get(c) for c in CAMPOS_PROVEEDOR}
     vals["id"] = rid
     vals["creado_por"] = current_user["id"]
 
@@ -80,6 +82,33 @@ def crear(
     db.execute(text(f"INSERT INTO proveedores ({cols}) VALUES ({placeholders})"), vals)
     db.commit()
     return {"id": rid, "message": "Registro creado"}
+
+
+@router.post("/batch", status_code=201)
+def crear_batch(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permiso("proveedores", "write")),
+):
+    registros = body.get("registros", [])
+    if not registros:
+        raise HTTPException(400, "Sin registros para guardar")
+    if len(registros) > 20:
+        raise HTTPException(400, "Máximo 20 registros por lote")
+
+    ids = []
+    for reg in registros:
+        rid = str(uuid.uuid4())
+        vals = {c: reg.get(c) for c in CAMPOS_PROVEEDOR}
+        vals["id"] = rid
+        vals["creado_por"] = current_user["id"]
+        cols = ", ".join(vals.keys())
+        placeholders = ", ".join(f":{k}" for k in vals.keys())
+        db.execute(text(f"INSERT INTO proveedores ({cols}) VALUES ({placeholders})"), vals)
+        ids.append(rid)
+
+    db.commit()
+    return {"ids": ids, "message": f"{len(ids)} registros creados"}
 
 
 @router.put("/{id}")
@@ -95,14 +124,7 @@ def actualizar(
     if not existe:
         raise HTTPException(404, "Registro no encontrado")
 
-    campos = [
-        "fecha", "placa_vehiculo", "nombre_conductor", "tipo_vehiculo",
-        "empresa", "muelle_descargue", "carga_compartida",
-        "hora_ingreso", "hora_salida", "actividad_a_desarrollar",
-        "dependencia_autoriza", "fecha_pago_arl", "observaciones", "foto_url",
-        "fecha_salida",
-    ]
-    vals = {c: body[c] for c in campos if c in body}
+    vals = {c: body[c] for c in CAMPOS_PROVEEDOR if c in body}
     if not vals:
         raise HTTPException(400, "Sin campos para actualizar")
     vals["id"] = id
