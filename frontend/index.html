@@ -2215,10 +2215,20 @@ function ProveedoresPage({user,online,addOffline}){
   const guardarBatch = async()=>{
     if(batch.length===0) return setAlert({type:'err',msg:'Agrega al menos un proveedor'});
     setSaving(true);
-    const registros = batch.map(b=>({...b,fecha:batchFecha,hora_ingreso:batchHora}));
+    // Agrupar por placa+cédula → un registro por conductor con todas sus empresas
+    const grupos = {};
+    batch.forEach(b=>{
+      const key = `${b.placa_vehiculo}|${b.cedula_conductor}`;
+      if(!grupos[key]) grupos[key] = {...b,fecha:batchFecha,hora_ingreso:batchHora,_empresas:[]};
+      if(b.empresa) grupos[key]._empresas.push(b.empresa);
+    });
+    const registros = Object.values(grupos).map(({_empresas,...rest})=>({
+      ...rest,
+      empresa: _empresas.length>0 ? _empresas.join(' / ') : rest.empresa
+    }));
     try{
       await api.post('/proveedores/batch',{registros});
-      setAlert({type:'ok',msg:`${registros.length} proveedor(es) registrado(s)`});
+      setAlert({type:'ok',msg:`${registros.length} ingreso(s) registrado(s)`});
       setView('list');setBatch([]);setDraft(emptyDraft);
       setBatchFecha(today());setBatchHora(new Date().toTimeString().slice(0,5));
       load();
