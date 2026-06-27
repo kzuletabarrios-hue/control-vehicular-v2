@@ -843,23 +843,31 @@ function HomePage({setPage,user}){
           showProvStats&&h(StatCard,{label:'Visitantes hoy',   value:resumen.visitantes.hoy,     color:'#059669',icon:'users'})
         )
       ),
-      ((isGuardaPeatonal?accesoPend>0:(flotaPend>0||accesoPend>0)))&&h('div',{className:'dash-section',style:{marginTop:4}},
-        h('p',{className:'sec-ttl'},h(Ico,{n:'alert',s:12}),' Pendientes de cierre'),
-        h('div',{style:{background:'#fffbeb',border:'1.5px solid #fcd34d',borderRadius:12,padding:12}},
-          !isGuardaPeatonal&&flotaPend>0&&h('div',null,
-            h('p',{style:{fontSize:12,fontWeight:600,color:'#1e4570',marginBottom:4}},`${flotaPend} vehículo(s) fuera sin llegada:`),
-            pendFlota.map((v,i)=>h('div',{key:i,style:{fontSize:11,color:'var(--slate)',padding:'3px 8px',background:'#f8fafc',borderRadius:6,marginBottom:3}},
-              h('strong',null,v.placa),' · ',v.conductor||'—',' · Salió: ',v.hora_salida||'—',' (',v.fecha,')'
-            ))
-          ),
-          !isGuardaPeatonal&&flotaPend>0&&accesoPend>0&&h('div',{style:{height:1,background:'#fde68a',margin:'8px 0'}}),
-          accesoPend>0&&h('div',null,
-            h('p',{style:{fontSize:12,fontWeight:600,color:'#7c3aed',marginBottom:4}},`${accesoPend} persona(s) dentro sin salida:`),
-            pendAcceso.map((v,i)=>h('div',{key:i,style:{fontSize:11,color:'var(--slate)',padding:'3px 8px',background:'#f8fafc',borderRadius:6,marginBottom:3}},
-              h('strong',null,v.nombre),' · ',v.contratista||'—',' · Ingresó: ',v.hora_ingreso||'—',' (',v.fecha,')'
-            ))
+      (()=>{
+        const showFlotaPend  = !isGuardaPeatonal;
+        const showAccesoPend = !isGuardaVehicular && !isGuardaBodega;
+        const hayFlota  = showFlotaPend  && flotaPend>0;
+        const hayAcceso = showAccesoPend && accesoPend>0;
+        if(!hayFlota && !hayAcceso) return null;
+        return h('div',{className:'dash-section',style:{marginTop:4}},
+          h('p',{className:'sec-ttl'},h(Ico,{n:'alert',s:12}),' Pendientes de cierre'),
+          h('div',{style:{background:'#fffbeb',border:'1.5px solid #fcd34d',borderRadius:12,padding:12}},
+            hayFlota&&h('div',null,
+              h('p',{style:{fontSize:12,fontWeight:600,color:'#1e4570',marginBottom:4}},`${flotaPend} vehículo(s) fuera sin llegada:`),
+              pendFlota.map((v,i)=>h('div',{key:i,style:{fontSize:11,color:'var(--slate)',padding:'3px 8px',background:'#f8fafc',borderRadius:6,marginBottom:3}},
+                h('strong',null,v.placa),' · ',v.conductor||'—',' · Salió: ',v.hora_salida||'—',' (',v.fecha,')'
+              ))
+            ),
+            hayFlota&&hayAcceso&&h('div',{style:{height:1,background:'#fde68a',margin:'8px 0'}}),
+            hayAcceso&&h('div',null,
+              h('p',{style:{fontSize:12,fontWeight:600,color:'#7c3aed',marginBottom:4}},`${accesoPend} persona(s) dentro sin salida:`),
+              pendAcceso.map((v,i)=>h('div',{key:i,style:{fontSize:11,color:'var(--slate)',padding:'3px 8px',background:'#f8fafc',borderRadius:6,marginBottom:3}},
+                h('strong',null,v.nombre),' · ',v.contratista||'—',' · Ingresó: ',v.hora_ingreso||'—',' (',v.fecha,')'
+              ))
+            )
           )
-        )
+        );
+      })()
       ),
       !resumen&&h('div',{style:{padding:'40px 14px',textAlign:'center',color:'var(--slate)',fontSize:13}},
         h(LoadingDots)
