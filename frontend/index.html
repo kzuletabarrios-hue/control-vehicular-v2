@@ -2197,11 +2197,11 @@ function ProveedoresPage({user,online,addOffline}){
   const agregarAlBatch = ()=>{
     if(!draft.placa_vehiculo.trim()) return setAlert({type:'err',msg:'La placa es obligatoria'});
     if(!draft.cedula_conductor.trim()) return setAlert({type:'err',msg:'La cédula del conductor es obligatoria'});
-    const dup = batch.some((b,i)=>i!==editingIdx&&(
-      b.placa_vehiculo.toUpperCase()===draft.placa_vehiculo.toUpperCase()||
-      b.cedula_conductor===draft.cedula_conductor
-    ));
-    if(dup) return setAlert({type:'err',msg:'Placa o cédula ya registrada en este lote'});
+    const dup = batch.some((b,i)=>i!==editingIdx&&
+      b.cedula_conductor===draft.cedula_conductor&&
+      b.empresa.toLowerCase()===(draft.empresa||'').toLowerCase()
+    );
+    if(dup) return setAlert({type:'err',msg:'Este conductor ya está registrado con ese proveedor en el lote'});
     const item = {...draft,placa_vehiculo:draft.placa_vehiculo.toUpperCase()};
     if(editingIdx!==null){
       setBatch(p=>{const n=[...p];n[editingIdx]=item;return n;});
@@ -2209,7 +2209,7 @@ function ProveedoresPage({user,online,addOffline}){
     }else{
       setBatch(p=>[...p,item]);
     }
-    setDraft(emptyDraft);
+    setDraft(p=>({...p,empresa:'',actividad_a_desarrollar:''}));
   };
 
   const guardarBatch = async()=>{
