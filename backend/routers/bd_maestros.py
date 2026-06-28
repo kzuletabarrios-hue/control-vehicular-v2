@@ -240,3 +240,98 @@ def eliminar_bd_ca(
     db.execute(text("UPDATE bd_control_acceso SET estado = 'INACTIVO', updated_at = NOW() WHERE cedula = :cedula"), {"cedula": cedula})
     db.commit()
     return {"message": "Persona marcada como inactiva"}
+
+
+# ── CONDUCTORES FRECUENTES ────────────────────────────────────────
+
+@router.get("/conductores-frecuentes")
+def listar_conductores_frecuentes(
+    cedula: str = None,
+    q: str = None,
+    activo: bool = None,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("maestros", "read")),
+):
+    where = ["1=1"]
+    params = {}
+    if cedula:
+        where.append("cedula = :cedula")
+        params["cedula"] = cedula
+    if activo is not None:
+        where.append("activo = :activo")
+        params["activo"] = activo
+    if q:
+        where.append("(nombre_conductor ILIKE :q OR cedula ILIKE :q OR empresa_principal ILIKE :q)")
+        params["q"] = f"%{q}%"
+
+    rows = db.execute(text(f"""
+        SELECT * FROM conductores_frecuentes
+        WHERE {' AND '.join(where)}
+        ORDER BY ultima_visita DESC NULLS LAST, nombre_conductor ASC
+    """), params).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+@router.post("/conductores-frecuentes", status_code=201)
+def crear_conductor_frecuente(
+    body: dict,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("maestros", "write")),
+):
+    cedula = (body.get("cedula") or "").strip()
+    nombre = (body.get("nombre_conductor") or "").strip()
+    if not cedula or not nombre:
+        raise HTTPException(400, "Cédula y nombre son requeridos")
+
+    rid = str(uuid.uuid4())
+    db.execute(text("""
+        INSERT INTO conductores_frecuentes
+            (id, cedula, nombre_conductor, empresa_principal, tipo_vehiculo, activo, ultima_visita)
+        VALUES (:id, :cedula, :nombre, :empresa, :tipo, TRUE, :ultima_visita)
+        ON CONFLICT (cedula) DO UPDATE SET
+            nombre_conductor  = EXCLUDED.nombre_conductor,
+            empresa_principal = COALESCE(EXCLUDED.empresa_principal, conductores_frecuentes.empresa_principal),
+            tipo_vehiculo     = COALESCE(EXCLUDED.tipo_vehiculo, conductores_frecuentes.tipo_vehiculo),
+            activo            = TRUE,
+            ultima_visita     = EXCLUDED.ultima_visita,
+            updated_at        = NOW()
+    """), {
+        "id": rid,
+        "cedula": cedula,
+        "nombre": nombre,
+        "empresa": body.get("empresa_principal") or None,
+        "tipo": body.get("tipo_vehiculo") or None,
+        "ultima_visita": body.get("ultima_visita") or None,
+    })
+    db.commit()
+    row = db.execute(text("SELECT id FROM conductores_frecuentes WHERE cedula = :c"), {"c": cedula}).fetchone()
+    return {"id": str(row.id), "message": "Conductor frecuente guardado"}
+
+
+@router.put("/conductores-frecuentes/{id}")
+def actualizar_conductor_frecuente(
+    id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("maestros", "write")),
+):
+    campos = ["nombre_conductor", "empresa_principal", "tipo_vehiculo", "activo", "ultima_visita"]
+    vals = {c: body[c] for c in campos if c in body}
+    if not vals:
+        raise HTTPException(400, "Sin campos para actualizar")
+    vals["id"] = id
+    sets = ", ".join(f"{c} = :{c}" for c in vals if c != "id")
+    db.execute(text(f"UPDATE conductores_frecuentes SET {sets}, updated_at = NOW() WHERE id = :id"), vals)
+    db.commit()
+    return {"message": "Conductor frecuente actualizado"}
+
+
+@router.delete("/conductores-frecuentes/{id}")
+def desactivar_conductor_frecuente(
+    id: str,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("maestros", "delete")),
+):
+    db.execute(text("UPDATE conductores_frecuentes SET activo = FALSE, updated_at = NOW() WHERE id = :id"), {"id": id})
+    db.commit()
+    return {"message": "Conductor marcado como inactivo"}

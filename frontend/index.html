@@ -2152,7 +2152,10 @@ function ProveedoresPage({user,online,addOffline}){
   const [busqueda,setBusqueda] = useState('');
   const esBodega    = user?.rol==='guarda_bodega';
   const esVehicular = user?.rol==='guarda_vehicular';
-  const [bdProv,setBdProv]     = useState([]);
+  const [bdProv,setBdProv]           = useState([]);
+  const [frecuenteInfo,setFrecuenteInfo] = useState(null); // {estado:'encontrado'|'inactivo'|'nuevo', data:obj}
+  const [saveFrModal,setSaveFrModal]     = useState(false);
+  const [frDraft,setFrDraft]             = useState({cedula:'',nombre_conductor:'',empresa_principal:'',tipo_vehiculo:''});
   const tiposVehiculo = ['Camión','Camioneta','Moto','Furgón','Tractomula','Otro'];
 
   /* ── EDIT FORM STATE ── */
@@ -2182,12 +2185,33 @@ function ProveedoresPage({user,online,addOffline}){
 
   const lookupConductor = async(cedula,setter)=>{
     if(!cedula||String(cedula).length<5) return;
+    // 1. Buscar en catálogo de frecuentes
+    try{
+      const frecuentes = await api.get(`/maestros/conductores-frecuentes?cedula=${encodeURIComponent(cedula)}`);
+      const flist = Array.isArray(frecuentes)?frecuentes:(frecuentes.items||[]);
+      const fm = flist.find(c=>String(c.cedula)===String(cedula));
+      if(fm){
+        setter(p=>({...p,
+          nombre_conductor:fm.nombre_conductor||p.nombre_conductor,
+          tipo_vehiculo:p.tipo_vehiculo||fm.tipo_vehiculo||'',
+        }));
+        if(!fm.activo){
+          setFrecuenteInfo({estado:'inactivo',data:fm});
+        } else {
+          setFrecuenteInfo({estado:'encontrado',data:fm});
+          if(fm.empresa_principal) setOrdenDraft(p=>({...p,empresa:p.empresa||fm.empresa_principal}));
+        }
+        return;
+      }
+    }catch(_){}
+    // 2. Fallback: conductores internos
     try{
       const res = await api.get('/conductores?activo=true&limit=300');
       const list = Array.isArray(res)?res:(res.items||[]);
       const m = list.find(c=>String(c.cedula)===String(cedula));
       if(m) setter(p=>({...p,nombre_conductor:m.nombre_completo||m.nombre||p.nombre_conductor}));
     }catch(e){}
+    setFrecuenteInfo(p=>p||{estado:'nuevo',data:null});
   };
 
   /* guardar vehículo editado (datos generales) */
@@ -2248,8 +2272,19 @@ function ProveedoresPage({user,online,addOffline}){
         vehiculo:{...vehiculoForm,placa_vehiculo:vehiculoForm.placa_vehiculo.toUpperCase(),fecha:ts.fecha,hora_ingreso:ts.hora},
         ordenes
       });
+      // Actualizar ultima_visita si conductor frecuente conocido
+      if(frecuenteInfo?.estado==='encontrado'&&frecuenteInfo.data?.id){
+        api.put(`/maestros/conductores-frecuentes/${frecuenteInfo.data.id}`,{ultima_visita:ts.fecha}).catch(()=>{});
+      }
+      const esNuevo = !frecuenteInfo || frecuenteInfo.estado==='nuevo';
       setAlert({type:'ok',msg:`Ingreso registrado (${ordenes.length} orden${ordenes.length>1?'es':''})`});
       setView('list');
+      // Ofrecer guardar como frecuente si conductor nuevo
+      if(esNuevo&&vehiculoForm.cedula_conductor.trim()){
+        setFrDraft({cedula:vehiculoForm.cedula_conductor,nombre_conductor:vehiculoForm.nombre_conductor,empresa_principal:ordenes[0]?.empresa||'',tipo_vehiculo:vehiculoForm.tipo_vehiculo});
+        setSaveFrModal(true);
+      }
+      setFrecuenteInfo(null);
       setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);
       load();
     }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
@@ -2385,7 +2420,7 @@ function ProveedoresPage({user,online,addOffline}){
   if(view==='batch') return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{className:'header'},
       h('div',{className:'header-inner'},
-        h('button',{onClick:()=>{setView('list');setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
+        h('button',{onClick:()=>{setView('list');setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);setFrecuenteInfo(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
           h(Ico,{n:'arrowLeft',s:18}),' Volver'
         ),
         h('div',{className:'header-brand'},h('h1',null,'Nuevo ingreso'),h('span',null,'Proveedores'))
@@ -2408,9 +2443,17 @@ function ProveedoresPage({user,online,addOffline}){
           h('div',{className:'fg'},
             h('label',null,'Cédula conductor',h('span',{className:'req'},'*')),
             h('input',{type:'text',value:vehiculoForm.cedula_conductor,
-              onChange:e=>setVehiculoForm(p=>({...p,cedula_conductor:e.target.value})),
+              onChange:e=>{setVehiculoForm(p=>({...p,cedula_conductor:e.target.value}));setFrecuenteInfo(null);},
               onBlur:e=>lookupConductor(e.target.value,setVehiculoForm),
-              placeholder:'Número de cédula'})
+              placeholder:'Número de cédula'}),
+            frecuenteInfo&&h('div',{style:{marginTop:5,padding:'5px 9px',borderRadius:7,fontSize:11,fontWeight:700,display:'flex',alignItems:'center',gap:5,
+              background:frecuenteInfo.estado==='encontrado'?'#d1fae5':frecuenteInfo.estado==='inactivo'?'#fef3c7':'#f1f5f9',
+              color:frecuenteInfo.estado==='encontrado'?'#065f46':frecuenteInfo.estado==='inactivo'?'#92400e':'#475569',
+              border:`1px solid ${frecuenteInfo.estado==='encontrado'?'#6ee7b7':frecuenteInfo.estado==='inactivo'?'#fcd34d':'#e2e8f0'}`}},
+              h(Ico,{n:frecuenteInfo.estado==='encontrado'?'check':frecuenteInfo.estado==='inactivo'?'alert':'user',s:12}),
+              frecuenteInfo.estado==='encontrado'?'Conductor frecuente — datos autocompletados':
+              frecuenteInfo.estado==='inactivo'?'Conductor inactivo en el catálogo':'Conductor nuevo'
+            )
           )
         ),
         h('div',{className:'fgrid2'},
@@ -2469,7 +2512,7 @@ function ProveedoresPage({user,online,addOffline}){
       )
     ),
     h('div',{className:'sticky-cta'},
-      h('button',{className:'btn-cancel',onClick:()=>{setView('list');setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);}},h(Ico,{n:'x',s:15})),
+      h('button',{className:'btn-cancel',onClick:()=>{setView('list');setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);setFrecuenteInfo(null);}},h(Ico,{n:'x',s:15})),
       h('button',{className:'btn-primary',onClick:guardarIngreso,disabled:saving||ordenes.length===0,style:{opacity:ordenes.length===0?.5:1}},
         saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),
         saving?'Guardando...':ordenes.length>0?`Guardar ingreso (${ordenes.length} orden${ordenes.length>1?'es':''})`:'Guardar'
@@ -2500,7 +2543,7 @@ function ProveedoresPage({user,online,addOffline}){
           h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
           h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
         ),
-        !esBodega&&h('button',{onClick:()=>{setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);setView('batch');},style:{background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+        !esBodega&&h('button',{onClick:()=>{setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);setFrecuenteInfo(null);setView('batch');},style:{background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
           h(Ico,{n:'plus',s:15}),' Nuevo'
         ),
         esBodega&&h('p',{style:{fontSize:12,color:'var(--slate)',alignSelf:'center',margin:'0 0 0 4px'}},h(Ico,{n:'alert',s:12}),' Toca un registro para agregar evidencia de rechazo')
@@ -2577,7 +2620,38 @@ function ProveedoresPage({user,online,addOffline}){
         )
       )
     ),
-    confirm&&h(ConfirmSheet,{msg:'Se eliminará el ingreso de proveedor y todas sus órdenes.',onOk:async()=>{await api.del(`/proveedores/${confirm}`);setConfirm(null);load();setAlert({type:'ok',msg:'Eliminado'});},onCancel:()=>setConfirm(null)})
+    confirm&&h(ConfirmSheet,{msg:'Se eliminará el ingreso de proveedor y todas sus órdenes.',onOk:async()=>{await api.del(`/proveedores/${confirm}`);setConfirm(null);load();setAlert({type:'ok',msg:'Eliminado'});},onCancel:()=>setConfirm(null)}),
+    saveFrModal&&h('div',{className:'overlay',onClick:()=>setSaveFrModal(false)},
+      h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
+        h('div',{className:'sheet-header'},
+          h('span',{style:{fontWeight:700,fontSize:15}},'¿Guardar como conductor frecuente?'),
+          h('button',{className:'btn-icon',onClick:()=>setSaveFrModal(false)},h(Ico,{n:'x',s:16}))
+        ),
+        h('p',{style:{fontSize:12,color:'var(--slate)',marginBottom:12}},'Guarda los datos para agilizar futuros ingresos de este conductor.'),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Cédula'),h('input',{type:'text',value:frDraft.cedula,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
+          h('div',{className:'fg'},h('label',null,'Nombre'),h('input',{type:'text',value:frDraft.nombre_conductor,onChange:e=>setFrDraft(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Nombre conductor'}))
+        ),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Empresa principal'),h('input',{type:'text',value:frDraft.empresa_principal,onChange:e=>setFrDraft(p=>({...p,empresa_principal:e.target.value})),placeholder:'Empresa habitual'})),
+          h('div',{className:'fg'},h('label',null,'Tipo vehículo'),
+            h('select',{value:frDraft.tipo_vehiculo,onChange:e=>setFrDraft(p=>({...p,tipo_vehiculo:e.target.value}))},
+              h('option',{value:''},'Seleccionar...'),...tiposVehiculo.map(t=>h('option',{key:t,value:t},t))
+            )
+          )
+        ),
+        h('div',{style:{display:'flex',gap:8,marginTop:14}},
+          h('button',{className:'btn-cancel',onClick:()=>setSaveFrModal(false)},'Omitir'),
+          h('button',{className:'btn-primary',onClick:async()=>{
+            try{
+              const ts=await _tsBog();
+              await api.post('/maestros/conductores-frecuentes',{...frDraft,ultima_visita:ts.fecha});
+              setSaveFrModal(false);setAlert({type:'ok',msg:'Conductor guardado en catálogo de frecuentes'});
+            }catch(e){setSaveFrModal(false);setAlert({type:'err',msg:'No se pudo guardar como frecuente'});}
+          }},h(Ico,{n:'save',s:16}),' Guardar en catálogo')
+        )
+      )
+    )
   );
 }
 
@@ -3029,6 +3103,121 @@ function BdUsuariosTab(){
   );
 }
 
+function BdConductoresFrecuentesTab(){
+  const [records,setRecords]    = useState([]);
+  const [loading,setLoading]    = useState(true);
+  const [saving,setSaving]      = useState(false);
+  const [alert,setAlert]        = useState(null);
+  const [confirm,setConfirm]    = useState(null);
+  const [view,setView]          = useState('list');
+  const [selected,setSelected]  = useState(null);
+  const [busqueda,setBusqueda]  = useState('');
+  const tiposVeh = ['Camión','Camioneta','Moto','Furgón','Tractomula','Otro'];
+  const emptyF = {cedula:'',nombre_conductor:'',empresa_principal:'',tipo_vehiculo:'',activo:true};
+  const [form,setForm] = useState(emptyF);
+
+  const load = useCallback(()=>{
+    setLoading(true);
+    api.get('/maestros/conductores-frecuentes').then(setRecords).catch(()=>setAlert({type:'err',msg:'Error cargando datos'})).finally(()=>setLoading(false));
+  },[]);
+  useEffect(()=>load(),[load]);
+
+  const handleSave = async()=>{
+    if(!form.cedula.trim()||!form.nombre_conductor.trim()) return setAlert({type:'err',msg:'Cédula y nombre son requeridos'});
+    setSaving(true);
+    try{
+      if(selected) await api.put(`/maestros/conductores-frecuentes/${selected.id}`,form);
+      else await api.post('/maestros/conductores-frecuentes',form);
+      setAlert({type:'ok',msg:'Conductor guardado'});
+      setView('list');setForm(emptyF);setSelected(null);load();
+    }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
+    finally{setSaving(false);}
+  };
+
+  const visibles = records.filter(r=>{
+    if(!busqueda.trim()) return true;
+    const q=busqueda.toLowerCase();
+    return String(r.cedula).includes(q)||(r.nombre_conductor||'').toLowerCase().includes(q)||(r.empresa_principal||'').toLowerCase().includes(q);
+  });
+
+  if(view==='form') return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'user',s:12}),selected?' Editar conductor frecuente':' Nuevo conductor frecuente'),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},
+            h('label',null,'Cédula',h('span',{className:'req'},'*')),
+            h('input',{type:'text',value:form.cedula,onChange:e=>setForm(p=>({...p,cedula:e.target.value})),placeholder:'Número de cédula',
+              readOnly:!!selected,style:selected?{background:'#f8fafc',cursor:'default'}:{}})
+          ),
+          h('div',{className:'fg'},
+            h('label',null,'Nombre conductor',h('span',{className:'req'},'*')),
+            h('input',{type:'text',value:form.nombre_conductor,onChange:e=>setForm(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Nombre completo'})
+          )
+        ),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},
+            h('label',null,'Empresa principal'),
+            h('input',{type:'text',value:form.empresa_principal,onChange:e=>setForm(p=>({...p,empresa_principal:e.target.value})),placeholder:'Empresa habitual'})
+          ),
+          h('div',{className:'fg'},
+            h('label',null,'Tipo vehículo'),
+            h('select',{value:form.tipo_vehiculo,onChange:e=>setForm(p=>({...p,tipo_vehiculo:e.target.value}))},
+              h('option',{value:''},'Seleccionar...'),...tiposVeh.map(t=>h('option',{key:t,value:t},t))
+            )
+          )
+        ),
+        selected&&h('div',{className:'fg'},
+          h('label',null,'Estado'),
+          h('select',{value:form.activo?'activo':'inactivo',onChange:e=>setForm(p=>({...p,activo:e.target.value==='activo'}))},
+            h('option',{value:'activo'},'Activo'),h('option',{value:'inactivo'},'Inactivo')
+          )
+        )
+      )
+    ),
+    h('div',{className:'sticky-cta'},
+      h('button',{className:'btn-cancel',onClick:()=>{setView('list');setForm(emptyF);setSelected(null);}},h(Ico,{n:'x',s:15})),
+      h('button',{className:'btn-primary',onClick:handleSave,disabled:saving},saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),saving?'Guardando...':'Guardar')
+    )
+  );
+
+  return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{style:{display:'flex',gap:8,padding:'8px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0,alignItems:'center'}},
+      h('div',{style:{position:'relative',flex:1}},
+        h(Ico,{n:'search',s:13,style:{position:'absolute',left:9,top:'50%',transform:'translateY(-50%)',color:'var(--slate)',pointerEvents:'none'}}),
+        h('input',{type:'text',value:busqueda,onChange:e=>setBusqueda(e.target.value),placeholder:'Buscar cédula, nombre, empresa...',style:{width:'100%',paddingLeft:28,fontSize:12,boxSizing:'border-box'}})
+      ),
+      h('button',{onClick:()=>{setForm(emptyF);setSelected(null);setView('form');},style:{flexShrink:0,background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+        h(Ico,{n:'plus',s:15}),' Nuevo'
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      loading?h(LoadingDots):
+      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'user',s:44}),h('p',null,busqueda.trim()?`Sin resultados para "${busqueda}"`: 'Sin conductores frecuentes registrados')):
+      visibles.map(r=>h('div',{key:r.id,className:'list-item'},
+        h('div',{className:'li-icon',style:{background:r.activo?'#d1fae5':'#f1f5f9'}},
+          h(Ico,{n:'user',s:18,style:{color:r.activo?'#059669':'#94a3b8'}})
+        ),
+        h('div',{className:'li-body',onClick:()=>{
+          setForm({cedula:r.cedula||'',nombre_conductor:r.nombre_conductor||'',empresa_principal:r.empresa_principal||'',tipo_vehiculo:r.tipo_vehiculo||'',activo:r.activo});
+          setSelected(r);setView('form');
+        }},
+          h('div',{className:'li-title'},r.nombre_conductor),
+          h('div',{className:'li-sub'},'CC '+r.cedula+(r.empresa_principal?' · '+r.empresa_principal:'')+(r.tipo_vehiculo?' · '+r.tipo_vehiculo:'')),
+          r.ultima_visita&&h('div',{className:'li-sub',style:{color:'#059669',fontWeight:600}},'Última visita: '+fmtDate(r.ultima_visita))
+        ),
+        h('div',{className:'li-right'},
+          h('span',{className:`pill ${r.activo?'pill-green':'pill-slate'}`},r.activo?'Activo':'Inactivo'),
+          h('button',{title:'Desactivar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2,marginTop:6,display:'block'}},h(Ico,{n:'trash',s:13}))
+        )
+      ))
+    ),
+    confirm&&h(ConfirmSheet,{msg:'Se marcará como inactivo este conductor frecuente.',onOk:async()=>{await api.del(`/maestros/conductores-frecuentes/${confirm}`);setConfirm(null);load();setAlert({type:'ok',msg:'Conductor desactivado'});},onCancel:()=>setConfirm(null)})
+  );
+}
+
 function BaseDatosPage({user}){
   const [tab,setTab] = useState('personas');
   const isAdmin = user?.rol === 'admin';
@@ -3037,6 +3226,7 @@ function BaseDatosPage({user}){
     {id:'proveedores', label:'Proveedores'},
     {id:'tiendas',     label:'Tiendas'},
     {id:'conductores', label:'Conductores'},
+    {id:'cond-frec',   label:'Frecuentes'},
     ...(isAdmin?[{id:'usuarios',label:'Usuarios'}]:[]),
   ];
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
@@ -3052,6 +3242,7 @@ function BaseDatosPage({user}){
     tab==='proveedores' && h(BdProveedoresTab),
     tab==='tiendas'     && h(BdTiendasTab),
     tab==='conductores' && h(BdConductoresTab),
+    tab==='cond-frec'   && h(BdConductoresFrecuentesTab),
     tab==='usuarios'    && h(BdUsuariosTab)
   );
 }
