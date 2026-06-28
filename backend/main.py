@@ -42,3 +42,10 @@ app.include_router(uploads.router,          prefix="/api",               tags=["
 @app.get("/health", tags=["Sistema"])
 def health():
     return {"status": "ok", "version": "2.1.0"}
+
+@app.get("/api/tiempo", tags=["Sistema"])
+def get_tiempo():
+    from datetime import datetime, timezone, timedelta
+    bog = timezone(timedelta(hours=-5))
+    now = datetime.now(bog)
+    return {"fecha": now.strftime("%Y-%m-%d"), "hora": now.strftime("%H:%M")}

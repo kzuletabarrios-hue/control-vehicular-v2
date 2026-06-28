@@ -445,7 +445,7 @@ const api = {
       const m    = cd.match(/filename="([^"]+)"/);
       const a    = document.createElement('a');
       a.href     = URL.createObjectURL(blob);
-      a.download = m ? m[1] : `${tabla}_${new Date().toISOString().slice(0,10)}.xlsx`;
+      a.download = m ? m[1] : `${tabla}_${today()}.xlsx`;
       a.click();
       URL.revokeObjectURL(a.href);
     }catch(e){ alert('Error al exportar: '+e.message); }
@@ -453,8 +453,11 @@ const api = {
 };
 
 /* ── UTILS ── */
-const today     = () => new Date().toISOString().split('T')[0];
-const fmtDate   = d  => d?new Date(d+'T00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short'}):'—';
+const _bogSnap  = () => {const b=new Date(Date.now()-18000000);const p=n=>String(n).padStart(2,'0');return {fecha:`${b.getUTCFullYear()}-${p(b.getUTCMonth()+1)}-${p(b.getUTCDate())}`,hora:`${p(b.getUTCHours())}:${p(b.getUTCMinutes())}`};};
+const _tsBog    = async () => { try{return await api.get('/tiempo');}catch(_){return _bogSnap();} };
+const today     = () => _bogSnap().fecha;
+const ahoraHora = () => _bogSnap().hora;
+const fmtDate   = d  => d?new Date(d+'T12:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short'}):'—';
 const initials  = n  => (n||'U').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
 
 /* ── CAMERA COMPONENT ── */
@@ -779,7 +782,7 @@ function StatCard({label,value,color,icon}){
 function HomePage({setPage,user}){
   const [resumen,setResumen] = useState(null);
   const [tab,setTab]         = useState('dashboard');
-  const fechaHoy = new Date().toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'});
+  const fechaHoy = new Intl.DateTimeFormat('es-CO',{timeZone:'America/Bogota',weekday:'long',day:'numeric',month:'long'}).format(new Date());
   const rol = user?.rol||'';
   const isAdmin = ['admin','supervisor','operador'].includes(rol);
   const isGuardaBodega    = rol==='guarda_bodega';
@@ -948,7 +951,7 @@ function FlotaPage({user,online,addOffline}){
   const esVehicular = user?.rol==='guarda_vehicular';
   const [cedulaBusq,setCedulaBusq]   = useState('');
   const [sugerCond,setSugerCond]     = useState([]);
-  const emptyF = {fecha:today(),placa:'',conductor:'',codigo_conductor:'',n_pallets:'',n_contenedores:'',cant_volumen_externo:'',muelle_cargue:'',tienda_1:'',tienda_2:'',tienda_3:'',tienda_4:'',tienda_5:'',ultima_tienda:'',protocolo:'',sello:'',sello_entrada:'',hora_salida_muelle:new Date().toTimeString().slice(0,5),temperatura:'',hora_salida_cedi:'',hora_llegada:'',observacion:'',foto_url:null};
+  const emptyF = {fecha:today(),placa:'',conductor:'',codigo_conductor:'',n_pallets:'',n_contenedores:'',cant_volumen_externo:'',muelle_cargue:'',tienda_1:'',tienda_2:'',tienda_3:'',tienda_4:'',tienda_5:'',ultima_tienda:'',protocolo:'',sello:'',sello_entrada:'',hora_salida_muelle:ahoraHora(),temperatura:'',hora_salida_cedi:'',hora_llegada:'',observacion:'',foto_url:null};
   const [form,setForm]         = useState(emptyF);
   const [filtro,setFiltro]      = useState('pendientes');
   const [busqueda,setBusqueda]  = useState('');
@@ -989,6 +992,7 @@ function FlotaPage({user,online,addOffline}){
     if(!form.placa) return setAlert({type:'err',msg:'La placa es obligatoria'});
     setSaving(true);
     const body = Object.fromEntries(Object.entries(form).filter(([,v])=>v!=null&&v!==''));
+    if(!selected){const ts=await _tsBog();body.fecha=ts.fecha;body.hora_salida_muelle=ts.hora;}
     try{
       if(!online){
         addOffline({endpoint:selected?`/flota/${selected.id}`:'/flota/',method:selected?'PUT':'POST',body});
@@ -1024,7 +1028,7 @@ function FlotaPage({user,online,addOffline}){
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'truck',s:12}),' Vehículo y conductor'),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Fecha',h('span',{className:'req'},'*')),h('input',{type:'date',value:form.fecha,onChange:e=>setForm(p=>({...p,fecha:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Fecha',h('span',{className:'req'},'*')),h('input',{type:'date',value:form.fecha,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg'},h('label',null,'Placa',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.placa,onChange:e=>setForm(p=>({...p,placa:e.target.value.toUpperCase()})),placeholder:'ABC-123'}))
         ),
         h('div',{className:'fg',style:{position:'relative'}},
@@ -1131,12 +1135,12 @@ function FlotaPage({user,online,addOffline}){
           h('div',{style:{display:'flex',gap:4,marginTop:3}},
             esVehicular&&!r.hora_salida_cedi&&h('button',{
               title:'Registrar salida',
-              onClick:(e)=>{e.stopPropagation();setSalida2(r);setHoraSalida2(new Date().toTimeString().slice(0,5));setFechaSalidaV(today());},
+              onClick:(e)=>{e.stopPropagation();setSalida2(r);setHoraSalida2(ahoraHora());setFechaSalidaV(today());},
               style:{background:'#059669',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Salida'),
             (esVehicular||!user?.rol?.startsWith('guarda_'))&&r.hora_salida_cedi&&!r.hora_llegada&&h('button',{
               title:'Registrar llegada',
-              onClick:(e)=>{e.stopPropagation();setLlegada(r);setHoraLlegada(new Date().toTimeString().slice(0,5));setFechaLlegadaV(today());setUltimaTiendaLleg(r.ultima_tienda||'');},
+              onClick:(e)=>{e.stopPropagation();setLlegada(r);setHoraLlegada(ahoraHora());setFechaLlegadaV(today());setUltimaTiendaLleg(r.ultima_tienda||'');},
               style:{background:'#f59e0b',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Llegada'),
             !user?.rol?.startsWith('guarda_')&&h('button',{title:'Duplicar',onClick:()=>handleDuplicate(r),style:{background:'none',border:'none',cursor:'pointer',color:'var(--slate)',padding:2}},h(Ico,{n:'copy',s:14})),
@@ -1155,11 +1159,11 @@ function FlotaPage({user,online,addOffline}){
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},
             h('label',null,'Fecha de llegada'),
-            h('input',{type:'date',value:fechaLlegadaV,onChange:e=>setFechaLlegadaV(e.target.value)})
+            h('input',{type:'date',value:fechaLlegadaV,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})
           ),
           h('div',{className:'fg'},
             h('label',null,'Hora de llegada'),
-            h('input',{type:'time',value:horaLlegada,onChange:e=>setHoraLlegada(e.target.value)})
+            h('input',{type:'time',value:horaLlegada,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})
           )
         ),
         h(TiendaPicker,{label:'Última tienda visitada (opcional)',tiendas,value:ultimaTiendaLleg,onChange:setUltimaTiendaLleg}),
@@ -1179,7 +1183,7 @@ function FlotaPage({user,online,addOffline}){
           h('button',{className:'btn-cancel',onClick:()=>setLlegada(null)},'Cancelar'),
           h('button',{className:'btn-primary',onClick:async()=>{
             if(!selloLleg.trim()) return setAlert({type:'err',msg:'El número de sello de regreso es obligatorio'});
-            const body={hora_llegada:horaLlegada,fecha_llegada:fechaLlegadaV||undefined,sello_entrada:selloLleg,obs_llegada:obsLleg||undefined,foto_llegada:fotoLleg||undefined};
+            const ts=await _tsBog();const body={hora_llegada:ts.hora,fecha_llegada:ts.fecha,sello_entrada:selloLleg,obs_llegada:obsLleg||undefined,foto_llegada:fotoLleg||undefined};
             if(ultimaTiendaLleg) body.ultima_tienda=ultimaTiendaLleg;
             await api.put(`/flota/${llegada.id}`,body);
             setLlegada(null);setSelloLleg('');setObsLleg('');setFotoLleg(null);setUltimaTiendaLleg('');load();setAlert({type:'ok',msg:'Llegada registrada'});
@@ -1197,11 +1201,11 @@ function FlotaPage({user,online,addOffline}){
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},
             h('label',null,'Fecha de salida'),
-            h('input',{type:'date',value:fechaSalidaV,onChange:e=>setFechaSalidaV(e.target.value)})
+            h('input',{type:'date',value:fechaSalidaV,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})
           ),
           h('div',{className:'fg'},
             h('label',null,'Hora de salida CEDI'),
-            h('input',{type:'time',value:horaSalida2,onChange:e=>setHoraSalida2(e.target.value)})
+            h('input',{type:'time',value:horaSalida2,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})
           )
         ),
         h('div',{className:'fgrid2'},
@@ -1226,7 +1230,7 @@ function FlotaPage({user,online,addOffline}){
           h('button',{className:'btn-cancel',onClick:()=>setSalida2(null)},'Cancelar'),
           h('button',{className:'btn-primary',style:{background:'#059669'},onClick:async()=>{
             if(!selloSalida.trim()) return setAlert({type:'err',msg:'El número de sello de salida es obligatorio'});
-            const body={hora_salida_cedi:horaSalida2,fecha_salida:fechaSalidaV||undefined,sello:selloSalida,obs_salida:obsSalida||undefined,foto_salida:fotoSalida||undefined};
+            const ts=await _tsBog();const body={hora_salida_cedi:ts.hora,fecha_salida:ts.fecha,sello:selloSalida,obs_salida:obsSalida||undefined,foto_salida:fotoSalida||undefined};
             if(tempSalida) body.temperatura=tempSalida;
             await api.put(`/flota/${salida.id}`,body);
             setSalida2(null);setSelloSalida('');setObsSalida('');setFotoSalida(null);setTempSalida('');load();setAlert({type:'ok',msg:'Salida registrada'});
@@ -1487,7 +1491,7 @@ function ItemAccesoPage({tipo,user}){
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:cfg.icono,s:12}),' Datos del registro'),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,onChange:e=>setForm(p=>({...p,fecha:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg'},h('label',null,'Cantidad'),h('input',{type:'text',value:form.cantidad,onChange:e=>setForm(p=>({...p,cantidad:e.target.value})),placeholder:'Ej: 2 unidades'}))
         ),
         h('div',{className:'fg'},
@@ -1552,7 +1556,7 @@ function ItemAccesoPage({tipo,user}){
           h('div',{style:{display:'flex',gap:4,marginTop:3}},
             !r.hora_salida&&h('button',{
               title:'Registrar salida',
-              onClick:(e)=>{e.stopPropagation();setSalidaItem(r);setHoraSalidaItem(new Date().toTimeString().slice(0,5));setFechaSalidaItem(today());},
+              onClick:(e)=>{e.stopPropagation();setSalidaItem(r);setHoraSalidaItem(ahoraHora());setFechaSalidaItem(today());},
               style:{background:cfg.color,border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Salida'),
             !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2,marginTop:4}},h(Ico,{n:'trash',s:14}))
@@ -1570,17 +1574,17 @@ function ItemAccesoPage({tipo,user}){
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},
             h('label',null,'Fecha de salida'),
-            h('input',{type:'date',value:fechaSalidaItem,onChange:e=>setFechaSalidaItem(e.target.value)})
+            h('input',{type:'date',value:fechaSalidaItem,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})
           ),
           h('div',{className:'fg'},
             h('label',null,'Hora de salida'),
-            h('input',{type:'time',value:horaSalidaItem,onChange:e=>setHoraSalidaItem(e.target.value)})
+            h('input',{type:'time',value:horaSalidaItem,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})
           )
         ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
           h('button',{className:'btn-cancel',onClick:()=>setSalidaItem(null)},'Cancelar'),
           h('button',{className:'btn-primary',style:{background:cfg.color},onClick:async()=>{
-            await api.put(`${cfg.endpoint}/${salidaItem.id}`,{hora_salida:horaSalidaItem,fecha_salida:fechaSalidaItem||undefined});
+            const ts=await _tsBog();await api.put(`${cfg.endpoint}/${salidaItem.id}`,{hora_salida:ts.hora,fecha_salida:ts.fecha});
             setSalidaItem(null);load();setAlert({type:'ok',msg:'Salida registrada'});
           }},h(Ico,{n:'check',s:16}),'Confirmar salida')
         )
@@ -1607,7 +1611,7 @@ function AccesoPage({user,online,addOffline}){
   const [fotoSalida,setFotoSalida] = useState(null);
   const [sugerencias,setSugerencias] = useState([]);
   const [contratistas,setContratistas] = useState([]);
-  const emptyF = {fecha:today(),cedula:'',nombre:'',contratista:'',hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',observaciones:''};
+  const emptyF = {fecha:today(),cedula:'',nombre:'',contratista:'',hora_ingreso:ahoraHora(),hora_salida:'',observaciones:''};
   const [form,setForm] = useState(emptyF);
   const [filtro,setFiltro] = useState('pendientes');
   const [busqueda,setBusqueda] = useState('');
@@ -1640,6 +1644,7 @@ function AccesoPage({user,online,addOffline}){
     setSaving(true);
     const body = Object.fromEntries(Object.entries(form).filter(([,v])=>v!=null&&v!==''));
     if(body.cedula) body.cedula = parseInt(body.cedula);
+    if(!selected){const ts=await _tsBog();body.fecha=ts.fecha;body.hora_ingreso=ts.hora;}
     try{
       if(selected) await api.put(`/control-acceso/${selected.id}`,body);
       else await api.post('/control-acceso',body);
@@ -1663,7 +1668,7 @@ function AccesoPage({user,online,addOffline}){
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'userCheck',s:12}),' Identificación'),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,onChange:e=>setForm(p=>({...p,fecha:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg',style:{position:'relative'}},
             h('label',null,'Cédula'),
             h('input',{type:'number',value:form.cedula,onChange:e=>buscarCedula(e.target.value),placeholder:'Número de cédula'}),
@@ -1687,7 +1692,7 @@ function AccesoPage({user,online,addOffline}){
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'clock',s:12}),' Horarios'),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('input',{type:'time',value:form.hora_ingreso,onChange:e=>setForm(p=>({...p,hora_ingreso:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('input',{type:'time',value:form.hora_ingreso,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida,onChange:e=>setForm(p=>({...p,hora_salida:e.target.value}))}))
         ),
         h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:3,placeholder:'—'}))
@@ -1741,7 +1746,7 @@ function AccesoPage({user,online,addOffline}){
           h('div',{style:{display:'flex',gap:4,marginTop:3}},
             r.hora_ingreso&&!r.hora_salida&&h('button',{
               title:'Registrar salida',
-              onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(new Date().toTimeString().slice(0,5));setFechaSalidaA(today());},
+              onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(ahoraHora());setFechaSalidaA(today());},
               style:{background:'#16a34a',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Salida'),
             !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
@@ -1759,11 +1764,11 @@ function AccesoPage({user,online,addOffline}){
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},
             h('label',null,'Fecha de salida'),
-            h('input',{type:'date',value:fechaSalidaA,onChange:e=>setFechaSalidaA(e.target.value)})
+            h('input',{type:'date',value:fechaSalidaA,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})
           ),
           h('div',{className:'fg'},
             h('label',null,'Hora de salida'),
-            h('input',{type:'time',value:horaSalida,onChange:e=>setHoraSalida(e.target.value)})
+            h('input',{type:'time',value:horaSalida,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})
           )
         ),
         h('div',{className:'fg'},
@@ -1777,8 +1782,7 @@ function AccesoPage({user,online,addOffline}){
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
           h('button',{className:'btn-cancel',onClick:()=>setSalida(null)},'Cancelar'),
           h('button',{className:'btn-primary',style:{background:'#16a34a'},onClick:async()=>{
-            const upd={hora_salida:horaSalida};
-            if(fechaSalidaA) upd.fecha_salida=fechaSalidaA;
+            const ts=await _tsBog();const upd={hora_salida:ts.hora,fecha_salida:ts.fecha};
             if(obsSalida) upd.observaciones=obsSalida;
             if(fotoSalida) upd.foto_url=fotoSalida;
             await api.put(`/control-acceso/${salida.id}`,upd);
@@ -1805,7 +1809,7 @@ function VisitantesPage({user,online,addOffline}){
   const [fechaSalidaVis,setFechaSalidaVis] = useState('');
   const [obsVisita,setObsVisita]   = useState('');
   const [fotoVisita,setFotoVisita] = useState(null);
-  const emptyF = {fecha:today(),cedula:'',nombre:'',empresa:'',hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',observaciones:'',foto_url:null};
+  const emptyF = {fecha:today(),cedula:'',nombre:'',empresa:'',hora_ingreso:ahoraHora(),hora_salida:'',observaciones:'',foto_url:null};
   const [form,setForm] = useState(emptyF);
   const [filtro,setFiltro] = useState('pendientes');
   const [busqueda,setBusqueda] = useState('');
@@ -1820,6 +1824,7 @@ function VisitantesPage({user,online,addOffline}){
     if(!form.nombre) return setAlert({type:'err',msg:'El nombre es obligatorio'});
     setSaving(true);
     const body = Object.fromEntries(Object.entries(form).filter(([,v])=>v!=null&&v!==''));
+    if(!selected){const ts=await _tsBog();body.fecha=ts.fecha;body.hora_ingreso=ts.hora;}
     try{
       if(selected) await api.put(`/visitantes/${selected.id}`,body);
       else await api.post('/visitantes',body);
@@ -1843,7 +1848,7 @@ function VisitantesPage({user,online,addOffline}){
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'users',s:12}),' Datos del visitante'),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,onChange:e=>setForm(p=>({...p,fecha:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg'},h('label',null,'Cédula'),h('input',{type:'text',value:form.cedula,onChange:e=>setForm(p=>({...p,cedula:e.target.value})),placeholder:'Número'}))
         ),
         h('div',{className:'fg'},h('label',null,'Nombre',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.nombre,onChange:e=>setForm(p=>({...p,nombre:e.target.value})),placeholder:'Nombre completo'})),
@@ -1852,7 +1857,7 @@ function VisitantesPage({user,online,addOffline}){
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'check',s:12}),' Horarios'),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('input',{type:'time',value:form.hora_ingreso,onChange:e=>setForm(p=>({...p,hora_ingreso:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('input',{type:'time',value:form.hora_ingreso,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida,onChange:e=>setForm(p=>({...p,hora_salida:e.target.value}))}))
         ),
         h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:3,placeholder:'—'}))
@@ -1910,7 +1915,7 @@ function VisitantesPage({user,online,addOffline}){
           h('div',{style:{display:'flex',gap:4,marginTop:3}},
             r.hora_ingreso&&!r.hora_salida&&h('button',{
               title:'Registrar salida',
-              onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(new Date().toTimeString().slice(0,5));setFechaSalidaVis(today());},
+              onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(ahoraHora());setFechaSalidaVis(today());},
               style:{background:'#7c3aed',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Salida'),
             !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
@@ -1928,11 +1933,11 @@ function VisitantesPage({user,online,addOffline}){
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},
             h('label',null,'Fecha de salida'),
-            h('input',{type:'date',value:fechaSalidaVis,onChange:e=>setFechaSalidaVis(e.target.value)})
+            h('input',{type:'date',value:fechaSalidaVis,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})
           ),
           h('div',{className:'fg'},
             h('label',null,'Hora de salida'),
-            h('input',{type:'time',value:horaSalida,onChange:e=>setHoraSalida(e.target.value)})
+            h('input',{type:'time',value:horaSalida,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})
           )
         ),
         h('div',{className:'fg'},
@@ -1946,8 +1951,7 @@ function VisitantesPage({user,online,addOffline}){
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
           h('button',{className:'btn-cancel',onClick:()=>setSalida(null)},'Cancelar'),
           h('button',{className:'btn-primary',style:{background:'#7c3aed'},onClick:async()=>{
-            const upd={hora_salida:horaSalida};
-            if(fechaSalidaVis) upd.fecha_salida=fechaSalidaVis;
+            const ts=await _tsBog();const upd={hora_salida:ts.hora,fecha_salida:ts.fecha};
             if(obsVisita) upd.observaciones=obsVisita;
             if(fotoVisita) upd.foto_url=fotoVisita;
             await api.put(`/visitantes/${salida.id}`,upd);
@@ -1974,7 +1978,7 @@ function VisitaVehicularPage({user,online,addOffline}){
   const [fechaSalidaVV,setFechaSalidaVV] = useState('');
   const [obsSalida,setObsSalida]   = useState('');
   const [fotoSalida,setFotoSalida] = useState(null);
-  const emptyF = {fecha:today(),placa:'',conductor:'',motivo_visita:'',hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',observaciones:'',foto_url:null};
+  const emptyF = {fecha:today(),placa:'',conductor:'',motivo_visita:'',hora_ingreso:ahoraHora(),hora_salida:'',observaciones:'',foto_url:null};
   const [form,setForm] = useState(emptyF);
   const [filtro,setFiltro] = useState('pendientes');
   const [busqueda,setBusqueda] = useState('');
@@ -1989,6 +1993,7 @@ function VisitaVehicularPage({user,online,addOffline}){
     if(!form.placa||!form.conductor) return setAlert({type:'err',msg:'Placa y conductor son obligatorios'});
     setSaving(true);
     const body = Object.fromEntries(Object.entries(form).filter(([,v])=>v!=null&&v!==''));
+    if(!selected){const ts=await _tsBog();body.fecha=ts.fecha;body.hora_ingreso=ts.hora;}
     try{
       if(selected) await api.put(`/visita-vehicular/${selected.id}`,body);
       else await api.post('/visita-vehicular',body);
@@ -2012,7 +2017,7 @@ function VisitaVehicularPage({user,online,addOffline}){
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'truck',s:12}),' Datos del vehículo'),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,onChange:e=>setForm(p=>({...p,fecha:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg'},h('label',null,'Placa',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.placa,onChange:e=>setForm(p=>({...p,placa:e.target.value.toUpperCase()})),placeholder:'ABC123'}))
         ),
         h('div',{className:'fg'},h('label',null,'Conductor',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.conductor,onChange:e=>setForm(p=>({...p,conductor:e.target.value})),placeholder:'Nombre completo'})),
@@ -2021,7 +2026,7 @@ function VisitaVehicularPage({user,online,addOffline}){
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'check',s:12}),' Horarios'),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('input',{type:'time',value:form.hora_ingreso,onChange:e=>setForm(p=>({...p,hora_ingreso:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('input',{type:'time',value:form.hora_ingreso,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida,onChange:e=>setForm(p=>({...p,hora_salida:e.target.value}))}))
         ),
         h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:3,placeholder:'—'}))
@@ -2082,7 +2087,7 @@ function VisitaVehicularPage({user,online,addOffline}){
           h('div',{style:{display:'flex',gap:4,marginTop:3}},
             r.hora_ingreso&&!r.hora_salida&&h('button',{
               title:'Registrar salida',
-              onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(new Date().toTimeString().slice(0,5));setFechaSalidaVV(today());},
+              onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(ahoraHora());setFechaSalidaVV(today());},
               style:{background:'#0284c7',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Salida'),
             !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
@@ -2100,11 +2105,11 @@ function VisitaVehicularPage({user,online,addOffline}){
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},
             h('label',null,'Fecha de salida'),
-            h('input',{type:'date',value:fechaSalidaVV,onChange:e=>setFechaSalidaVV(e.target.value)})
+            h('input',{type:'date',value:fechaSalidaVV,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})
           ),
           h('div',{className:'fg'},
             h('label',null,'Hora de salida'),
-            h('input',{type:'time',value:horaSalida,onChange:e=>setHoraSalida(e.target.value)})
+            h('input',{type:'time',value:horaSalida,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})
           )
         ),
         h('div',{className:'fg'},
@@ -2118,8 +2123,7 @@ function VisitaVehicularPage({user,online,addOffline}){
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
           h('button',{className:'btn-cancel',onClick:()=>setSalida(null)},'Cancelar'),
           h('button',{className:'btn-primary',style:{background:'#0284c7'},onClick:async()=>{
-            const upd={hora_salida:horaSalida};
-            if(fechaSalidaVV) upd.fecha_salida=fechaSalidaVV;
+            const ts=await _tsBog();const upd={hora_salida:ts.hora,fecha_salida:ts.fecha};
             if(obsSalida) upd.observaciones=obsSalida;
             if(fotoSalida) upd.foto_url=fotoSalida;
             await api.put(`/visita-vehicular/${salida.id}`,upd);
@@ -2152,14 +2156,14 @@ function ProveedoresPage({user,online,addOffline}){
   const tiposVehiculo = ['Camión','Camioneta','Moto','Furgón','Tractomula','Otro'];
 
   /* ── EDIT FORM STATE ── */
-  const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',cedula_conductor:'',tipo_vehiculo:'',hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',muelle_descargue:'',fecha_pago_arl:'',observaciones:'',foto_url:null};
+  const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',cedula_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),hora_salida:'',muelle_descargue:'',fecha_pago_arl:'',observaciones:'',foto_url:null};
   const [form,setForm]               = useState(emptyF);
   const [formOrdenes,setFormOrdenes] = useState([]);
   const [formOrd,setFormOrd]         = useState({empresa:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''});
   const [addingOrd,setAddingOrd]     = useState(false);
 
   /* ── NUEVO INGRESO STATE ── */
-  const emptyVeh = ()=>({fecha:today(),placa_vehiculo:'',cedula_conductor:'',nombre_conductor:'',tipo_vehiculo:'',hora_ingreso:new Date().toTimeString().slice(0,5),muelle_descargue:'',fecha_pago_arl:'',observaciones:'',foto_url:null});
+  const emptyVeh = ()=>({fecha:today(),placa_vehiculo:'',cedula_conductor:'',nombre_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),muelle_descargue:'',fecha_pago_arl:'',observaciones:'',foto_url:null});
   const emptyOrd = {empresa:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''};
   const [vehiculoForm,setVehiculoForm]     = useState(emptyVeh);
   const [ordenes,setOrdenes]               = useState([]);
@@ -2239,8 +2243,9 @@ function ProveedoresPage({user,online,addOffline}){
     if(ordenes.length===0) return setAlert({type:'err',msg:'Agrega al menos un proveedor'});
     setSaving(true);
     try{
+      const ts=await _tsBog();
       await api.post('/proveedores',{
-        vehiculo:{...vehiculoForm,placa_vehiculo:vehiculoForm.placa_vehiculo.toUpperCase()},
+        vehiculo:{...vehiculoForm,placa_vehiculo:vehiculoForm.placa_vehiculo.toUpperCase(),fecha:ts.fecha,hora_ingreso:ts.hora},
         ordenes
       });
       setAlert({type:'ok',msg:`Ingreso registrado (${ordenes.length} orden${ordenes.length>1?'es':''})`});
@@ -2308,7 +2313,7 @@ function ProveedoresPage({user,online,addOffline}){
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'truck',s:12}),' Vehículo y conductor'),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,onChange:e=>setForm(p=>({...p,fecha:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg'},h('label',null,'Placa'),h('input',{type:'text',value:form.placa_vehiculo,onChange:e=>setForm(p=>({...p,placa_vehiculo:e.target.value.toUpperCase()})),placeholder:'ABC-123'}))
         ),
         h('div',{className:'fgrid2'},
@@ -2325,7 +2330,7 @@ function ProveedoresPage({user,online,addOffline}){
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'check',s:12}),' Horarios y ARL'),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('input',{type:'time',value:form.hora_ingreso,onChange:e=>setForm(p=>({...p,hora_ingreso:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('input',{type:'time',value:form.hora_ingreso,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida,onChange:e=>setForm(p=>({...p,hora_salida:e.target.value}))}))
         ),
         h('div',{className:'fg'},h('label',null,'Fecha pago ARL'),h('input',{type:'date',value:form.fecha_pago_arl,onChange:e=>setForm(p=>({...p,fecha_pago_arl:e.target.value}))})),
@@ -2392,8 +2397,8 @@ function ProveedoresPage({user,online,addOffline}){
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'truck',s:12}),' Datos del vehículo'),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Fecha',h('span',{className:'req'},'*')),h('input',{type:'date',value:vehiculoForm.fecha,onChange:e=>setVehiculoForm(p=>({...p,fecha:e.target.value}))})),
-          h('div',{className:'fg'},h('label',null,'Hora ingreso',h('span',{className:'req'},'*')),h('input',{type:'time',value:vehiculoForm.hora_ingreso,onChange:e=>setVehiculoForm(p=>({...p,hora_ingreso:e.target.value}))}))
+          h('div',{className:'fg'},h('label',null,'Fecha',h('span',{className:'req'},'*')),h('input',{type:'date',value:vehiculoForm.fecha,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
+          h('div',{className:'fg'},h('label',null,'Hora ingreso',h('span',{className:'req'},'*')),h('input',{type:'time',value:vehiculoForm.hora_ingreso,readOnly:true,style:{background:'#f8fafc',cursor:'default'}}))
         ),
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},
@@ -2533,7 +2538,7 @@ function ProveedoresPage({user,online,addOffline}){
             h('div',{style:{display:'flex',gap:4,marginTop:3}},
               !esBodega&&r.hora_ingreso&&!r.hora_salida&&h('button',{
                 title:'Registrar salida',
-                onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(new Date().toTimeString().slice(0,5));setFechaSalidaP(today());},
+                onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(ahoraHora());setFechaSalidaP(today());},
                 style:{background:'#d97706',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
               },'Salida'),
               (esBodega||esVehicular)&&(r.observaciones||r.foto_url)&&h('span',{style:{fontSize:10,background:'#fef3c7',color:'#92400e',borderRadius:4,padding:'2px 6px',fontWeight:600}},'Con evidencia'),
@@ -2560,13 +2565,13 @@ function ProveedoresPage({user,online,addOffline}){
           '✓ Se registra salida de '+(salida.ordenes||[]).length+' orden(es) simultáneamente'
         ),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Fecha de salida'),h('input',{type:'date',value:fechaSalidaP,onChange:e=>setFechaSalidaP(e.target.value)})),
-          h('div',{className:'fg'},h('label',null,'Hora de salida'),h('input',{type:'time',value:horaSalida,onChange:e=>setHoraSalida(e.target.value)}))
+          h('div',{className:'fg'},h('label',null,'Fecha de salida'),h('input',{type:'date',value:fechaSalidaP,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
+          h('div',{className:'fg'},h('label',null,'Hora de salida'),h('input',{type:'time',value:horaSalida,readOnly:true,style:{background:'#f8fafc',cursor:'default'}}))
         ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
           h('button',{className:'btn-cancel',onClick:()=>setSalida(null)},'Cancelar'),
           h('button',{className:'btn-primary',style:{background:'#d97706'},onClick:async()=>{
-            await api.put(`/proveedores/${salida.id}`,{hora_salida:horaSalida,fecha_salida:fechaSalidaP||undefined});
+            const ts=await _tsBog();await api.put(`/proveedores/${salida.id}`,{hora_salida:ts.hora,fecha_salida:ts.fecha});
             setSalida(null);load();setAlert({type:'ok',msg:'Salida registrada'});
           }},h(Ico,{n:'check',s:16}),'Confirmar salida')
         )
