@@ -105,10 +105,14 @@ def obtener(
     return item
 
 
+def _clean(v):
+    return None if v == "" else v
+
+
 def _insert_ordenes(db, proveedor_id: str, ordenes: list[dict]):
     for orden in ordenes:
         oid = str(uuid.uuid4())
-        ovals = {c: orden.get(c) for c in CAMPOS_ORDEN}
+        ovals = {c: _clean(orden.get(c)) for c in CAMPOS_ORDEN}
         ovals["id"] = oid
         ovals["proveedor_id"] = proveedor_id
         ocols = ", ".join(ovals.keys())
@@ -126,7 +130,7 @@ def crear(
     ordenes = body.get("ordenes", [])
 
     rid = str(uuid.uuid4())
-    vals = {c: vehiculo.get(c) for c in CAMPOS_VEHICULO}
+    vals = {c: _clean(vehiculo.get(c)) for c in CAMPOS_VEHICULO}
     vals["id"] = rid
     vals["creado_por"] = current_user["id"]
     cols = ", ".join(vals.keys())
@@ -241,7 +245,7 @@ def crear_batch(
     ids = []
     for reg in registros:
         rid = str(uuid.uuid4())
-        vals = {c: reg.get(c) for c in CAMPOS_VEHICULO}
+        vals = {c: _clean(reg.get(c)) for c in CAMPOS_VEHICULO}
         vals["id"] = rid
         vals["creado_por"] = current_user["id"]
         cols = ", ".join(vals.keys())
