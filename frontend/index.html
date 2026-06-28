@@ -2272,8 +2272,8 @@ function ProveedoresPage({user,online,addOffline}){
         vehiculo:{...vehiculoForm,placa_vehiculo:vehiculoForm.placa_vehiculo.toUpperCase(),fecha:ts.fecha,hora_ingreso:ts.hora},
         ordenes
       });
-      // Actualizar ultima_visita si conductor frecuente conocido
-      if(frecuenteInfo?.estado==='encontrado'&&frecuenteInfo.data?.id){
+      // Actualizar ultima_visita si conductor frecuente conocido (activo o inactivo)
+      if(frecuenteInfo?.data?.id){
         api.put(`/maestros/conductores-frecuentes/${frecuenteInfo.data.id}`,{ultima_visita:ts.fecha}).catch(()=>{});
       }
       const esNuevo = !frecuenteInfo || frecuenteInfo.estado==='nuevo';
