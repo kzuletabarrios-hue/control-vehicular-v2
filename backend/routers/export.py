@@ -122,7 +122,7 @@ def export_proveedores(
 
     rows = db.execute(text(f"""
         SELECT p.placa_vehiculo, p.nombre_conductor, p.tipo_vehiculo,
-               po.empresa, po.muelle_descargue, po.carga_compartida,
+               po.empresa, COALESCE(p.muelle_descargue, po.muelle_descargue) AS muelle_descargue, po.carga_compartida,
                p.fecha, p.hora_ingreso,
                p.fecha_salida, p.hora_salida,
                po.actividad_a_desarrollar, po.dependencia_autoriza,

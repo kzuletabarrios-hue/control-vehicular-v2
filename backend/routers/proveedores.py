@@ -19,7 +19,7 @@ CAMPOS_VEHICULO = [
 ]
 
 CAMPOS_ORDEN = [
-    "empresa", "muelle_descargue", "carga_compartida",
+    "empresa", "carga_compartida",
     "actividad_a_desarrollar", "dependencia_autoriza",
 ]
 

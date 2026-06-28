@@ -2152,15 +2152,15 @@ function ProveedoresPage({user,online,addOffline}){
   const tiposVehiculo = ['Camión','Camioneta','Moto','Furgón','Tractomula','Otro'];
 
   /* ── EDIT FORM STATE ── */
-  const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',cedula_conductor:'',tipo_vehiculo:'',hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',fecha_pago_arl:'',observaciones:'',foto_url:null};
+  const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',cedula_conductor:'',tipo_vehiculo:'',hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',muelle_descargue:'',fecha_pago_arl:'',observaciones:'',foto_url:null};
   const [form,setForm]               = useState(emptyF);
   const [formOrdenes,setFormOrdenes] = useState([]);
-  const [formOrd,setFormOrd]         = useState({empresa:'',muelle_descargue:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''});
+  const [formOrd,setFormOrd]         = useState({empresa:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''});
   const [addingOrd,setAddingOrd]     = useState(false);
 
   /* ── NUEVO INGRESO STATE ── */
-  const emptyVeh = ()=>({fecha:today(),placa_vehiculo:'',cedula_conductor:'',nombre_conductor:'',tipo_vehiculo:'',hora_ingreso:new Date().toTimeString().slice(0,5),fecha_pago_arl:'',observaciones:'',foto_url:null});
-  const emptyOrd = {empresa:'',muelle_descargue:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''};
+  const emptyVeh = ()=>({fecha:today(),placa_vehiculo:'',cedula_conductor:'',nombre_conductor:'',tipo_vehiculo:'',hora_ingreso:new Date().toTimeString().slice(0,5),muelle_descargue:'',fecha_pago_arl:'',observaciones:'',foto_url:null});
+  const emptyOrd = {empresa:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''};
   const [vehiculoForm,setVehiculoForm]     = useState(emptyVeh);
   const [ordenes,setOrdenes]               = useState([]);
   const [ordenDraft,setOrdenDraft]         = useState(emptyOrd);
@@ -2319,7 +2319,8 @@ function ProveedoresPage({user,online,addOffline}){
           h('select',{value:form.tipo_vehiculo,onChange:e=>setForm(p=>({...p,tipo_vehiculo:e.target.value}))},
             h('option',{value:''},'Seleccionar...'),...tiposVehiculo.map(t=>h('option',{key:t,value:t},t))
           )
-        )
+        ),
+        h('div',{className:'fg'},h('label',null,'Muelle descargue'),h('input',{type:'text',value:form.muelle_descargue||'',onChange:e=>setForm(p=>({...p,muelle_descargue:e.target.value})),placeholder:'N° muelle'}))
       ),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'check',s:12}),' Horarios y ARL'),
@@ -2345,7 +2346,7 @@ function ProveedoresPage({user,online,addOffline}){
           h('div',{style:{flex:1,minWidth:0}},
             h('div',{style:{fontWeight:700,fontSize:13,color:'var(--text)'}},(o.empresa||'Sin empresa')),
             h('div',{style:{fontSize:11,color:'var(--slate)',marginTop:1}},
-              [o.muelle_descargue&&'Muelle: '+o.muelle_descargue,o.actividad_a_desarrollar,o.carga_compartida&&'Carga compartida'].filter(Boolean).join(' · ')
+              [o.actividad_a_desarrollar,o.carga_compartida&&'Carga compartida'].filter(Boolean).join(' · ')
             )
           ),
           h('button',{title:'Eliminar orden',onClick:()=>eliminarOrdenForm(o.id),style:{background:'#fee2e2',border:'none',cursor:'pointer',color:'#dc2626',padding:'4px 8px',borderRadius:6,fontSize:11}},h(Ico,{n:'trash',s:12}))
@@ -2356,12 +2357,9 @@ function ProveedoresPage({user,online,addOffline}){
             h('input',{type:'text',list:'bd-prov-form-edit',value:formOrd.empresa,onChange:e=>setFormOrd(p=>({...p,empresa:e.target.value})),placeholder:'Selecciona o escribe'}),
             h('datalist',{id:'bd-prov-form-edit'},bdProv.filter(p=>p.activo!==false).map(p=>h('option',{key:p.id,value:p.nombre})))
           ),
-          h('div',{className:'fgrid2'},
-            h('div',{className:'fg'},h('label',null,'Muelle'),h('input',{type:'text',value:formOrd.muelle_descargue,onChange:e=>setFormOrd(p=>({...p,muelle_descargue:e.target.value})),placeholder:'N° muelle'})),
-            h('div',{className:'fg'},h('label',null,'Carga compartida'),
-              h('select',{value:formOrd.carga_compartida?'si':'no',onChange:e=>setFormOrd(p=>({...p,carga_compartida:e.target.value==='si'}))},
-                h('option',{value:'no'},'No'),h('option',{value:'si'},'Sí')
-              )
+          h('div',{className:'fg'},h('label',null,'Carga compartida'),
+            h('select',{value:formOrd.carga_compartida?'si':'no',onChange:e=>setFormOrd(p=>({...p,carga_compartida:e.target.value==='si'}))},
+              h('option',{value:'no'},'No'),h('option',{value:'si'},'Sí')
             )
           ),
           h('div',{className:'fg'},h('label',null,'Actividad'),h('textarea',{value:formOrd.actividad_a_desarrollar,onChange:e=>setFormOrd(p=>({...p,actividad_a_desarrollar:e.target.value})),rows:2,placeholder:'Opcional'})),
@@ -2418,7 +2416,8 @@ function ProveedoresPage({user,online,addOffline}){
             )
           )
         ),
-        h('div',{className:'fg'},h('label',null,'Fecha pago ARL'),h('input',{type:'date',value:vehiculoForm.fecha_pago_arl,onChange:e=>setVehiculoForm(p=>({...p,fecha_pago_arl:e.target.value}))}))
+        h('div',{className:'fg'},h('label',null,'Fecha pago ARL'),h('input',{type:'date',value:vehiculoForm.fecha_pago_arl,onChange:e=>setVehiculoForm(p=>({...p,fecha_pago_arl:e.target.value}))})),
+        h('div',{className:'fg'},h('label',null,'Muelle descargue'),h('input',{type:'text',value:vehiculoForm.muelle_descargue,onChange:e=>setVehiculoForm(p=>({...p,muelle_descargue:e.target.value})),placeholder:'N° muelle (opcional)'}))
       ),
 
       h('div',{className:'fcard',style:{border:'1.5px solid var(--navy)'}},
@@ -2430,12 +2429,9 @@ function ProveedoresPage({user,online,addOffline}){
           h('input',{type:'text',list:'bd-prov-batch',value:ordenDraft.empresa,onChange:e=>setOrdenDraft(p=>({...p,empresa:e.target.value})),placeholder:'Selecciona o escribe'}),
           h('datalist',{id:'bd-prov-batch'},bdProv.filter(p=>p.activo!==false).map(p=>h('option',{key:p.id,value:p.nombre})))
         ),
-        h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Muelle descargue'),h('input',{type:'text',value:ordenDraft.muelle_descargue,onChange:e=>setOrdenDraft(p=>({...p,muelle_descargue:e.target.value})),placeholder:'N° muelle'})),
-          h('div',{className:'fg'},h('label',null,'Carga compartida'),
-            h('select',{value:ordenDraft.carga_compartida?'si':'no',onChange:e=>setOrdenDraft(p=>({...p,carga_compartida:e.target.value==='si'}))},
-              h('option',{value:'no'},'No'),h('option',{value:'si'},'Sí')
-            )
+        h('div',{className:'fg'},h('label',null,'Carga compartida'),
+          h('select',{value:ordenDraft.carga_compartida?'si':'no',onChange:e=>setOrdenDraft(p=>({...p,carga_compartida:e.target.value==='si'}))},
+            h('option',{value:'no'},'No'),h('option',{value:'si'},'Sí')
           )
         ),
         h('div',{className:'fg'},h('label',null,'Actividad a desarrollar'),h('textarea',{value:ordenDraft.actividad_a_desarrollar,onChange:e=>setOrdenDraft(p=>({...p,actividad_a_desarrollar:e.target.value})),rows:2,placeholder:'Opcional'})),
@@ -2452,7 +2448,7 @@ function ProveedoresPage({user,online,addOffline}){
           h('div',{style:{flex:1,minWidth:0}},
             h('div',{style:{fontWeight:700,fontSize:13,color:'var(--text)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},o.empresa||'Sin empresa'),
             h('div',{style:{fontSize:11,color:'var(--slate)',marginTop:1}},
-              [o.muelle_descargue&&'Muelle: '+o.muelle_descargue,o.actividad_a_desarrollar,o.carga_compartida&&'Carga compartida'].filter(Boolean).join(' · ')
+              [o.actividad_a_desarrollar,o.carga_compartida&&'Carga compartida'].filter(Boolean).join(' · ')
             )
           ),
           h('div',{style:{display:'flex',gap:4,flexShrink:0}},
@@ -2526,7 +2522,7 @@ function ProveedoresPage({user,online,addOffline}){
             setSelected(r);setFormOrdenes(r.ordenes||[]);setAddingOrd(false);setView('form');
           }},
             h('div',{className:'li-title'},r.nombre_conductor||r.placa_vehiculo||'Sin nombre'),
-            h('div',{className:'li-sub'},[r.cedula_conductor&&'CC '+r.cedula_conductor,r.placa_vehiculo,r.tipo_vehiculo].filter(Boolean).join(' · ')),
+            h('div',{className:'li-sub'},[r.cedula_conductor&&'CC '+r.cedula_conductor,r.placa_vehiculo,r.tipo_vehiculo,r.muelle_descargue&&'Muelle '+r.muelle_descargue].filter(Boolean).join(' · ')),
             h('div',{className:'li-sub'},empLabel),
             ords.length>1&&h('span',{style:{fontSize:10,background:'#dbeafe',color:'#1d4ed8',borderRadius:4,padding:'1px 6px',fontWeight:700,display:'inline-block',marginTop:2}},ords.length+' órdenes')
           ),
