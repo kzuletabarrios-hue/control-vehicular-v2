@@ -114,15 +114,23 @@ def export_proveedores(
         where.append("fecha <= :hasta")
         params["hasta"] = fecha_hasta
 
+    p_where = ["1=1"]
+    if fecha_desde:
+        p_where.append("p.fecha >= :desde")
+    if fecha_hasta:
+        p_where.append("p.fecha <= :hasta")
+
     rows = db.execute(text(f"""
-        SELECT placa_vehiculo, nombre_conductor, tipo_vehiculo, empresa,
-               muelle_descargue, carga_compartida,
-               fecha, hora_ingreso,
-               fecha_salida, hora_salida,
-               actividad_a_desarrollar, dependencia_autoriza, fecha_pago_arl, observaciones
-        FROM proveedores
-        WHERE {' AND '.join(where)}
-        ORDER BY fecha DESC
+        SELECT p.placa_vehiculo, p.nombre_conductor, p.tipo_vehiculo,
+               po.empresa, po.muelle_descargue, po.carga_compartida,
+               p.fecha, p.hora_ingreso,
+               p.fecha_salida, p.hora_salida,
+               po.actividad_a_desarrollar, po.dependencia_autoriza,
+               p.fecha_pago_arl, p.observaciones
+        FROM proveedores p
+        LEFT JOIN proveedores_ordenes po ON po.proveedor_id = p.id
+        WHERE {' AND '.join(p_where)}
+        ORDER BY p.fecha DESC, p.created_at DESC, po.created_at
     """), params).fetchall()
 
     wb = Workbook()

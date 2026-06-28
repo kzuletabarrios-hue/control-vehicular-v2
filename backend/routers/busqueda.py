@@ -43,10 +43,12 @@ def buscar(
 
     if "read" in permisos.get("proveedores", []):
         rows = db.execute(text("""
-            SELECT id, fecha, placa_vehiculo, nombre_conductor, hora_salida
-            FROM proveedores
-            WHERE placa_vehiculo ILIKE :q OR nombre_conductor ILIKE :q
-            ORDER BY fecha DESC LIMIT 10
+            SELECT DISTINCT p.id, p.fecha, p.placa_vehiculo, p.nombre_conductor, p.hora_salida
+            FROM proveedores p
+            LEFT JOIN proveedores_ordenes po ON po.proveedor_id = p.id
+            WHERE p.placa_vehiculo ILIKE :q OR p.nombre_conductor ILIKE :q
+               OR po.empresa ILIKE :q
+            ORDER BY p.fecha DESC LIMIT 10
         """), {"q": like}).fetchall()
         for r in rows:
             d = dict(r._mapping)

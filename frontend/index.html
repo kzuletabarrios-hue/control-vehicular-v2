@@ -2144,23 +2144,27 @@ function ProveedoresPage({user,online,addOffline}){
   const [salida,setSalida]     = useState(null);
   const [horaSalida,setHoraSalida]     = useState('');
   const [fechaSalidaP,setFechaSalidaP] = useState('');
-  const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',cedula_conductor:'',tipo_vehiculo:'',empresa:'',muelle_descargue:'',carga_compartida:false,hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',actividad_a_desarrollar:'',dependencia_autoriza:'',fecha_pago_arl:'',observaciones:'',foto_url:null};
-  const [form,setForm]         = useState(emptyF);
   const [filtro,setFiltro]     = useState('pendientes');
   const [busqueda,setBusqueda] = useState('');
   const esBodega    = user?.rol==='guarda_bodega';
   const esVehicular = user?.rol==='guarda_vehicular';
-
-  /* ── BATCH STATE ── */
-  const emptyDraft = {placa_vehiculo:'',cedula_conductor:'',nombre_conductor:'',empresa:'',tipo_vehiculo:'',muelle_descargue:'',actividad_a_desarrollar:'',carga_compartida:false};
-  const [batchFecha,setBatchFecha] = useState(today());
-  const [batchHora,setBatchHora]   = useState(new Date().toTimeString().slice(0,5));
-  const [batch,setBatch]           = useState([]);
-  const [draft,setDraft]           = useState(emptyDraft);
-  const [editingIdx,setEditingIdx] = useState(null);
-  const [bdProv,setBdProv]         = useState([]);
-
+  const [bdProv,setBdProv]     = useState([]);
   const tiposVehiculo = ['Camión','Camioneta','Moto','Furgón','Tractomula','Otro'];
+
+  /* ── EDIT FORM STATE ── */
+  const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',cedula_conductor:'',tipo_vehiculo:'',hora_ingreso:new Date().toTimeString().slice(0,5),hora_salida:'',fecha_pago_arl:'',observaciones:'',foto_url:null};
+  const [form,setForm]               = useState(emptyF);
+  const [formOrdenes,setFormOrdenes] = useState([]);
+  const [formOrd,setFormOrd]         = useState({empresa:'',muelle_descargue:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''});
+  const [addingOrd,setAddingOrd]     = useState(false);
+
+  /* ── NUEVO INGRESO STATE ── */
+  const emptyVeh = ()=>({fecha:today(),placa_vehiculo:'',cedula_conductor:'',nombre_conductor:'',tipo_vehiculo:'',hora_ingreso:new Date().toTimeString().slice(0,5),fecha_pago_arl:'',observaciones:'',foto_url:null});
+  const emptyOrd = {empresa:'',muelle_descargue:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''};
+  const [vehiculoForm,setVehiculoForm]     = useState(emptyVeh);
+  const [ordenes,setOrdenes]               = useState([]);
+  const [ordenDraft,setOrdenDraft]         = useState(emptyOrd);
+  const [ordenEditingIdx,setOrdenEditingIdx] = useState(null);
 
   const load = useCallback(()=>{
     setLoading(true);
@@ -2172,65 +2176,76 @@ function ProveedoresPage({user,online,addOffline}){
     api.get('/maestros/proveedores').then(r=>setBdProv(Array.isArray(r)?r:(r.items||[]))).catch(()=>{});
   },[]);
 
-  const lookupConductor = async(cedula)=>{
+  const lookupConductor = async(cedula,setter)=>{
     if(!cedula||String(cedula).length<5) return;
     try{
       const res = await api.get('/conductores?activo=true&limit=300');
       const list = Array.isArray(res)?res:(res.items||[]);
       const m = list.find(c=>String(c.cedula)===String(cedula));
-      if(m) setDraft(p=>({...p,nombre_conductor:m.nombre_completo||m.nombre||p.nombre_conductor}));
+      if(m) setter(p=>({...p,nombre_conductor:m.nombre_completo||m.nombre||p.nombre_conductor}));
     }catch(e){}
   };
 
+  /* guardar vehículo editado (datos generales) */
   const handleSave = async()=>{
     setSaving(true);
     const body = Object.fromEntries(Object.entries(form).filter(([,v])=>v!=null&&v!==''));
     try{
       if(selected) await api.put(`/proveedores/${selected.id}`,body);
-      else await api.post('/proveedores',body);
+      else await api.post('/proveedores',{vehiculo:body,ordenes:[]});
       setAlert({type:'ok',msg:'Registro guardado'});
-      setView('list');setForm(emptyF);setSelected(null);load();
+      setView('list');setForm(emptyF);setSelected(null);setFormOrdenes([]);load();
     }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
     finally{setSaving(false);}
   };
 
-  const agregarAlBatch = ()=>{
-    if(!draft.placa_vehiculo.trim()) return setAlert({type:'err',msg:'La placa es obligatoria'});
-    if(!draft.cedula_conductor.trim()) return setAlert({type:'err',msg:'La cédula del conductor es obligatoria'});
-    const dup = batch.some((b,i)=>i!==editingIdx&&
-      b.cedula_conductor===draft.cedula_conductor&&
-      b.empresa.toLowerCase()===(draft.empresa||'').toLowerCase()
-    );
-    if(dup) return setAlert({type:'err',msg:'Este conductor ya está registrado con ese proveedor en el lote'});
-    const item = {...draft,placa_vehiculo:draft.placa_vehiculo.toUpperCase()};
-    if(editingIdx!==null){
-      setBatch(p=>{const n=[...p];n[editingIdx]=item;return n;});
-      setEditingIdx(null);
-    }else{
-      setBatch(p=>[...p,item]);
-    }
-    setDraft(p=>({...p,empresa:'',actividad_a_desarrollar:''}));
+  /* agregar orden al registro editado (llamada API inmediata) */
+  const agregarOrdenForm = async()=>{
+    if(!formOrd.empresa.trim()) return setAlert({type:'err',msg:'La empresa es obligatoria'});
+    try{
+      const res = await api.post(`/proveedores/${selected.id}/ordenes`,formOrd);
+      setFormOrdenes(p=>[...p,{...formOrd,id:res.id,proveedor_id:selected.id}]);
+      setFormOrd({empresa:'',muelle_descargue:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''});
+      setAddingOrd(false);
+    }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
   };
 
-  const guardarBatch = async()=>{
-    if(batch.length===0) return setAlert({type:'err',msg:'Agrega al menos un proveedor'});
-    setSaving(true);
-    // Agrupar por placa+cédula → un registro por conductor con todas sus empresas
-    const grupos = {};
-    batch.forEach(b=>{
-      const key = `${b.placa_vehiculo}|${b.cedula_conductor}`;
-      if(!grupos[key]) grupos[key] = {...b,fecha:batchFecha,hora_ingreso:batchHora,_empresas:[]};
-      if(b.empresa) grupos[key]._empresas.push(b.empresa);
-    });
-    const registros = Object.values(grupos).map(({_empresas,...rest})=>({
-      ...rest,
-      empresa: _empresas.length>0 ? _empresas.join(' / ') : rest.empresa
-    }));
+  /* eliminar orden del registro editado */
+  const eliminarOrdenForm = async(oid)=>{
     try{
-      await api.post('/proveedores/batch',{registros});
-      setAlert({type:'ok',msg:`${registros.length} ingreso(s) registrado(s)`});
-      setView('list');setBatch([]);setDraft(emptyDraft);
-      setBatchFecha(today());setBatchHora(new Date().toTimeString().slice(0,5));
+      await api.del(`/proveedores/${selected.id}/ordenes/${oid}`);
+      setFormOrdenes(p=>p.filter(o=>o.id!==oid));
+    }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
+  };
+
+  /* agregar orden a la lista local (nuevo ingreso) */
+  const agregarOrden = ()=>{
+    if(!ordenDraft.empresa.trim()) return setAlert({type:'err',msg:'La empresa es obligatoria'});
+    const dup = ordenes.some((o,i)=>i!==ordenEditingIdx&&o.empresa.toLowerCase()===ordenDraft.empresa.toLowerCase());
+    if(dup) return setAlert({type:'err',msg:'Esta empresa ya está en el ingreso'});
+    if(ordenEditingIdx!==null){
+      setOrdenes(p=>{const n=[...p];n[ordenEditingIdx]={...ordenDraft};return n;});
+      setOrdenEditingIdx(null);
+    }else{
+      setOrdenes(p=>[...p,{...ordenDraft}]);
+    }
+    setOrdenDraft({...emptyOrd});
+  };
+
+  /* guardar nuevo ingreso completo (vehículo + órdenes) */
+  const guardarIngreso = async()=>{
+    if(!vehiculoForm.placa_vehiculo.trim()) return setAlert({type:'err',msg:'La placa es obligatoria'});
+    if(!vehiculoForm.cedula_conductor.trim()) return setAlert({type:'err',msg:'La cédula del conductor es obligatoria'});
+    if(ordenes.length===0) return setAlert({type:'err',msg:'Agrega al menos un proveedor'});
+    setSaving(true);
+    try{
+      await api.post('/proveedores',{
+        vehiculo:{...vehiculoForm,placa_vehiculo:vehiculoForm.placa_vehiculo.toUpperCase()},
+        ordenes
+      });
+      setAlert({type:'ok',msg:`Ingreso registrado (${ordenes.length} orden${ordenes.length>1?'es':''})`});
+      setView('list');
+      setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);
       load();
     }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
     finally{setSaving(false);}
@@ -2239,7 +2254,7 @@ function ProveedoresPage({user,online,addOffline}){
   if(view==='form' && esBodega) return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{className:'header'},
       h('div',{className:'header-inner'},
-        h('button',{onClick:()=>{setView('list');setForm(emptyF);setSelected(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
+        h('button',{onClick:()=>{setView('list');setForm(emptyF);setSelected(null);setFormOrdenes([]);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
           h(Ico,{n:'arrowLeft',s:18}),' Volver'
         ),
         h('div',{className:'header-brand'},h('h1',null,'Evidencia de Rechazo'),h('span',null,'Proveedores'))
@@ -2249,15 +2264,14 @@ function ProveedoresPage({user,online,addOffline}){
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'package',s:12}),' Proveedor'),
-        h('div',{className:'fg'},h('label',null,'Empresa'),h('p',{style:{fontWeight:600,padding:'4px 0',color:'var(--text)'}},form.empresa||'—')),
+        h('div',{className:'fg'},h('label',null,'Empresa(s)'),h('p',{style:{fontWeight:600,padding:'4px 0',color:'var(--text)'}},
+          formOrdenes.map(o=>o.empresa).filter(Boolean).join(' · ')||form.empresa||'—'
+        )),
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},h('label',null,'Conductor'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.nombre_conductor||'—')),
           h('div',{className:'fg'},h('label',null,'Placa'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.placa_vehiculo||'—'))
         ),
-        h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Muelle'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.muelle_descargue||'—')),
-          h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.hora_ingreso||'—'))
-        )
+        h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.hora_ingreso||'—'))
       ),
       h('div',{className:'fcard',style:{border:'1.5px solid #fca5a5'}},
         h('p',{className:'sec-ttl',style:{color:'#dc2626'}},h(Ico,{n:'alert',s:12}),' Motivo del rechazo'),
@@ -2272,7 +2286,7 @@ function ProveedoresPage({user,online,addOffline}){
       )
     ),
     h('div',{className:'sticky-cta'},
-      h('button',{className:'btn-cancel',onClick:()=>{setView('list');setForm(emptyF);setSelected(null);}},h(Ico,{n:'x',s:15})),
+      h('button',{className:'btn-cancel',onClick:()=>{setView('list');setForm(emptyF);setSelected(null);setFormOrdenes([]);}},h(Ico,{n:'x',s:15})),
       h('button',{className:'btn-primary',onClick:handleSave,disabled:saving},
         saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),saving?'Guardando...':'Guardar evidencia'
       )
@@ -2283,7 +2297,7 @@ function ProveedoresPage({user,online,addOffline}){
   if(view==='form') return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{className:'header'},
       h('div',{className:'header-inner'},
-        h('button',{onClick:()=>{setView('list');setForm(emptyF);setSelected(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
+        h('button',{onClick:()=>{setView('list');setForm(emptyF);setSelected(null);setFormOrdenes([]);setAddingOrd(false);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
           h(Ico,{n:'arrowLeft',s:18}),' Volver'
         ),
         h('div',{className:'header-brand'},h('h1',null,'Editar Proveedor'),h('span',null,'Proveedores'))
@@ -2301,30 +2315,11 @@ function ProveedoresPage({user,online,addOffline}){
           h('div',{className:'fg'},h('label',null,'Cédula conductor'),h('input',{type:'text',value:form.cedula_conductor||'',onChange:e=>setForm(p=>({...p,cedula_conductor:e.target.value})),placeholder:'Número de cédula'})),
           h('div',{className:'fg'},h('label',null,'Nombre conductor'),h('input',{type:'text',value:form.nombre_conductor,onChange:e=>setForm(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Nombre completo'}))
         ),
-        h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Tipo vehículo'),
-            h('select',{value:form.tipo_vehiculo,onChange:e=>setForm(p=>({...p,tipo_vehiculo:e.target.value}))},
-              h('option',{value:''},'Seleccionar...'),...tiposVehiculo.map(t=>h('option',{key:t,value:t},t))
-            )
-          ),
-          h('div',{className:'fg'},h('label',null,'Empresa'),
-            h('input',{type:'text',list:'bd-prov-edit',value:form.empresa,onChange:e=>setForm(p=>({...p,empresa:e.target.value})),placeholder:'Razón social'}),
-            h('datalist',{id:'bd-prov-edit'},bdProv.filter(p=>p.activo!==false).map(p=>h('option',{key:p.id,value:p.nombre})))
+        h('div',{className:'fg'},h('label',null,'Tipo vehículo'),
+          h('select',{value:form.tipo_vehiculo,onChange:e=>setForm(p=>({...p,tipo_vehiculo:e.target.value}))},
+            h('option',{value:''},'Seleccionar...'),...tiposVehiculo.map(t=>h('option',{key:t,value:t},t))
           )
         )
-      ),
-      h('div',{className:'fcard'},
-        h('p',{className:'sec-ttl'},h(Ico,{n:'package',s:12}),' Operación'),
-        h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Muelle descargue'),h('input',{type:'text',value:form.muelle_descargue,onChange:e=>setForm(p=>({...p,muelle_descargue:e.target.value})),placeholder:'N° muelle'})),
-          h('div',{className:'fg'},h('label',null,'Carga compartida'),
-            h('select',{value:form.carga_compartida?'si':'no',onChange:e=>setForm(p=>({...p,carga_compartida:e.target.value==='si'}))},
-              h('option',{value:'no'},'No'),h('option',{value:'si'},'Sí')
-            )
-          )
-        ),
-        h('div',{className:'fg'},h('label',null,'Actividad a desarrollar'),h('textarea',{value:form.actividad_a_desarrollar,onChange:e=>setForm(p=>({...p,actividad_a_desarrollar:e.target.value})),rows:2,placeholder:'Describe la actividad'})),
-        h('div',{className:'fg'},h('label',null,'Dependencia que autoriza'),h('input',{type:'text',value:form.dependencia_autoriza,onChange:e=>setForm(p=>({...p,dependencia_autoriza:e.target.value})),placeholder:'Área o persona'}))
       ),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'check',s:12}),' Horarios y ARL'),
@@ -2338,21 +2333,56 @@ function ProveedoresPage({user,online,addOffline}){
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'camera',s:12}),' Fotografía'),
         h(CameraField,{value:form.foto_url,onChange:v=>setForm(p=>({...p,foto_url:v}))})
+      ),
+      h('div',{className:'fcard'},
+        h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}},
+          h('p',{className:'sec-ttl',style:{margin:0}},h(Ico,{n:'package',s:12}),` Órdenes / Proveedores (${formOrdenes.length})`),
+          h('button',{onClick:()=>setAddingOrd(v=>!v),style:{background:'var(--navy)',border:'none',color:'#fff',borderRadius:6,padding:'4px 10px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}},
+            addingOrd?'Cancelar':'+ Agregar')
+        ),
+        formOrdenes.length===0&&!addingOrd&&h('p',{style:{fontSize:12,color:'var(--slate)',textAlign:'center',padding:'8px 0'}},'Sin órdenes registradas'),
+        formOrdenes.map((o,i)=>h('div',{key:o.id||i,style:{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:i<formOrdenes.length-1?'1px solid var(--border)':'none'}},
+          h('div',{style:{flex:1,minWidth:0}},
+            h('div',{style:{fontWeight:700,fontSize:13,color:'var(--text)'}},(o.empresa||'Sin empresa')),
+            h('div',{style:{fontSize:11,color:'var(--slate)',marginTop:1}},
+              [o.muelle_descargue&&'Muelle: '+o.muelle_descargue,o.actividad_a_desarrollar,o.carga_compartida&&'Carga compartida'].filter(Boolean).join(' · ')
+            )
+          ),
+          h('button',{title:'Eliminar orden',onClick:()=>eliminarOrdenForm(o.id),style:{background:'#fee2e2',border:'none',cursor:'pointer',color:'#dc2626',padding:'4px 8px',borderRadius:6,fontSize:11}},h(Ico,{n:'trash',s:12}))
+        )),
+        addingOrd&&h('div',{style:{marginTop:10,paddingTop:10,borderTop:'1px dashed var(--border)'}},
+          h('div',{className:'fg'},
+            h('label',null,'Empresa',h('span',{className:'req'},'*')),
+            h('input',{type:'text',list:'bd-prov-form-edit',value:formOrd.empresa,onChange:e=>setFormOrd(p=>({...p,empresa:e.target.value})),placeholder:'Selecciona o escribe'}),
+            h('datalist',{id:'bd-prov-form-edit'},bdProv.filter(p=>p.activo!==false).map(p=>h('option',{key:p.id,value:p.nombre})))
+          ),
+          h('div',{className:'fgrid2'},
+            h('div',{className:'fg'},h('label',null,'Muelle'),h('input',{type:'text',value:formOrd.muelle_descargue,onChange:e=>setFormOrd(p=>({...p,muelle_descargue:e.target.value})),placeholder:'N° muelle'})),
+            h('div',{className:'fg'},h('label',null,'Carga compartida'),
+              h('select',{value:formOrd.carga_compartida?'si':'no',onChange:e=>setFormOrd(p=>({...p,carga_compartida:e.target.value==='si'}))},
+                h('option',{value:'no'},'No'),h('option',{value:'si'},'Sí')
+              )
+            )
+          ),
+          h('div',{className:'fg'},h('label',null,'Actividad'),h('textarea',{value:formOrd.actividad_a_desarrollar,onChange:e=>setFormOrd(p=>({...p,actividad_a_desarrollar:e.target.value})),rows:2,placeholder:'Opcional'})),
+          h('button',{onClick:agregarOrdenForm,style:{width:'100%',marginTop:6,background:'var(--navy)',border:'none',color:'#fff',borderRadius:8,padding:'9px 14px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6,fontSize:13,fontWeight:700,fontFamily:'inherit'}},
+            h(Ico,{n:'plus',s:14}),'Agregar orden')
+        )
       )
     ),
     h('div',{className:'sticky-cta'},
-      h('button',{className:'btn-cancel',onClick:()=>{setView('list');setForm(emptyF);setSelected(null);}},h(Ico,{n:'x',s:15})),
+      h('button',{className:'btn-cancel',onClick:()=>{setView('list');setForm(emptyF);setSelected(null);setFormOrdenes([]);setAddingOrd(false);}},h(Ico,{n:'x',s:15})),
       h('button',{className:'btn-primary',onClick:handleSave,disabled:saving},
         saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),saving?'Guardando...':'Guardar registro'
       )
     )
   );
 
-  /* ── VISTA: BATCH (NUEVO INGRESO MÚLTIPLE) ── */
+  /* ── VISTA: NUEVO INGRESO ── */
   if(view==='batch') return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{className:'header'},
       h('div',{className:'header-inner'},
-        h('button',{onClick:()=>{setView('list');setBatch([]);setDraft(emptyDraft);setEditingIdx(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
+        h('button',{onClick:()=>{setView('list');setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
           h(Ico,{n:'arrowLeft',s:18}),' Volver'
         ),
         h('div',{className:'header-brand'},h('h1',null,'Nuevo ingreso'),h('span',null,'Proveedores'))
@@ -2362,104 +2392,86 @@ function ProveedoresPage({user,online,addOffline}){
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
 
       h('div',{className:'fcard'},
-        h('p',{className:'sec-ttl'},h(Ico,{n:'calendar',s:12}),' Fecha y hora de ingreso'),
+        h('p',{className:'sec-ttl'},h(Ico,{n:'truck',s:12}),' Datos del vehículo'),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},
-            h('label',null,'Fecha',h('span',{className:'req'},'*')),
-            h('input',{type:'date',value:batchFecha,onChange:e=>setBatchFecha(e.target.value)})
-          ),
-          h('div',{className:'fg'},
-            h('label',null,'Hora ingreso',h('span',{className:'req'},'*')),
-            h('input',{type:'time',value:batchHora,onChange:e=>setBatchHora(e.target.value)})
-          )
-        )
-      ),
-
-      h('div',{className:'fcard',style:{border:'1.5px solid var(--navy)'}},
-        h('p',{className:'sec-ttl',style:{color:'var(--navy)'}},
-          h(Ico,{n:'plus',s:12}),' ',editingIdx!==null?`Editar proveedor ${editingIdx+1}`:'Agregar proveedor'
+          h('div',{className:'fg'},h('label',null,'Fecha',h('span',{className:'req'},'*')),h('input',{type:'date',value:vehiculoForm.fecha,onChange:e=>setVehiculoForm(p=>({...p,fecha:e.target.value}))})),
+          h('div',{className:'fg'},h('label',null,'Hora ingreso',h('span',{className:'req'},'*')),h('input',{type:'time',value:vehiculoForm.hora_ingreso,onChange:e=>setVehiculoForm(p=>({...p,hora_ingreso:e.target.value}))}))
         ),
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},
             h('label',null,'Placa',h('span',{className:'req'},'*')),
-            h('input',{type:'text',value:draft.placa_vehiculo,onChange:e=>setDraft(p=>({...p,placa_vehiculo:e.target.value.toUpperCase()})),placeholder:'ABC-123',style:{textTransform:'uppercase'}})
+            h('input',{type:'text',value:vehiculoForm.placa_vehiculo,onChange:e=>setVehiculoForm(p=>({...p,placa_vehiculo:e.target.value.toUpperCase()})),placeholder:'ABC-123',style:{textTransform:'uppercase'}})
           ),
           h('div',{className:'fg'},
             h('label',null,'Cédula conductor',h('span',{className:'req'},'*')),
-            h('input',{type:'text',value:draft.cedula_conductor,
-              onChange:e=>setDraft(p=>({...p,cedula_conductor:e.target.value})),
-              onBlur:e=>lookupConductor(e.target.value),
-              placeholder:'Número de cédula'
-            })
+            h('input',{type:'text',value:vehiculoForm.cedula_conductor,
+              onChange:e=>setVehiculoForm(p=>({...p,cedula_conductor:e.target.value})),
+              onBlur:e=>lookupConductor(e.target.value,setVehiculoForm),
+              placeholder:'Número de cédula'})
           )
         ),
-        h('div',{className:'fg'},
-          h('label',null,'Nombre conductor'),
-          h('input',{type:'text',value:draft.nombre_conductor,onChange:e=>setDraft(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Se autocompleta o ingresa manual'})
-        ),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},
-            h('label',null,'Empresa / Proveedor'),
-            h('input',{type:'text',list:'bd-prov-batch',value:draft.empresa,onChange:e=>setDraft(p=>({...p,empresa:e.target.value})),placeholder:'Selecciona o escribe'}),
-            h('datalist',{id:'bd-prov-batch'},bdProv.filter(p=>p.activo!==false).map(p=>h('option',{key:p.id,value:p.nombre})))
-          ),
-          h('div',{className:'fg'},
-            h('label',null,'Tipo vehículo'),
-            h('select',{value:draft.tipo_vehiculo,onChange:e=>setDraft(p=>({...p,tipo_vehiculo:e.target.value}))},
+          h('div',{className:'fg'},h('label',null,'Nombre conductor'),h('input',{type:'text',value:vehiculoForm.nombre_conductor,onChange:e=>setVehiculoForm(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Se autocompleta o ingresa manual'})),
+          h('div',{className:'fg'},h('label',null,'Tipo vehículo'),
+            h('select',{value:vehiculoForm.tipo_vehiculo,onChange:e=>setVehiculoForm(p=>({...p,tipo_vehiculo:e.target.value}))},
               h('option',{value:''},'Seleccionar...'),...tiposVehiculo.map(t=>h('option',{key:t,value:t},t))
             )
           )
         ),
+        h('div',{className:'fg'},h('label',null,'Fecha pago ARL'),h('input',{type:'date',value:vehiculoForm.fecha_pago_arl,onChange:e=>setVehiculoForm(p=>({...p,fecha_pago_arl:e.target.value}))}))
+      ),
+
+      h('div',{className:'fcard',style:{border:'1.5px solid var(--navy)'}},
+        h('p',{className:'sec-ttl',style:{color:'var(--navy)'}},
+          h(Ico,{n:'plus',s:12}),' ',ordenEditingIdx!==null?`Editar orden ${ordenEditingIdx+1}`:'Agregar proveedor'
+        ),
+        h('div',{className:'fg'},
+          h('label',null,'Empresa / Proveedor',h('span',{className:'req'},'*')),
+          h('input',{type:'text',list:'bd-prov-batch',value:ordenDraft.empresa,onChange:e=>setOrdenDraft(p=>({...p,empresa:e.target.value})),placeholder:'Selecciona o escribe'}),
+          h('datalist',{id:'bd-prov-batch'},bdProv.filter(p=>p.activo!==false).map(p=>h('option',{key:p.id,value:p.nombre})))
+        ),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},
-            h('label',null,'Muelle descargue'),
-            h('input',{type:'text',value:draft.muelle_descargue,onChange:e=>setDraft(p=>({...p,muelle_descargue:e.target.value})),placeholder:'N° muelle'})
-          ),
-          h('div',{className:'fg'},
-            h('label',null,'Carga compartida'),
-            h('select',{value:draft.carga_compartida?'si':'no',onChange:e=>setDraft(p=>({...p,carga_compartida:e.target.value==='si'}))},
+          h('div',{className:'fg'},h('label',null,'Muelle descargue'),h('input',{type:'text',value:ordenDraft.muelle_descargue,onChange:e=>setOrdenDraft(p=>({...p,muelle_descargue:e.target.value})),placeholder:'N° muelle'})),
+          h('div',{className:'fg'},h('label',null,'Carga compartida'),
+            h('select',{value:ordenDraft.carga_compartida?'si':'no',onChange:e=>setOrdenDraft(p=>({...p,carga_compartida:e.target.value==='si'}))},
               h('option',{value:'no'},'No'),h('option',{value:'si'},'Sí')
             )
           )
         ),
-        h('div',{className:'fg'},
-          h('label',null,'Actividad a desarrollar'),
-          h('textarea',{value:draft.actividad_a_desarrollar,onChange:e=>setDraft(p=>({...p,actividad_a_desarrollar:e.target.value})),rows:2,placeholder:'Opcional'})
-        ),
+        h('div',{className:'fg'},h('label',null,'Actividad a desarrollar'),h('textarea',{value:ordenDraft.actividad_a_desarrollar,onChange:e=>setOrdenDraft(p=>({...p,actividad_a_desarrollar:e.target.value})),rows:2,placeholder:'Opcional'})),
+        h('div',{className:'fg'},h('label',null,'Dependencia que autoriza'),h('input',{type:'text',value:ordenDraft.dependencia_autoriza,onChange:e=>setOrdenDraft(p=>({...p,dependencia_autoriza:e.target.value})),placeholder:'Opcional'})),
         h('button',{
-          onClick:agregarAlBatch,
+          onClick:agregarOrden,
           style:{width:'100%',marginTop:8,background:'var(--navy)',border:'none',color:'#fff',borderRadius:8,padding:'10px 14px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6,fontSize:13,fontWeight:700,fontFamily:'inherit'}
-        },h(Ico,{n:editingIdx!==null?'save':'plus',s:15}),editingIdx!==null?'Actualizar en lista':'+ Agregar a la lista')
+        },h(Ico,{n:ordenEditingIdx!==null?'save':'plus',s:15}),ordenEditingIdx!==null?'Actualizar proveedor':'+ Agregar a la lista')
       ),
 
-      h('div',{className:'fcard'},
-        h('p',{className:'sec-ttl'},h(Ico,{n:'users',s:12}),` Proveedores en este ingreso (${batch.length})`),
-        batch.length===0
-          ? h('div',{style:{textAlign:'center',padding:'16px 0',color:'var(--slate)',fontSize:12}},
-              h(Ico,{n:'package',s:28,style:{opacity:.3,display:'block',margin:'0 auto 6px'}}),
-              'Agrega al menos un proveedor arriba'
+      ordenes.length>0&&h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'package',s:12}),` Proveedores en este ingreso (${ordenes.length})`),
+        ordenes.map((o,i)=>h('div',{key:i,style:{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:i<ordenes.length-1?'1px solid var(--border)':'none'}},
+          h('div',{style:{flex:1,minWidth:0}},
+            h('div',{style:{fontWeight:700,fontSize:13,color:'var(--text)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},o.empresa||'Sin empresa'),
+            h('div',{style:{fontSize:11,color:'var(--slate)',marginTop:1}},
+              [o.muelle_descargue&&'Muelle: '+o.muelle_descargue,o.actividad_a_desarrollar,o.carga_compartida&&'Carga compartida'].filter(Boolean).join(' · ')
             )
-          : batch.map((b,i)=>h('div',{key:i,style:{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:i<batch.length-1?'1px solid var(--border)':'none'}},
-              h('div',{style:{flex:1,minWidth:0}},
-                h('div',{style:{fontWeight:700,fontSize:13,color:'var(--text)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},
-                  b.placa_vehiculo+(b.nombre_conductor?' · '+b.nombre_conductor:'')
-                ),
-                h('div',{style:{fontSize:11,color:'var(--slate)',marginTop:1}},
-                  [b.cedula_conductor&&'CC '+b.cedula_conductor,b.empresa,b.muelle_descargue&&'M:'+b.muelle_descargue].filter(Boolean).join(' · ')
-                )
-              ),
-              h('div',{style:{display:'flex',gap:4,flexShrink:0}},
-                h('button',{title:'Editar',onClick:()=>{setDraft({...b});setEditingIdx(i);},style:{background:'#dbeafe',border:'none',cursor:'pointer',color:'#1d4ed8',padding:'4px 8px',borderRadius:6,fontSize:11,fontWeight:700}},h(Ico,{n:'edit',s:12})),
-                h('button',{title:'Quitar',onClick:()=>{setBatch(p=>p.filter((_,j)=>j!==i));if(editingIdx===i){setDraft(emptyDraft);setEditingIdx(null);}},style:{background:'#fee2e2',border:'none',cursor:'pointer',color:'#dc2626',padding:'4px 8px',borderRadius:6,fontSize:11}},h(Ico,{n:'trash',s:12}))
-              )
-            ))
+          ),
+          h('div',{style:{display:'flex',gap:4,flexShrink:0}},
+            h('button',{title:'Editar',onClick:()=>{setOrdenDraft({...o});setOrdenEditingIdx(i);},style:{background:'#dbeafe',border:'none',cursor:'pointer',color:'#1d4ed8',padding:'4px 8px',borderRadius:6,fontSize:11,fontWeight:700}},h(Ico,{n:'edit',s:12})),
+            h('button',{title:'Quitar',onClick:()=>{setOrdenes(p=>p.filter((_,j)=>j!==i));if(ordenEditingIdx===i){setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);}},style:{background:'#fee2e2',border:'none',cursor:'pointer',color:'#dc2626',padding:'4px 8px',borderRadius:6,fontSize:11}},h(Ico,{n:'trash',s:12}))
+          )
+        ))
+      ),
+
+      ordenes.length===0&&h('div',{style:{textAlign:'center',padding:'16px 0',color:'var(--slate)',fontSize:12}},
+        h(Ico,{n:'package',s:28,style:{opacity:.3,display:'block',margin:'0 auto 6px'}}),
+        'Agrega al menos un proveedor arriba'
       )
     ),
     h('div',{className:'sticky-cta'},
-      h('button',{className:'btn-cancel',onClick:()=>{setView('list');setBatch([]);setDraft(emptyDraft);setEditingIdx(null);}},h(Ico,{n:'x',s:15})),
-      h('button',{className:'btn-primary',onClick:guardarBatch,disabled:saving||batch.length===0,style:{opacity:batch.length===0?.5:1}},
+      h('button',{className:'btn-cancel',onClick:()=>{setView('list');setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);}},h(Ico,{n:'x',s:15})),
+      h('button',{className:'btn-primary',onClick:guardarIngreso,disabled:saving||ordenes.length===0,style:{opacity:ordenes.length===0?.5:1}},
         saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),
-        saving?'Guardando...':batch.length>0?`Guardar ${batch.length} proveedor${batch.length>1?'es':''}`:'Guardar todos'
+        saving?'Guardando...':ordenes.length>0?`Guardar ingreso (${ordenes.length} orden${ordenes.length>1?'es':''})`:'Guardar'
       )
     )
   );
@@ -2467,7 +2479,16 @@ function ProveedoresPage({user,online,addOffline}){
   const nPend = records.filter(r=>!r.hora_salida).length;
   const visibles = records
     .filter(r=>filtro==='pendientes'?!r.hora_salida:true)
-    .filter(r=>{if(!busqueda.trim())return true;const q=busqueda.trim().toLowerCase();return (r.empresa&&r.empresa.toLowerCase().includes(q))||(r.nombre_conductor&&r.nombre_conductor.toLowerCase().includes(q))||(r.placa_vehiculo&&r.placa_vehiculo.toLowerCase().includes(q))||(r.cedula_conductor&&String(r.cedula_conductor).includes(q));});
+    .filter(r=>{
+      if(!busqueda.trim()) return true;
+      const q=busqueda.trim().toLowerCase();
+      const empStr=(r.ordenes||[]).map(o=>o.empresa||'').join(' ').toLowerCase();
+      return empStr.includes(q)||
+        (r.empresa&&r.empresa.toLowerCase().includes(q))||
+        (r.nombre_conductor&&r.nombre_conductor.toLowerCase().includes(q))||
+        (r.placa_vehiculo&&r.placa_vehiculo.toLowerCase().includes(q))||
+        (r.cedula_conductor&&String(r.cedula_conductor).includes(q));
+    });
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
       h('div',{style:{display:'flex',gap:8,padding:'8px 14px 6px'}},
@@ -2478,7 +2499,7 @@ function ProveedoresPage({user,online,addOffline}){
           h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
           h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
         ),
-        !esBodega&&h('button',{onClick:()=>{setBatchFecha(today());setBatchHora(new Date().toTimeString().slice(0,5));setBatch([]);setDraft(emptyDraft);setEditingIdx(null);setView('batch');},style:{background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+        !esBodega&&h('button',{onClick:()=>{setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);setView('batch');},style:{background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
           h(Ico,{n:'plus',s:15}),' Nuevo'
         ),
         esBodega&&h('p',{style:{fontSize:12,color:'var(--slate)',alignSelf:'center',margin:'0 0 0 4px'}},h(Ico,{n:'alert',s:12}),' Toca un registro para agregar evidencia de rechazo')
@@ -2491,31 +2512,40 @@ function ProveedoresPage({user,online,addOffline}){
     h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
       loading?h(LoadingDots):
-      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'package',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='pendientes'?'Sin proveedores activos':'Sin proveedores hoy')):
-      visibles.map(r=>h('div',{key:r.id,className:'list-item'},
-        h('div',{className:'li-icon',style:{background:'#fde68a'}},
-          h(Ico,{n:'package',s:18,style:{color:'#d97706'}})
-        ),
-        h('div',{className:'li-body',onClick:()=>{setForm({...emptyF,...r,cedula_conductor:r.cedula_conductor||'',hora_ingreso:r.hora_ingreso||'',hora_salida:r.hora_salida||'',carga_compartida:!!r.carga_compartida});setSelected(r);setView('form');}},
-          h('div',{className:'li-title'},r.nombre_conductor||r.placa_vehiculo||'Sin nombre'),
-          r.cedula_conductor&&h('div',{className:'li-sub'},'CC '+r.cedula_conductor),
-          h('div',{className:'li-sub'},[r.empresa,r.placa_vehiculo,r.tipo_vehiculo].filter(Boolean).join(' · ')||'Sin empresa')
-        ),
-        h('div',{className:'li-right'},
-          h('span',{className:'li-date'},fmtDate(r.fecha),
-            r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida))
+      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'package',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='pendientes'?'Sin proveedores activos':'Sin proveedores')):
+      visibles.map(r=>{
+        const ords=r.ordenes||[];
+        const emps=ords.map(o=>o.empresa).filter(Boolean);
+        const empLabel=emps.length===0?(r.empresa||'Sin empresa'):emps.length<=2?emps.join(' · '):emps.slice(0,2).join(' · ')+` +${emps.length-2}`;
+        return h('div',{key:r.id,className:'list-item'},
+          h('div',{className:'li-icon',style:{background:'#fde68a'}},
+            h(Ico,{n:'package',s:18,style:{color:'#d97706'}})
           ),
-          h('div',{style:{display:'flex',gap:4,marginTop:3}},
-            !esBodega&&r.hora_ingreso&&!r.hora_salida&&h('button',{
-              title:'Registrar salida',
-              onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(new Date().toTimeString().slice(0,5));setFechaSalidaP(today());},
-              style:{background:'#d97706',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
-            },'Salida'),
-            (esBodega||esVehicular)&&(r.observaciones||r.foto_url)&&h('span',{style:{fontSize:10,background:'#fef3c7',color:'#92400e',borderRadius:4,padding:'2px 6px',fontWeight:600}},'Con evidencia'),
-            !esBodega&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
+          h('div',{className:'li-body',onClick:()=>{
+            setForm({...emptyF,...r,cedula_conductor:r.cedula_conductor||'',hora_ingreso:r.hora_ingreso||'',hora_salida:r.hora_salida||''});
+            setSelected(r);setFormOrdenes(r.ordenes||[]);setAddingOrd(false);setView('form');
+          }},
+            h('div',{className:'li-title'},r.nombre_conductor||r.placa_vehiculo||'Sin nombre'),
+            h('div',{className:'li-sub'},[r.cedula_conductor&&'CC '+r.cedula_conductor,r.placa_vehiculo,r.tipo_vehiculo].filter(Boolean).join(' · ')),
+            h('div',{className:'li-sub'},empLabel),
+            ords.length>1&&h('span',{style:{fontSize:10,background:'#dbeafe',color:'#1d4ed8',borderRadius:4,padding:'1px 6px',fontWeight:700,display:'inline-block',marginTop:2}},ords.length+' órdenes')
+          ),
+          h('div',{className:'li-right'},
+            h('span',{className:'li-date'},fmtDate(r.fecha),
+              r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida))
+            ),
+            h('div',{style:{display:'flex',gap:4,marginTop:3}},
+              !esBodega&&r.hora_ingreso&&!r.hora_salida&&h('button',{
+                title:'Registrar salida',
+                onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(new Date().toTimeString().slice(0,5));setFechaSalidaP(today());},
+                style:{background:'#d97706',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
+              },'Salida'),
+              (esBodega||esVehicular)&&(r.observaciones||r.foto_url)&&h('span',{style:{fontSize:10,background:'#fef3c7',color:'#92400e',borderRadius:4,padding:'2px 6px',fontWeight:600}},'Con evidencia'),
+              !esBodega&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
+            )
           )
-        )
-      ))
+        );
+      })
     ),
     salida&&h('div',{className:'overlay',onClick:()=>setSalida(null)},
       h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
@@ -2523,16 +2553,19 @@ function ProveedoresPage({user,online,addOffline}){
           h('span',{style:{fontWeight:700,fontSize:15}},'Registrar salida'),
           h('button',{className:'btn-icon',onClick:()=>setSalida(null)},h(Ico,{n:'x',s:16}))
         ),
-        h('p',{style:{fontSize:13,color:'var(--slate)',marginBottom:12}},salida.nombre_conductor||salida.placa_vehiculo,' · ',salida.empresa||''),
-        h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},
-            h('label',null,'Fecha de salida'),
-            h('input',{type:'date',value:fechaSalidaP,onChange:e=>setFechaSalidaP(e.target.value)})
-          ),
-          h('div',{className:'fg'},
-            h('label',null,'Hora de salida'),
-            h('input',{type:'time',value:horaSalida,onChange:e=>setHoraSalida(e.target.value)})
+        h('p',{style:{fontSize:13,color:'var(--slate)',marginBottom:4}},
+          (salida.nombre_conductor||salida.placa_vehiculo)+(
+            (salida.ordenes||[]).map(o=>o.empresa).filter(Boolean).length>0
+              ?' · '+(salida.ordenes||[]).map(o=>o.empresa).filter(Boolean).join(', ')
+              :(salida.empresa?' · '+salida.empresa:'')
           )
+        ),
+        (salida.ordenes||[]).length>1&&h('p',{style:{fontSize:11,color:'#059669',marginBottom:8,fontWeight:600}},
+          '✓ Se registra salida de '+(salida.ordenes||[]).length+' orden(es) simultáneamente'
+        ),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Fecha de salida'),h('input',{type:'date',value:fechaSalidaP,onChange:e=>setFechaSalidaP(e.target.value)})),
+          h('div',{className:'fg'},h('label',null,'Hora de salida'),h('input',{type:'time',value:horaSalida,onChange:e=>setHoraSalida(e.target.value)}))
         ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
           h('button',{className:'btn-cancel',onClick:()=>setSalida(null)},'Cancelar'),
@@ -2543,7 +2576,7 @@ function ProveedoresPage({user,online,addOffline}){
         )
       )
     ),
-    confirm&&h(ConfirmSheet,{msg:'Se eliminará el registro de proveedor.',onOk:async()=>{await api.del(`/proveedores/${confirm}`);setConfirm(null);load();setAlert({type:'ok',msg:'Eliminado'});},onCancel:()=>setConfirm(null)})
+    confirm&&h(ConfirmSheet,{msg:'Se eliminará el ingreso de proveedor y todas sus órdenes.',onOk:async()=>{await api.del(`/proveedores/${confirm}`);setConfirm(null);load();setAlert({type:'ok',msg:'Eliminado'});},onCancel:()=>setConfirm(null)})
   );
 }
 

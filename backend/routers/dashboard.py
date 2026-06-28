@@ -50,10 +50,11 @@ def resumen(
 
     # Distribución por empresa proveedores últimos 30 días
     empresas = db.execute(text("""
-        SELECT empresa, COUNT(*) AS total
-        FROM proveedores
-        WHERE fecha >= :d AND empresa IS NOT NULL
-        GROUP BY empresa
+        SELECT po.empresa, COUNT(*) AS total
+        FROM proveedores_ordenes po
+        JOIN proveedores p ON p.id = po.proveedor_id
+        WHERE p.fecha >= :d AND po.empresa IS NOT NULL
+        GROUP BY po.empresa
         ORDER BY total DESC
         LIMIT 10
     """), {"d": hace30}).fetchall()
