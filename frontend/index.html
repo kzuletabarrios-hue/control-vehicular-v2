@@ -1301,7 +1301,7 @@ function FlotaPage({user,online,addOffline}){
       )
     ),
     confirm&&h(ConfirmSheet,{msg:'Se eliminará el registro de flota.',onOk:async()=>{await api.del(`/flota/${confirm}`);setConfirm(null);load();setAlert({type:'ok',msg:'Eliminado'});},onCancel:()=>setConfirm(null)}),
-    detalleVeh&&h('div',{className:'overlay',onClick:()=>setDetalleVeh(null)},
+    detalleVeh&&h('div',{className:'overlay',onClick:()=>setDetalleVeh(null),style:(salida2||llegada)?{pointerEvents:'none'}:{}},
       h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
         h('div',{className:'sheet-header'},
           h('span',{style:{fontWeight:700,fontSize:15}},detalleVeh.placa),
