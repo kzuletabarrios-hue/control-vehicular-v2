@@ -1,5 +1,6 @@
 import os
 from sqlalchemy import create_engine
+from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 
@@ -11,11 +12,12 @@ if not DATABASE_URL:
 
 db_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 
+# NullPool: no mantiene conexiones abiertas entre requests.
+# Correcto para Supabase transaction pooler (puerto 6543) que ya gestiona su propio pool.
+# Con pool_size fijo, SQLAlchemy agotaba las 15 conexiones del free tier en reposo.
 engine = create_engine(
     db_url,
-    pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
+    poolclass=NullPool,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

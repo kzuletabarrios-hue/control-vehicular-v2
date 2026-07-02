@@ -19,26 +19,43 @@ def resumen(
     hace7 = (date.today() - timedelta(days=7)).isoformat()
     hace30 = (date.today() - timedelta(days=30)).isoformat()
 
-    def count(tabla: str, filtro: str = "", params: dict = None):
-        q = f"SELECT COUNT(*) FROM {tabla}"
-        if filtro:
-            q += f" WHERE {filtro}"
-        return db.execute(text(q), params or {}).scalar() or 0
-
-    flota_hoy      = count("flota_propia",  "fecha = :hoy",   {"hoy": hoy})
-    flota_semana   = count("flota_propia",  "fecha >= :d",    {"d": hace7})
-    flota_mes      = count("flota_propia",  "fecha >= :d",    {"d": hace30})
-    flota_en_ruta  = count("flota_propia",  "fecha = :hoy AND hora_salida_cedi IS NOT NULL AND hora_llegada IS NULL", {"hoy": hoy})
-
-    prov_hoy       = count("proveedores",   "fecha = :hoy",   {"hoy": hoy})
-    prov_semana    = count("proveedores",   "fecha >= :d",    {"d": hace7})
-
-    ca_hoy         = count("control_acceso","fecha = :hoy",   {"hoy": hoy})
-    ca_activos     = count("control_acceso","fecha = :hoy AND hora_salida IS NULL", {"hoy": hoy})
-
-    vis_hoy        = count("visitantes",    "fecha = :hoy",   {"hoy": hoy})
-
-    visitavh_hoy   = count("visita_vehicular", "fecha = :hoy", {"hoy": hoy})
+    # 1 query para todos los conteos en lugar de 10 queries separadas
+    stats = db.execute(text("""
+        WITH
+        flota_stats AS (
+            SELECT
+                COUNT(*) FILTER (WHERE fecha = :hoy)                                                          AS f_hoy,
+                COUNT(*) FILTER (WHERE fecha >= :hace7)                                                       AS f_semana,
+                COUNT(*) FILTER (WHERE fecha >= :hace30)                                                      AS f_mes,
+                COUNT(*) FILTER (WHERE fecha = :hoy AND hora_salida_cedi IS NOT NULL AND hora_llegada IS NULL) AS f_en_ruta
+            FROM flota_propia
+        ),
+        prov_stats AS (
+            SELECT
+                COUNT(*) FILTER (WHERE fecha = :hoy)    AS p_hoy,
+                COUNT(*) FILTER (WHERE fecha >= :hace7) AS p_semana
+            FROM proveedores
+        ),
+        ca_stats AS (
+            SELECT
+                COUNT(*) FILTER (WHERE fecha = :hoy)                              AS c_hoy,
+                COUNT(*) FILTER (WHERE fecha = :hoy AND hora_salida IS NULL)      AS c_activos
+            FROM control_acceso
+        ),
+        vis_stats AS (
+            SELECT COUNT(*) FILTER (WHERE fecha = :hoy) AS v_hoy FROM visitantes
+        ),
+        vvh_stats AS (
+            SELECT COUNT(*) FILTER (WHERE fecha = :hoy) AS vv_hoy FROM visita_vehicular
+        )
+        SELECT
+            f.f_hoy, f.f_semana, f.f_mes, f.f_en_ruta,
+            p.p_hoy, p.p_semana,
+            c.c_hoy, c.c_activos,
+            v.v_hoy,
+            vv.vv_hoy
+        FROM flota_stats f, prov_stats p, ca_stats c, vis_stats v, vvh_stats vv
+    """), {"hoy": hoy, "hace7": hace7, "hace30": hace30}).mappings().one()
 
     # Últimas 5 placas flota
     ultimas_placas = db.execute(text("""
@@ -59,50 +76,56 @@ def resumen(
         LIMIT 10
     """), {"d": hace30}).fetchall()
 
-    # Pendientes: vehículos sin llegada
-    flota_sin_llegada = db.execute(text("""
-        SELECT placa, conductor, hora_salida_cedi::text AS hora_salida, fecha::text
+    # Pendientes vehículos sin llegada + personas sin salida en 1 query
+    pendientes = db.execute(text("""
+        SELECT 'flota' AS tipo, placa, conductor,
+               hora_salida_cedi::text AS hora_ref, fecha::text, NULL AS contratista
         FROM flota_propia
         WHERE hora_salida_cedi IS NOT NULL AND hora_llegada IS NULL
-        ORDER BY fecha DESC, hora_salida_cedi DESC
-        LIMIT 20
-    """)).fetchall()
-
-    # Pendientes: personas sin salida
-    acceso_sin_salida = db.execute(text("""
-        SELECT nombre, contratista, hora_ingreso::text, fecha::text
+        UNION ALL
+        SELECT 'acceso', nombre, NULL,
+               hora_ingreso::text, fecha::text, contratista
         FROM control_acceso
         WHERE hora_ingreso IS NOT NULL AND hora_salida IS NULL
-        ORDER BY fecha DESC, hora_ingreso DESC
-        LIMIT 20
+        ORDER BY fecha DESC, hora_ref DESC
+        LIMIT 40
     """)).fetchall()
+
+    flota_sin_llegada = [
+        {"placa": r.placa, "conductor": r.conductor, "hora_salida": r.hora_ref, "fecha": r.fecha}
+        for r in pendientes if r.tipo == "flota"
+    ][:20]
+    acceso_sin_salida = [
+        {"nombre": r.placa, "contratista": r.contratista, "hora_ingreso": r.hora_ref, "fecha": r.fecha}
+        for r in pendientes if r.tipo == "acceso"
+    ][:20]
 
     return {
         "fecha": hoy,
         "flota": {
-            "hoy": flota_hoy,
-            "semana": flota_semana,
-            "mes": flota_mes,
-            "en_ruta": flota_en_ruta,
+            "hoy":     stats["f_hoy"],
+            "semana":  stats["f_semana"],
+            "mes":     stats["f_mes"],
+            "en_ruta": stats["f_en_ruta"],
         },
         "proveedores": {
-            "hoy": prov_hoy,
-            "semana": prov_semana,
+            "hoy":    stats["p_hoy"],
+            "semana": stats["p_semana"],
         },
         "control_acceso": {
-            "hoy": ca_hoy,
-            "activos_sin_salida": ca_activos,
+            "hoy":                stats["c_hoy"],
+            "activos_sin_salida": stats["c_activos"],
         },
         "visitantes": {
-            "hoy": vis_hoy,
+            "hoy": stats["v_hoy"],
         },
         "visita_vehicular": {
-            "hoy": visitavh_hoy,
+            "hoy": stats["vv_hoy"],
         },
         "ultimas_placas": [dict(r._mapping) for r in ultimas_placas],
         "top_empresas_proveedores": [dict(r._mapping) for r in empresas],
         "pendientes": {
-            "flota_sin_llegada": [dict(r._mapping) for r in flota_sin_llegada],
-            "acceso_sin_salida": [dict(r._mapping) for r in acceso_sin_salida],
+            "flota_sin_llegada": flota_sin_llegada,
+            "acceso_sin_salida": acceso_sin_salida,
         },
     }
