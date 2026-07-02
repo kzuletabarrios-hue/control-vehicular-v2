@@ -463,8 +463,10 @@ const initials  = n  => (n||'U').split(' ').slice(0,2).map(w=>w[0]).join('').toU
 /* ── CAMERA COMPONENT ── */
 function CameraField({value,onChange}){
   const fileRef = useRef();
+  const ready   = useRef(false);
   const [uploading,setUploading] = useState(false);
   const [errUp,setErrUp]         = useState(null);
+  useEffect(()=>{ const t=setTimeout(()=>{ready.current=true;},350); return ()=>clearTimeout(t); },[]);
   const compress = (file,cb) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -509,7 +511,7 @@ function CameraField({value,onChange}){
     h('input',{ref:fileRef,type:'file',accept:'image/*',capture:'environment',onChange:handleFile,style:{display:'none'}})
   );
   return h('div',null,
-    h('div',{className:'camera-field',onClick:()=>fileRef.current.click()},
+    h('div',{className:'camera-field',onClick:()=>{ if(ready.current) fileRef.current.click(); }},
       h(Ico,{n:'camera',s:28}),
       h('p',null,'Toca para tomar foto o seleccionar')
     ),
