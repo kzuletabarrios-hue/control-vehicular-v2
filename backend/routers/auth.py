@@ -280,6 +280,40 @@ def crear_usuario(
     return {"id": uid, "message": f"Usuario '{nombre}' creado con rol '{rol}'"}
 
 
+# IMPORTANTE: esta ruta debe ir ANTES de /usuarios/{uid} para que FastAPI
+# no capture "cambiar-password" como un valor de {uid}.
+@router.put("/usuarios/cambiar-password")
+def cambiar_password(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    actual = body.get("password_actual") or ""
+    nueva  = body.get("password_nueva") or ""
+
+    if len(nueva) < 8:
+        raise HTTPException(status_code=400, detail="La nueva contraseña debe tener al menos 8 caracteres")
+
+    row = db.execute(
+        text("SELECT password_hash FROM usuarios WHERE id = :id"),
+        {"id": current_user["id"]}
+    ).fetchone()
+
+    if not row or not verify_password(actual, row.password_hash):
+        raise HTTPException(status_code=400, detail="Contraseña actual incorrecta")
+
+    db.execute(
+        text("UPDATE usuarios SET password_hash = :ph, updated_at = NOW() WHERE id = :id"),
+        {"ph": hash_password(nueva), "id": current_user["id"]}
+    )
+    db.execute(
+        text("UPDATE sesiones SET revocada = TRUE WHERE usuario_id = :id"),
+        {"id": current_user["id"]}
+    )
+    db.commit()
+    return {"message": "Contraseña actualizada. Vuelve a iniciar sesión."}
+
+
 @router.put("/usuarios/{uid}")
 def editar_usuario(
     uid: str,
@@ -303,8 +337,7 @@ def editar_usuario(
         pw = body["password"]
         if len(pw) < 8:
             raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 8 caracteres")
-        hashed = bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode().replace("$2b$", "$2a$")
-        campos["password_hash"] = hashed
+        campos["password_hash"] = hash_password(pw)
 
     if not campos:
         raise HTTPException(status_code=400, detail="Sin campos para actualizar")
@@ -350,35 +383,3 @@ def activar_desactivar(
     )
     db.commit()
     return {"message": "Estado del usuario actualizado"}
-
-
-@router.put("/usuarios/cambiar-password")
-def cambiar_password(
-    body: dict,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    actual  = body.get("password_actual") or ""
-    nueva   = body.get("password_nueva") or ""
-
-    if len(nueva) < 8:
-        raise HTTPException(status_code=400, detail="La nueva contraseña debe tener al menos 8 caracteres")
-
-    row = db.execute(
-        text("SELECT password_hash FROM usuarios WHERE id = :id"),
-        {"id": current_user["id"]}
-    ).fetchone()
-
-    if not row or not verify_password(actual, row.password_hash):
-        raise HTTPException(status_code=400, detail="Contraseña actual incorrecta")
-
-    db.execute(
-        text("UPDATE usuarios SET password_hash = :ph, updated_at = NOW() WHERE id = :id"),
-        {"ph": hash_password(nueva), "id": current_user["id"]}
-    )
-    db.execute(
-        text("UPDATE sesiones SET revocada = TRUE WHERE usuario_id = :id"),
-        {"id": current_user["id"]}
-    )
-    db.commit()
-    return {"message": "Contraseña actualizada. Vuelve a iniciar sesión."}
