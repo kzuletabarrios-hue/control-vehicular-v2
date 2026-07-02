@@ -2159,14 +2159,14 @@ function ProveedoresPage({user,online,addOffline}){
   const tiposVehiculo = ['Camión','Camioneta','Moto','Furgón','Tractomula','Otro'];
 
   /* ── EDIT FORM STATE ── */
-  const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',cedula_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),hora_salida:'',muelle_descargue:'',fecha_pago_arl:'',observaciones:'',foto_url:null};
+  const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),hora_salida:'',muelle_descargue:'',fecha_pago_arl:'',observaciones:'',foto_url:null};
   const [form,setForm]               = useState(emptyF);
   const [formOrdenes,setFormOrdenes] = useState([]);
   const [formOrd,setFormOrd]         = useState({empresa:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''});
   const [addingOrd,setAddingOrd]     = useState(false);
 
   /* ── NUEVO INGRESO STATE ── */
-  const emptyVeh = ()=>({fecha:today(),placa_vehiculo:'',cedula_conductor:'',nombre_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),muelle_descargue:'',fecha_pago_arl:'',observaciones:'',foto_url:null});
+  const emptyVeh = ()=>({fecha:today(),placa_vehiculo:'',cedula_conductor:'',nombre_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),muelle_descargue:'',fecha_pago_arl:'',observaciones:'',foto_url:null});
   const emptyOrd = {empresa:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''};
   const [vehiculoForm,setVehiculoForm]     = useState(emptyVeh);
   const [ordenes,setOrdenes]               = useState([]);
@@ -2355,6 +2355,7 @@ function ProveedoresPage({user,online,addOffline}){
           h('div',{className:'fg'},h('label',null,'Cédula conductor'),h('input',{type:'text',value:form.cedula_conductor||'',onChange:e=>setForm(p=>({...p,cedula_conductor:e.target.value})),placeholder:'Número de cédula'})),
           h('div',{className:'fg'},h('label',null,'Nombre conductor'),h('input',{type:'text',value:form.nombre_conductor,onChange:e=>setForm(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Nombre completo'}))
         ),
+        h('div',{className:'fg'},h('label',null,'Teléfono conductor'),h('input',{type:'tel',value:form.telefono_conductor||'',onChange:e=>setForm(p=>({...p,telefono_conductor:e.target.value})),placeholder:'Número de contacto (opcional)'})),
         h('div',{className:'fg'},h('label',null,'Tipo vehículo'),
           h('select',{value:form.tipo_vehiculo,onChange:e=>setForm(p=>({...p,tipo_vehiculo:e.target.value}))},
             h('option',{value:''},'Seleccionar...'),...tiposVehiculo.map(t=>h('option',{key:t,value:t},t))
@@ -2458,10 +2459,11 @@ function ProveedoresPage({user,online,addOffline}){
         ),
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},h('label',null,'Nombre conductor'),h('input',{type:'text',value:vehiculoForm.nombre_conductor,onChange:e=>setVehiculoForm(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Se autocompleta o ingresa manual'})),
-          h('div',{className:'fg'},h('label',null,'Tipo vehículo'),
-            h('select',{value:vehiculoForm.tipo_vehiculo,onChange:e=>setVehiculoForm(p=>({...p,tipo_vehiculo:e.target.value}))},
-              h('option',{value:''},'Seleccionar...'),...tiposVehiculo.map(t=>h('option',{key:t,value:t},t))
-            )
+          h('div',{className:'fg'},h('label',null,'Teléfono conductor'),h('input',{type:'tel',value:vehiculoForm.telefono_conductor||'',onChange:e=>setVehiculoForm(p=>({...p,telefono_conductor:e.target.value})),placeholder:'Número de contacto (opcional)'}))
+        ),
+        h('div',{className:'fg'},h('label',null,'Tipo vehículo'),
+          h('select',{value:vehiculoForm.tipo_vehiculo,onChange:e=>setVehiculoForm(p=>({...p,tipo_vehiculo:e.target.value}))},
+            h('option',{value:''},'Seleccionar...'),...tiposVehiculo.map(t=>h('option',{key:t,value:t},t))
           )
         ),
         h('div',{className:'fg'},h('label',null,'Fecha pago ARL'),h('input',{type:'date',value:vehiculoForm.fecha_pago_arl,onChange:e=>setVehiculoForm(p=>({...p,fecha_pago_arl:e.target.value}))})),
@@ -2570,7 +2572,7 @@ function ProveedoresPage({user,online,addOffline}){
             setSelected(r);setFormOrdenes(r.ordenes||[]);setAddingOrd(false);setView('form');
           }},
             h('div',{className:'li-title'},r.nombre_conductor||r.placa_vehiculo||'Sin nombre'),
-            h('div',{className:'li-sub'},[r.cedula_conductor&&'CC '+r.cedula_conductor,r.placa_vehiculo,r.tipo_vehiculo,r.muelle_descargue&&'Muelle '+r.muelle_descargue].filter(Boolean).join(' · ')),
+            h('div',{className:'li-sub'},[r.cedula_conductor&&'CC '+r.cedula_conductor,r.placa_vehiculo,r.tipo_vehiculo,r.muelle_descargue&&'Muelle '+r.muelle_descargue,r.telefono_conductor&&'📞 '+r.telefono_conductor].filter(Boolean).join(' · ')),
             h('div',{className:'li-sub'},empLabel),
             ords.length>1&&h('span',{style:{fontSize:10,background:'#dbeafe',color:'#1d4ed8',borderRadius:4,padding:'1px 6px',fontWeight:700,display:'inline-block',marginTop:2}},ords.length+' órdenes')
           ),

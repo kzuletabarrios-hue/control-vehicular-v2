@@ -11,6 +11,7 @@ router = APIRouter()
 
 CAMPOS_VEHICULO = [
     "fecha", "placa_vehiculo", "nombre_conductor", "cedula_conductor",
+    "telefono_conductor",
     "tipo_vehiculo", "hora_ingreso", "hora_salida", "fecha_salida",
     "fecha_pago_arl", "observaciones", "foto_url",
     # Legacy columns kept nullable for backward compat
