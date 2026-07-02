@@ -2194,6 +2194,7 @@ function ProveedoresPage({user,online,addOffline}){
         setter(p=>({...p,
           nombre_conductor:fm.nombre_conductor||p.nombre_conductor,
           tipo_vehiculo:p.tipo_vehiculo||fm.tipo_vehiculo||'',
+          telefono_conductor:p.telefono_conductor||fm.telefono||'',
         }));
         if(!fm.activo){
           setFrecuenteInfo({estado:'inactivo',data:fm});
@@ -3115,7 +3116,7 @@ function BdConductoresFrecuentesTab(){
   const [selected,setSelected]  = useState(null);
   const [busqueda,setBusqueda]  = useState('');
   const tiposVeh = ['Camión','Camioneta','Moto','Furgón','Tractomula','Otro'];
-  const emptyF = {cedula:'',nombre_conductor:'',empresa_principal:'',tipo_vehiculo:'',activo:true};
+  const emptyF = {cedula:'',nombre_conductor:'',telefono:'',empresa_principal:'',tipo_vehiculo:'',activo:true};
   const [form,setForm] = useState(emptyF);
 
   const load = useCallback(()=>{
@@ -3160,14 +3161,18 @@ function BdConductoresFrecuentesTab(){
         ),
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},
-            h('label',null,'Empresa principal'),
-            h('input',{type:'text',value:form.empresa_principal,onChange:e=>setForm(p=>({...p,empresa_principal:e.target.value})),placeholder:'Empresa habitual'})
+            h('label',null,'Teléfono'),
+            h('input',{type:'tel',value:form.telefono,onChange:e=>setForm(p=>({...p,telefono:e.target.value})),placeholder:'Número de contacto (opcional)'})
           ),
           h('div',{className:'fg'},
-            h('label',null,'Tipo vehículo'),
-            h('select',{value:form.tipo_vehiculo,onChange:e=>setForm(p=>({...p,tipo_vehiculo:e.target.value}))},
-              h('option',{value:''},'Seleccionar...'),...tiposVeh.map(t=>h('option',{key:t,value:t},t))
-            )
+            h('label',null,'Empresa principal'),
+            h('input',{type:'text',value:form.empresa_principal,onChange:e=>setForm(p=>({...p,empresa_principal:e.target.value})),placeholder:'Empresa habitual'})
+          )
+        ),
+        h('div',{className:'fg'},
+          h('label',null,'Tipo vehículo'),
+          h('select',{value:form.tipo_vehiculo,onChange:e=>setForm(p=>({...p,tipo_vehiculo:e.target.value}))},
+            h('option',{value:''},'Seleccionar...'),...tiposVeh.map(t=>h('option',{key:t,value:t},t))
           )
         ),
         selected&&h('div',{className:'fg'},
@@ -3203,11 +3208,11 @@ function BdConductoresFrecuentesTab(){
           h(Ico,{n:'user',s:18,style:{color:r.activo?'#059669':'#94a3b8'}})
         ),
         h('div',{className:'li-body',onClick:()=>{
-          setForm({cedula:r.cedula||'',nombre_conductor:r.nombre_conductor||'',empresa_principal:r.empresa_principal||'',tipo_vehiculo:r.tipo_vehiculo||'',activo:r.activo});
+          setForm({cedula:r.cedula||'',nombre_conductor:r.nombre_conductor||'',telefono:r.telefono||'',empresa_principal:r.empresa_principal||'',tipo_vehiculo:r.tipo_vehiculo||'',activo:r.activo});
           setSelected(r);setView('form');
         }},
           h('div',{className:'li-title'},r.nombre_conductor),
-          h('div',{className:'li-sub'},'CC '+r.cedula+(r.empresa_principal?' · '+r.empresa_principal:'')+(r.tipo_vehiculo?' · '+r.tipo_vehiculo:'')),
+          h('div',{className:'li-sub'},'CC '+r.cedula+(r.empresa_principal?' · '+r.empresa_principal:'')+(r.tipo_vehiculo?' · '+r.tipo_vehiculo:'')+(r.telefono?' · 📞 '+r.telefono:'')),
           r.ultima_visita&&h('div',{className:'li-sub',style:{color:'#059669',fontWeight:600}},'Última visita: '+fmtDate(r.ultima_visita))
         ),
         h('div',{className:'li-right'},

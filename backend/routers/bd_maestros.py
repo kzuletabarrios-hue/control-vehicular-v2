@@ -286,12 +286,13 @@ def crear_conductor_frecuente(
     rid = str(uuid.uuid4())
     db.execute(text("""
         INSERT INTO conductores_frecuentes
-            (id, cedula, nombre_conductor, empresa_principal, tipo_vehiculo, activo, ultima_visita)
-        VALUES (:id, :cedula, :nombre, :empresa, :tipo, TRUE, :ultima_visita)
+            (id, cedula, nombre_conductor, empresa_principal, tipo_vehiculo, telefono, activo, ultima_visita)
+        VALUES (:id, :cedula, :nombre, :empresa, :tipo, :telefono, TRUE, :ultima_visita)
         ON CONFLICT (cedula) DO UPDATE SET
             nombre_conductor  = EXCLUDED.nombre_conductor,
             empresa_principal = COALESCE(EXCLUDED.empresa_principal, conductores_frecuentes.empresa_principal),
             tipo_vehiculo     = COALESCE(EXCLUDED.tipo_vehiculo, conductores_frecuentes.tipo_vehiculo),
+            telefono          = COALESCE(EXCLUDED.telefono, conductores_frecuentes.telefono),
             activo            = TRUE,
             ultima_visita     = EXCLUDED.ultima_visita,
             updated_at        = NOW()
@@ -301,6 +302,7 @@ def crear_conductor_frecuente(
         "nombre": nombre,
         "empresa": body.get("empresa_principal") or None,
         "tipo": body.get("tipo_vehiculo") or None,
+        "telefono": body.get("telefono") or None,
         "ultima_visita": body.get("ultima_visita") or None,
     })
     db.commit()
@@ -315,7 +317,7 @@ def actualizar_conductor_frecuente(
     db: Session = Depends(get_db),
     _: dict = Depends(require_permiso("maestros", "write")),
 ):
-    campos = ["nombre_conductor", "empresa_principal", "tipo_vehiculo", "activo", "ultima_visita"]
+    campos = ["nombre_conductor", "empresa_principal", "tipo_vehiculo", "telefono", "activo", "ultima_visita"]
     vals = {c: body[c] for c in campos if c in body}
     if not vals:
         raise HTTPException(400, "Sin campos para actualizar")
