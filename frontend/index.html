@@ -1034,7 +1034,7 @@ function FlotaPage({user,online,addOffline}){
       .finally(()=>setLoading(false));
     api.get('/maestros/distribucion').then(setTiendas).catch(()=>{});
   },[]);
-  useEffect(()=>load(),[load]);
+  useEffect(()=>{ load(); const t=setInterval(load,30000); return ()=>clearInterval(t); },[load]);
 
   const fld = (name,label,type='text',req=false,opts=null) => h('div',{className:'fg'},
     h('label',null,label,req&&h('span',{className:'req'},'*')),
