@@ -993,6 +993,7 @@ function FlotaPage({user,online,addOffline}){
   const [horaSalida2,setHoraSalida2] = useState('');
   const [fechaSalidaV,setFechaSalidaV] = useState('');
   const [selloSalida,setSelloSalida]   = useState('');
+  const [tipoSelloSalida,setTipoSelloSalida] = useState('');
   const [obsSalida,setObsSalida]       = useState('');
   const [fotoSalida,setFotoSalida]     = useState(null);
   const [tempSalida,setTempSalida]     = useState('');
@@ -1123,12 +1124,7 @@ function FlotaPage({user,online,addOffline}){
         ),
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},h('label',null,'Protocolo'),h('input',{type:'text',value:form.protocolo||'',onChange:e=>setForm(p=>({...p,protocolo:e.target.value}))})),
-          h('div',{className:'fg'},h('label',null,'N° Sello'),h('input',{type:'text',value:form.sello||'',onChange:e=>setForm(p=>({...p,sello:e.target.value}))})),
-          h('div',{className:'fg'},h('label',null,'Tipo de sello'),h('select',{value:form.tipo_sello||'',onChange:e=>setForm(p=>({...p,tipo_sello:e.target.value}))},
-            h('option',{value:''},'— Seleccionar —'),
-            h('option',{value:'Digital'},'Digital'),
-            h('option',{value:'Plástico'},'Plástico')
-          ))
+          h('div',{className:'fg'},h('label',null,'N° Sello'),h('input',{type:'text',value:form.sello||'',onChange:e=>setForm(p=>({...p,sello:e.target.value}))}))
         ),
         h('div',{className:'fg'},h('label',null,'Observación'),h('textarea',{value:form.observacion||'',onChange:e=>setForm(p=>({...p,observacion:e.target.value})),rows:3}))
       ),
@@ -1273,9 +1269,17 @@ function FlotaPage({user,online,addOffline}){
             h('input',{type:'text',value:selloSalida,onChange:e=>setSelloSalida(e.target.value),placeholder:'Ej: 123456'})
           ),
           h('div',{className:'fg'},
-            h('label',null,'Temperatura °C'),
-            h('input',{type:'number',step:'0.1',value:tempSalida,onChange:e=>setTempSalida(e.target.value),placeholder:'Ej: 4.5'})
+            h('label',null,'Tipo de sello',h('span',{className:'req'},'*')),
+            h('select',{value:tipoSelloSalida,onChange:e=>setTipoSelloSalida(e.target.value)},
+              h('option',{value:''},'— Seleccionar —'),
+              h('option',{value:'Digital'},'Digital'),
+              h('option',{value:'Plástico'},'Plástico')
+            )
           )
+        ),
+        h('div',{className:'fg'},
+          h('label',null,'Temperatura °C'),
+          h('input',{type:'number',step:'0.1',value:tempSalida,onChange:e=>setTempSalida(e.target.value),placeholder:'Ej: 4.5'})
         ),
         h('div',{className:'fg'},
           h('label',null,'Observaciones (opcional)'),
@@ -1289,10 +1293,11 @@ function FlotaPage({user,online,addOffline}){
           h('button',{className:'btn-cancel',onClick:()=>setSalida2(null)},'Cancelar'),
           h('button',{className:'btn-primary',style:{background:'#059669'},onClick:async()=>{
             if(!selloSalida.trim()) return setAlert({type:'err',msg:'El número de sello de salida es obligatorio'});
-            const ts=await _tsBog();const body={hora_salida_cedi:ts.hora,fecha_salida:ts.fecha,sello:selloSalida,obs_salida:obsSalida||undefined,foto_salida:fotoSalida||undefined};
+            if(!tipoSelloSalida) return setAlert({type:'err',msg:'Selecciona el tipo de sello (Digital o Plástico)'});
+            const ts=await _tsBog();const body={hora_salida_cedi:ts.hora,fecha_salida:ts.fecha,sello:selloSalida,tipo_sello:tipoSelloSalida,obs_salida:obsSalida||undefined,foto_salida:fotoSalida||undefined};
             if(tempSalida) body.temperatura=tempSalida;
             await api.put(`/flota/${salida.id}`,body);
-            setSalida2(null);setSelloSalida('');setObsSalida('');setFotoSalida(null);setTempSalida('');load();setAlert({type:'ok',msg:'Salida registrada'});
+            setSalida2(null);setSelloSalida('');setTipoSelloSalida('');setObsSalida('');setFotoSalida(null);setTempSalida('');load();setAlert({type:'ok',msg:'Salida registrada'});
           }},h(Ico,{n:'checkCircle',s:16}),'Confirmar salida')
         )
       )
