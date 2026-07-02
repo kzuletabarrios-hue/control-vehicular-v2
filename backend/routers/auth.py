@@ -28,7 +28,9 @@ def hash_password(plain: str) -> str:
 
 def verify_password(plain: str, hashed: str) -> bool:
     try:
-        return bcrypt.checkpw(plain.encode(), hashed.encode())
+        # $2a$ (Supabase crypt) y $2b$ son el mismo algoritmo; bcrypt de Python solo acepta $2b$
+        normalized = hashed.replace("$2a$", "$2b$", 1)
+        return bcrypt.checkpw(plain.encode(), normalized.encode())
     except Exception:
         return False
 
