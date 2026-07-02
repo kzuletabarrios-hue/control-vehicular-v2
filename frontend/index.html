@@ -1172,7 +1172,7 @@ function FlotaPage({user,online,addOffline}){
       visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'truck',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='pendientes'?'Sin vehículos activos':'Sin registros hoy')):
       visibles.map(r=>h('div',{key:r.id,className:'list-item'},
         h('div',{className:'li-icon',style:{background:'#dbeafe'}},h(Ico,{n:'truck',s:18,c:'',style:{color:'#1d4ed8'}})),
-        h('div',{className:'li-body',onClick:()=>{ if(esVehicular){setDetalleVeh(r);}else{setForm({...emptyF,...r});setSelected(r);setView('form');} }},
+        h('div',{className:'li-body',onClick:()=>{ if(esVehicular){setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');}else{setForm({...emptyF,...r});setSelected(r);setView('form');} }},
           h('div',{className:'li-title'},r.placa,
             h('span',{style:{fontSize:10,fontWeight:600,marginLeft:6,padding:'2px 6px',borderRadius:4,
               background:r.hora_llegada?'#d1fae5':r.hora_salida_cedi?'#fef3c7':'#dbeafe',
@@ -1189,11 +1189,16 @@ function FlotaPage({user,online,addOffline}){
           ),
           h('div',{style:{display:'flex',gap:4,marginTop:3}},
             esVehicular&&!r.hora_salida_cedi&&h('button',{
-              title:'Registrar salida',
-              onClick:(e)=>{e.stopPropagation();setSalida2(r);setHoraSalida2(ahoraHora());setFechaSalidaV(today());},
+              title:'Ver detalle y registrar salida',
+              onClick:(e)=>{e.stopPropagation();setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');},
               style:{background:'#059669',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Salida'),
-            (esVehicular||!user?.rol?.startsWith('guarda_'))&&r.hora_salida_cedi&&!r.hora_llegada&&h('button',{
+            esVehicular&&r.hora_salida_cedi&&!r.hora_llegada&&h('button',{
+              title:'Ver detalle y registrar llegada',
+              onClick:(e)=>{e.stopPropagation();setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');},
+              style:{background:'#f59e0b',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
+            },'Llegada'),
+            !esVehicular&&r.hora_salida_cedi&&!r.hora_llegada&&h('button',{
               title:'Registrar llegada',
               onClick:(e)=>{e.stopPropagation();setLlegada(r);setHoraLlegada(ahoraHora());setFechaLlegadaV(today());setUltimaTiendaLleg(r.ultima_tienda||'');},
               style:{background:'#f59e0b',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
@@ -1269,17 +1274,9 @@ function FlotaPage({user,online,addOffline}){
             h('input',{type:'text',value:selloSalida,onChange:e=>setSelloSalida(e.target.value),placeholder:'Ej: 123456'})
           ),
           h('div',{className:'fg'},
-            h('label',null,'Tipo de sello',h('span',{className:'req'},'*')),
-            h('select',{value:tipoSelloSalida,onChange:e=>setTipoSelloSalida(e.target.value)},
-              h('option',{value:''},'— Seleccionar —'),
-              h('option',{value:'Digital'},'Digital'),
-              h('option',{value:'Plástico'},'Plástico')
-            )
+            h('label',null,'Temperatura °C'),
+            h('input',{type:'number',step:'0.1',value:tempSalida,onChange:e=>setTempSalida(e.target.value),placeholder:'Ej: 4.5'})
           )
-        ),
-        h('div',{className:'fg'},
-          h('label',null,'Temperatura °C'),
-          h('input',{type:'number',step:'0.1',value:tempSalida,onChange:e=>setTempSalida(e.target.value),placeholder:'Ej: 4.5'})
         ),
         h('div',{className:'fg'},
           h('label',null,'Observaciones (opcional)'),
@@ -1293,11 +1290,10 @@ function FlotaPage({user,online,addOffline}){
           h('button',{className:'btn-cancel',onClick:()=>setSalida2(null)},'Cancelar'),
           h('button',{className:'btn-primary',style:{background:'#059669'},onClick:async()=>{
             if(!selloSalida.trim()) return setAlert({type:'err',msg:'El número de sello de salida es obligatorio'});
-            if(!tipoSelloSalida) return setAlert({type:'err',msg:'Selecciona el tipo de sello (Digital o Plástico)'});
-            const ts=await _tsBog();const body={hora_salida_cedi:ts.hora,fecha_salida:ts.fecha,sello:selloSalida,tipo_sello:tipoSelloSalida,obs_salida:obsSalida||undefined,foto_salida:fotoSalida||undefined};
+            const ts=await _tsBog();const body={hora_salida_cedi:ts.hora,fecha_salida:ts.fecha,sello:selloSalida,obs_salida:obsSalida||undefined,foto_salida:fotoSalida||undefined};
             if(tempSalida) body.temperatura=tempSalida;
             await api.put(`/flota/${salida.id}`,body);
-            setSalida2(null);setSelloSalida('');setTipoSelloSalida('');setObsSalida('');setFotoSalida(null);setTempSalida('');load();setAlert({type:'ok',msg:'Salida registrada'});
+            setSalida2(null);setSelloSalida('');setObsSalida('');setFotoSalida(null);setTempSalida('');load();setAlert({type:'ok',msg:'Salida registrada'});
           }},h(Ico,{n:'checkCircle',s:16}),'Confirmar salida')
         )
       )
@@ -1341,17 +1337,29 @@ function FlotaPage({user,online,addOffline}){
         ),
         h('div',{style:{marginTop:10,background:'#f8fafc',borderRadius:10,padding:'12px 14px'}},
           h('p',{style:{fontSize:11,fontWeight:700,color:'var(--navy)',marginBottom:8,textTransform:'uppercase',letterSpacing:'0.05em'}},'Sello'),
-          h('div',{className:'fgrid2'},
+          h('div',{className:'fgrid2',style:{alignItems:'flex-end'}},
             h('div',null,
               h('p',{style:{fontSize:10,color:'var(--slate)',marginBottom:2}},'N° Sello salida'),
               h('p',{style:{fontSize:14,fontWeight:700,color:detalleVeh.sello?'var(--navy)':'var(--slate)'}},detalleVeh.sello||'—')
             ),
-            h('div',null,
-              h('p',{style:{fontSize:10,color:'var(--slate)',marginBottom:2}},'Tipo'),
-              h('span',{style:{fontSize:12,fontWeight:700,padding:'2px 8px',borderRadius:4,
-                background:detalleVeh.tipo_sello==='Digital'?'#dbeafe':detalleVeh.tipo_sello==='Plástico'?'#fef9c3':'#f1f5f9',
-                color:detalleVeh.tipo_sello==='Digital'?'#1e40af':detalleVeh.tipo_sello==='Plástico'?'#854d0e':'var(--slate)'
-              }},detalleVeh.tipo_sello||'Sin definir')
+            h('div',{className:'fg',style:{margin:0}},
+              h('label',{style:{fontSize:10,color:'var(--slate)',marginBottom:2,display:'block'}},'Tipo de sello'),
+              h('select',{
+                value:tipoSelloSalida,
+                onChange:async e=>{
+                  const val=e.target.value;
+                  setTipoSelloSalida(val);
+                  if(val){
+                    try{await api.put(`/flota/${detalleVeh.id}`,{tipo_sello:val});setDetalleVeh(p=>({...p,tipo_sello:val}));load();}
+                    catch(err){setAlert({type:'err',msg:'No se pudo guardar el tipo de sello'});}
+                  }
+                },
+                style:{fontSize:13,fontWeight:600}
+              },
+                h('option',{value:''},'— Seleccionar —'),
+                h('option',{value:'Digital'},'Digital'),
+                h('option',{value:'Plástico'},'Plástico')
+              )
             )
           ),
           detalleVeh.sello_entrada&&h('div',{style:{marginTop:8}},
@@ -1360,8 +1368,8 @@ function FlotaPage({user,online,addOffline}){
           )
         ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
-          !detalleVeh.hora_salida_cedi&&h('button',{className:'btn-primary',style:{background:'#059669',flex:1},onClick:(e)=>{e.stopPropagation();setDetalleVeh(null);setSalida2(detalleVeh);setHoraSalida2(ahoraHora());setFechaSalidaV(today());}},h(Ico,{n:'truck',s:14}),' Registrar salida'),
-          detalleVeh.hora_salida_cedi&&!detalleVeh.hora_llegada&&h('button',{className:'btn-primary',style:{flex:1},onClick:(e)=>{e.stopPropagation();setDetalleVeh(null);setLlegada(detalleVeh);setHoraLlegada(ahoraHora());setFechaLlegadaV(today());setUltimaTiendaLleg(detalleVeh.ultima_tienda||'');}},h(Ico,{n:'checkCircle',s:14}),' Registrar llegada'),
+          !detalleVeh.hora_salida_cedi&&h('button',{className:'btn-primary',style:{background:'#059669',flex:1},onClick:()=>{setDetalleVeh(null);setSalida2(detalleVeh);setHoraSalida2(ahoraHora());setFechaSalidaV(today());}},h(Ico,{n:'truck',s:14}),' Registrar salida'),
+          detalleVeh.hora_salida_cedi&&!detalleVeh.hora_llegada&&h('button',{className:'btn-primary',style:{flex:1},onClick:()=>{setDetalleVeh(null);setLlegada(detalleVeh);setHoraLlegada(ahoraHora());setFechaLlegadaV(today());setUltimaTiendaLleg(detalleVeh.ultima_tienda||'');}},h(Ico,{n:'checkCircle',s:14}),' Registrar llegada'),
           h('button',{className:'btn-cancel',onClick:()=>setDetalleVeh(null)},'Cerrar')
         )
       )
