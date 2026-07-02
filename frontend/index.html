@@ -1002,11 +1002,12 @@ function FlotaPage({user,online,addOffline}){
   const [fotoLleg,setFotoLleg]       = useState(null);
   const [ultimaTiendaLleg,setUltimaTiendaLleg] = useState('');
   const [detalleVeh,setDetalleVeh] = useState(null);
+  const [tipoSelloEntrada,setTipoSelloEntrada] = useState('');
   const esBodega    = user?.rol==='guarda_bodega';
   const esVehicular = user?.rol==='guarda_vehicular';
   const [cedulaBusq,setCedulaBusq]   = useState('');
   const [sugerCond,setSugerCond]     = useState([]);
-  const emptyF = {fecha:today(),placa:'',conductor:'',codigo_conductor:'',n_pallets:'',n_contenedores:'',cant_volumen_externo:'',muelle_cargue:'',tienda_1:'',tienda_2:'',tienda_3:'',tienda_4:'',tienda_5:'',ultima_tienda:'',protocolo:'',sello:'',tipo_sello:'',sello_entrada:'',hora_salida_muelle:ahoraHora(),temperatura:'',hora_salida_cedi:'',hora_llegada:'',observacion:'',foto_url:null};
+  const emptyF = {fecha:today(),placa:'',conductor:'',codigo_conductor:'',n_pallets:'',n_contenedores:'',cant_volumen_externo:'',muelle_cargue:'',tienda_1:'',tienda_2:'',tienda_3:'',tienda_4:'',tienda_5:'',ultima_tienda:'',protocolo:'',sello:'',tipo_sello:'',sello_entrada:'',tipo_sello_entrada:'',hora_salida_muelle:ahoraHora(),temperatura:'',hora_salida_cedi:'',hora_llegada:'',observacion:'',foto_url:null};
   const [form,setForm]         = useState(emptyF);
   const [filtro,setFiltro]      = useState('pendientes');
   const [busqueda,setBusqueda]  = useState('');
@@ -1172,7 +1173,7 @@ function FlotaPage({user,online,addOffline}){
       visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'truck',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='pendientes'?'Sin vehículos activos':'Sin registros hoy')):
       visibles.map(r=>h('div',{key:r.id,className:'list-item'},
         h('div',{className:'li-icon',style:{background:'#dbeafe'}},h(Ico,{n:'truck',s:18,c:'',style:{color:'#1d4ed8'}})),
-        h('div',{className:'li-body',onClick:()=>{ if(esVehicular){setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');}else{setForm({...emptyF,...r});setSelected(r);setView('form');} }},
+        h('div',{className:'li-body',onClick:()=>{ if(esVehicular){setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');setTipoSelloEntrada(r.tipo_sello_entrada||'');}else{setForm({...emptyF,...r});setSelected(r);setView('form');} }},
           h('div',{className:'li-title'},r.placa,
             h('span',{style:{fontSize:10,fontWeight:600,marginLeft:6,padding:'2px 6px',borderRadius:4,
               background:r.hora_llegada?'#d1fae5':r.hora_salida_cedi?'#fef3c7':'#dbeafe',
@@ -1190,12 +1191,12 @@ function FlotaPage({user,online,addOffline}){
           h('div',{style:{display:'flex',gap:4,marginTop:3}},
             esVehicular&&!r.hora_salida_cedi&&h('button',{
               title:'Ver detalle y registrar salida',
-              onClick:(e)=>{e.stopPropagation();setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');},
+              onClick:(e)=>{e.stopPropagation();setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');setTipoSelloEntrada(r.tipo_sello_entrada||'');},
               style:{background:'#059669',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Salida'),
             esVehicular&&r.hora_salida_cedi&&!r.hora_llegada&&h('button',{
               title:'Ver detalle y registrar llegada',
-              onClick:(e)=>{e.stopPropagation();setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');},
+              onClick:(e)=>{e.stopPropagation();setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');setTipoSelloEntrada(r.tipo_sello_entrada||'');},
               style:{background:'#f59e0b',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Llegada'),
             !esVehicular&&r.hora_salida_cedi&&!r.hora_llegada&&h('button',{
@@ -1336,35 +1337,60 @@ function FlotaPage({user,online,addOffline}){
           })()
         ),
         h('div',{style:{marginTop:10,background:'#f8fafc',borderRadius:10,padding:'12px 14px'}},
-          h('p',{style:{fontSize:11,fontWeight:700,color:'var(--navy)',marginBottom:8,textTransform:'uppercase',letterSpacing:'0.05em'}},'Sello'),
+          h('p',{style:{fontSize:11,fontWeight:700,color:'var(--navy)',marginBottom:8,textTransform:'uppercase',letterSpacing:'0.05em'}},'Sellos'),
           h('div',{className:'fgrid2',style:{alignItems:'flex-end'}},
             h('div',null,
               h('p',{style:{fontSize:10,color:'var(--slate)',marginBottom:2}},'N° Sello salida'),
               h('p',{style:{fontSize:14,fontWeight:700,color:detalleVeh.sello?'var(--navy)':'var(--slate)'}},detalleVeh.sello||'—')
             ),
             h('div',{className:'fg',style:{margin:0}},
-              h('label',{style:{fontSize:10,color:'var(--slate)',marginBottom:2,display:'block'}},'Tipo de sello'),
-              h('select',{
-                value:tipoSelloSalida,
-                onChange:async e=>{
-                  const val=e.target.value;
-                  setTipoSelloSalida(val);
-                  if(val){
-                    try{await api.put(`/flota/${detalleVeh.id}`,{tipo_sello:val});setDetalleVeh(p=>({...p,tipo_sello:val}));load();}
-                    catch(err){setAlert({type:'err',msg:'No se pudo guardar el tipo de sello'});}
-                  }
-                },
-                style:{fontSize:13,fontWeight:600}
-              },
-                h('option',{value:''},'— Seleccionar —'),
-                h('option',{value:'Digital'},'Digital'),
-                h('option',{value:'Plástico'},'Plástico')
-              )
+              h('label',{style:{fontSize:10,color:'var(--slate)',marginBottom:2,display:'block'}},'Tipo sello salida'),
+              detalleVeh.hora_llegada
+                ? h('span',{style:{fontSize:12,fontWeight:700,padding:'2px 8px',borderRadius:4,
+                    background:detalleVeh.tipo_sello==='Digital'?'#dbeafe':detalleVeh.tipo_sello==='Plástico'?'#fef9c3':'#f1f5f9',
+                    color:detalleVeh.tipo_sello==='Digital'?'#1e40af':detalleVeh.tipo_sello==='Plástico'?'#854d0e':'var(--slate)'
+                  }},detalleVeh.tipo_sello||'—')
+                : h('select',{
+                    value:tipoSelloSalida,
+                    onChange:async e=>{
+                      const val=e.target.value;setTipoSelloSalida(val);
+                      if(val){try{await api.put(`/flota/${detalleVeh.id}`,{tipo_sello:val});setDetalleVeh(p=>({...p,tipo_sello:val}));load();}
+                      catch(err){setAlert({type:'err',msg:'No se pudo guardar el tipo de sello de salida'});}}
+                    },style:{fontSize:13,fontWeight:600}
+                  },
+                  h('option',{value:''},'— Seleccionar —'),
+                  h('option',{value:'Digital'},'Digital'),
+                  h('option',{value:'Plástico'},'Plástico')
+                )
             )
           ),
-          detalleVeh.sello_entrada&&h('div',{style:{marginTop:8}},
-            h('p',{style:{fontSize:10,color:'var(--slate)',marginBottom:2}},'N° Sello llegada'),
-            h('p',{style:{fontSize:14,fontWeight:700,color:'#059669'}},detalleVeh.sello_entrada)
+          detalleVeh.hora_salida_cedi&&h('div',{style:{marginTop:10,paddingTop:10,borderTop:'1px solid var(--border)'}},
+            h('div',{className:'fgrid2',style:{alignItems:'flex-end'}},
+              h('div',null,
+                h('p',{style:{fontSize:10,color:'#059669',marginBottom:2}},'N° Sello entrada'),
+                h('p',{style:{fontSize:14,fontWeight:700,color:detalleVeh.sello_entrada?'#059669':'var(--slate)'}},detalleVeh.sello_entrada||'—')
+              ),
+              h('div',{className:'fg',style:{margin:0}},
+                h('label',{style:{fontSize:10,color:'#059669',marginBottom:2,display:'block'}},'Tipo sello entrada'),
+                detalleVeh.hora_llegada
+                  ? h('span',{style:{fontSize:12,fontWeight:700,padding:'2px 8px',borderRadius:4,
+                      background:detalleVeh.tipo_sello_entrada==='Digital'?'#d1fae5':detalleVeh.tipo_sello_entrada==='Plástico'?'#fef9c3':'#f1f5f9',
+                      color:detalleVeh.tipo_sello_entrada==='Digital'?'#065f46':detalleVeh.tipo_sello_entrada==='Plástico'?'#854d0e':'var(--slate)'
+                    }},detalleVeh.tipo_sello_entrada||'—')
+                  : h('select',{
+                      value:tipoSelloEntrada,
+                      onChange:async e=>{
+                        const val=e.target.value;setTipoSelloEntrada(val);
+                        if(val){try{await api.put(`/flota/${detalleVeh.id}`,{tipo_sello_entrada:val});setDetalleVeh(p=>({...p,tipo_sello_entrada:val}));load();}
+                        catch(err){setAlert({type:'err',msg:'No se pudo guardar el tipo de sello de entrada'});}}
+                      },style:{fontSize:13,fontWeight:600}
+                    },
+                    h('option',{value:''},'— Seleccionar —'),
+                    h('option',{value:'Digital'},'Digital'),
+                    h('option',{value:'Plástico'},'Plástico')
+                  )
+              )
+            )
           )
         ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
