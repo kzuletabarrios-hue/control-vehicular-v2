@@ -1413,7 +1413,13 @@ function FlotaPage({user,online,addOffline}){
         ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
           !detalleVeh.hora_salida_cedi&&h('button',{className:'btn-primary',style:{background:'#059669',flex:1},onClick:()=>{setSalida2(detalleVeh);setHoraSalida2(ahoraHora());setFechaSalidaV(today());}},h(Ico,{n:'truck',s:14}),' Registrar salida'),
-          detalleVeh.hora_salida_cedi&&!detalleVeh.hora_llegada&&h('button',{className:'btn-primary',style:{flex:1},onClick:()=>{setLlegada(detalleVeh);setHoraLlegada(ahoraHora());setFechaLlegadaV(today());setUltimaTiendaLleg(detalleVeh.ultima_tienda||'');setSelloLleg(detalleVeh.sello_entrada||selloEntradaDetalle||'');}},h(Ico,{n:'checkCircle',s:14}),' Registrar llegada'),
+          detalleVeh.hora_salida_cedi&&!detalleVeh.hora_llegada&&h('button',{className:'btn-primary',style:{flex:1},onClick:async()=>{
+            const sello=(detalleVeh.sello_entrada||selloEntradaDetalle||'').trim();
+            if(!sello) return setAlert({type:'err',msg:'Ingresa el N° de sello de entrada antes de registrar llegada'});
+            const ts=await _tsBog();
+            await api.put(`/flota/${detalleVeh.id}`,{hora_llegada:ts.hora,fecha_llegada:ts.fecha,sello_entrada:sello});
+            setDetalleVeh(null);setSelloEntradaDetalle('');load();setAlert({type:'ok',msg:'Llegada registrada ✓'});
+          }},h(Ico,{n:'checkCircle',s:14}),' Registrar llegada'),
           h('button',{className:'btn-cancel',onClick:()=>setDetalleVeh(null)},'Cerrar')
         )
       )
