@@ -1176,7 +1176,7 @@ function FlotaPage({user,online,addOffline}){
       visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'truck',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='pendientes'?'Sin vehículos activos':'Sin registros hoy')):
       visibles.map(r=>h('div',{key:r.id,className:'list-item'},
         h('div',{className:'li-icon',style:{background:'#dbeafe'}},h(Ico,{n:'truck',s:18,c:'',style:{color:'#1d4ed8'}})),
-        h('div',{className:'li-body',onClick:()=>{ if(esVehicular){setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');setTipoSelloEntrada(r.tipo_sello_entrada||'');setSelloEntradaDetalle(r.sello_entrada||'');}else{setForm({...emptyF,...r});setSelected(r);setView('form');} }},
+        h('div',{className:'li-body',onClick:()=>{ if(esVehicular){setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');setTipoSelloEntrada(r.tipo_sello_entrada||'');setSelloEntradaDetalle(r.sello_entrada||'');setSelloSalida(r.sello||'');setTempSalida(r.temperatura||'');}else{setForm({...emptyF,...r});setSelected(r);setView('form');} }},
           h('div',{className:'li-title'},r.placa,
             h('span',{style:{fontSize:10,fontWeight:600,marginLeft:6,padding:'2px 6px',borderRadius:4,
               background:r.hora_llegada?'#d1fae5':r.hora_salida_cedi?'#fef3c7':'#dbeafe',
@@ -1194,12 +1194,12 @@ function FlotaPage({user,online,addOffline}){
           h('div',{style:{display:'flex',gap:4,marginTop:3}},
             esVehicular&&!r.hora_salida_cedi&&h('button',{
               title:'Ver detalle y registrar salida',
-              onClick:(e)=>{e.stopPropagation();setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');setTipoSelloEntrada(r.tipo_sello_entrada||'');setSelloEntradaDetalle(r.sello_entrada||'');},
+              onClick:(e)=>{e.stopPropagation();setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');setTipoSelloEntrada(r.tipo_sello_entrada||'');setSelloEntradaDetalle(r.sello_entrada||'');setSelloSalida(r.sello||'');setTempSalida(r.temperatura||'');},
               style:{background:'#059669',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Salida'),
             esVehicular&&r.hora_salida_cedi&&!r.hora_llegada&&h('button',{
               title:'Ver detalle y registrar llegada',
-              onClick:(e)=>{e.stopPropagation();setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');setTipoSelloEntrada(r.tipo_sello_entrada||'');setSelloEntradaDetalle(r.sello_entrada||'');},
+              onClick:(e)=>{e.stopPropagation();setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');setTipoSelloEntrada(r.tipo_sello_entrada||'');setSelloEntradaDetalle(r.sello_entrada||'');setSelloSalida(r.sello||'');setTempSalida(r.temperatura||'');},
               style:{background:'#f59e0b',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Llegada'),
             !esVehicular&&r.hora_salida_cedi&&!r.hora_llegada&&h('button',{
@@ -1342,9 +1342,22 @@ function FlotaPage({user,online,addOffline}){
         h('div',{style:{marginTop:10,background:'#f8fafc',borderRadius:10,padding:'12px 14px'}},
           h('p',{style:{fontSize:11,fontWeight:700,color:'var(--navy)',marginBottom:8,textTransform:'uppercase',letterSpacing:'0.05em'}},'Sellos'),
           h('div',{className:'fgrid2',style:{alignItems:'flex-end'}},
-            h('div',null,
-              h('p',{style:{fontSize:10,color:'var(--slate)',marginBottom:2}},'N° Sello salida'),
-              h('p',{style:{fontSize:14,fontWeight:700,color:detalleVeh.sello?'var(--navy)':'var(--slate)'}},detalleVeh.sello||'—')
+            h('div',{className:'fg',style:{margin:0}},
+              h('label',{style:{fontSize:10,color:'var(--slate)',marginBottom:2,display:'block'}},'N° Sello salida'),
+              detalleVeh.hora_salida_cedi
+                ? h('p',{style:{fontSize:14,fontWeight:700,color:detalleVeh.sello?'var(--navy)':'var(--slate)',margin:0}},detalleVeh.sello||'—')
+                : h('input',{
+                    type:'text',value:selloSalida,
+                    onChange:e=>setSelloSalida(e.target.value),
+                    onBlur:async e=>{
+                      const val=e.target.value.trim();
+                      if(val&&val!==detalleVeh.sello){
+                        try{await api.put(`/flota/${detalleVeh.id}`,{sello:val});setDetalleVeh(p=>({...p,sello:val}));}
+                        catch(err){setAlert({type:'err',msg:'No se pudo guardar el N° de sello'});}
+                      }
+                    },
+                    placeholder:'Ej: 123456',style:{fontSize:13,fontWeight:600}
+                  })
             ),
             h('div',{className:'fg',style:{margin:0}},
               h('label',{style:{fontSize:10,color:'var(--slate)',marginBottom:2,display:'block'}},'Tipo sello salida'),
@@ -1411,8 +1424,22 @@ function FlotaPage({user,online,addOffline}){
             )
           )
         ),
+        !detalleVeh.hora_salida_cedi&&h('div',{className:'fg',style:{marginTop:10}},
+          h('label',null,'Temperatura °C (opcional)'),
+          h('input',{type:'number',step:'0.1',value:tempSalida,onChange:e=>setTempSalida(e.target.value),placeholder:'Ej: 4.5'})
+        ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
-          !detalleVeh.hora_salida_cedi&&h('button',{className:'btn-primary',style:{background:'#059669',flex:1},onClick:()=>{setSalida2(detalleVeh);setHoraSalida2(ahoraHora());setFechaSalidaV(today());}},h(Ico,{n:'truck',s:14}),' Registrar salida'),
+          !detalleVeh.hora_salida_cedi&&h('button',{className:'btn-primary',style:{background:'#059669',flex:1},onClick:async()=>{
+            const sello=(selloSalida||detalleVeh.sello||'').trim();
+            if(!sello) return setAlert({type:'err',msg:'Ingresa el N° de sello de salida antes de registrar'});
+            try{
+              const ts=await _tsBog();
+              const body={hora_salida_cedi:ts.hora,fecha_salida:ts.fecha,sello};
+              if(tempSalida) body.temperatura=tempSalida;
+              await api.put(`/flota/${detalleVeh.id}`,body);
+              setDetalleVeh(null);setSelloSalida('');setTempSalida('');load();setAlert({type:'ok',msg:'Salida registrada ✓'});
+            }catch(e){setAlert({type:'err',msg:'Error al registrar salida'});}
+          }},h(Ico,{n:'truck',s:14}),' Registrar salida'),
           detalleVeh.hora_salida_cedi&&!detalleVeh.hora_llegada&&h('button',{className:'btn-primary',style:{flex:1},onClick:async()=>{
             const sello=(detalleVeh.sello_entrada||selloEntradaDetalle||'').trim();
             if(!sello) return setAlert({type:'err',msg:'Ingresa el N° de sello de entrada antes de registrar llegada'});
