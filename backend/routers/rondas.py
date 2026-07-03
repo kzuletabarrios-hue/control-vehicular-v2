@@ -798,3 +798,57 @@ def panel(
         })
 
     return resultado
+
+
+@router.get("/reporte-semanal")
+def reporte_semanal(
+    db: Session = Depends(get_db),
+    user: dict = Depends(_require_roles(*ROLES_GESTION)),
+):
+    hoy = _hoy_bog()
+    desde = (datetime.now(_BOG).date() - timedelta(days=6)).isoformat()
+
+    recorredores = db.execute(text("""
+        SELECT u.id, u.nombre FROM usuarios u
+        JOIN roles r ON r.id = u.rol_id
+        WHERE r.nombre = 'recorredor_externo' AND u.activo = TRUE
+        ORDER BY u.nombre ASC
+    """)).fetchall()
+
+    resultado = []
+    for u in recorredores:
+        turnos = db.execute(text("""
+            SELECT fecha, turno, COUNT(*) FILTER (WHERE estado = 'completa') AS completadas
+            FROM rondas_ciclos
+            WHERE recorredor_id = :uid AND fecha BETWEEN :desde AND :hoy
+            GROUP BY fecha, turno
+            ORDER BY fecha DESC, turno ASC
+        """), {"uid": u.id, "desde": desde, "hoy": hoy}).fetchall()
+
+        novedades = db.execute(text("""
+            SELECT COUNT(*) AS n FROM rondas
+            WHERE recorredor_id = :uid AND fecha BETWEEN :desde AND :hoy AND estado = 'novedad'
+        """), {"uid": u.id, "desde": desde, "hoy": hoy}).fetchone().n
+
+        dias = [{
+            "fecha": t.fecha.isoformat() if hasattr(t.fecha, "isoformat") else t.fecha,
+            "turno": t.turno,
+            "completadas": t.completadas,
+            "esperadas": RONDAS_POR_TURNO,
+        } for t in turnos]
+
+        total_completadas = sum(d["completadas"] for d in dias)
+        total_esperadas = sum(d["esperadas"] for d in dias)
+        porcentaje = round(100 * total_completadas / total_esperadas) if total_esperadas > 0 else None
+
+        resultado.append({
+            "recorredor_id": str(u.id),
+            "recorredor_nombre": u.nombre,
+            "dias": dias,
+            "total_completadas": total_completadas,
+            "total_esperadas": total_esperadas,
+            "porcentaje": porcentaje,
+            "novedades": novedades,
+        })
+
+    return {"desde": desde, "hasta": hoy, "recorredores": resultado}
