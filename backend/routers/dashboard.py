@@ -1,5 +1,7 @@
 # backend/routers/dashboard.py
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
+
+_BOG = timezone(timedelta(hours=-5))
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -15,9 +17,10 @@ def resumen(
     db: Session = Depends(get_db),
     _: dict = Depends(require_permiso("dashboard", "read")),
 ):
-    hoy = date.today().isoformat()
-    hace7 = (date.today() - timedelta(days=7)).isoformat()
-    hace30 = (date.today() - timedelta(days=30)).isoformat()
+    hoy_d  = datetime.now(_BOG).date()
+    hoy    = hoy_d.isoformat()
+    hace7  = (hoy_d - timedelta(days=7)).isoformat()
+    hace30 = (hoy_d - timedelta(days=30)).isoformat()
 
     # 1 query para todos los conteos en lugar de 10 queries separadas
     stats = db.execute(text("""

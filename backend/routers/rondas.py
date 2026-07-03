@@ -1,7 +1,10 @@
 # backend/routers/rondas.py
 import uuid
 import io
-from datetime import date, datetime, time as dtime
+from datetime import datetime, time as dtime, timedelta, timezone
+
+_BOG = timezone(timedelta(hours=-5))
+def _hoy_bog(): return datetime.now(_BOG).date().isoformat()
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
@@ -317,7 +320,7 @@ def turno_cronograma(
     turno = turno if turno in ("dia", "noche") else turno_actual()
     items = calcular_cronograma(turno)
 
-    hoy = str(date.today())
+    hoy = _hoy_bog()
     ciclos = db.execute(text("""
         SELECT * FROM rondas_ciclos
         WHERE recorredor_id = :uid AND fecha = :hoy AND turno = :turno
@@ -416,7 +419,7 @@ def ciclo_iniciar(
 ):
     body = body or {}
     turno = body.get("turno") if body.get("turno") in ("dia", "noche") else turno_actual()
-    hoy = str(date.today())
+    hoy = _hoy_bog()
 
     activo = db.execute(text("""
         SELECT 1 FROM rondas_ciclos WHERE recorredor_id = :uid AND estado IN ('en_curso', 'pausada')
@@ -597,7 +600,7 @@ def ronda_hoy(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    hoy = str(date.today())
+    hoy = _hoy_bog()
     if user['rol'] in ROLES_GESTION:
         rows = db.execute(text("""
             SELECT r.*, p.nombre AS punto_nombre, p.orden,
@@ -663,7 +666,7 @@ def apoyo_marcar(
     if not qr:
         raise HTTPException(400, "Código QR no corresponde al QR de Apoyo Operativo")
 
-    hoy = str(date.today())
+    hoy = _hoy_bog()
     abierto = db.execute(text("""
         SELECT * FROM apoyos_operativos
         WHERE recorredor_id = :uid AND fecha = :hoy AND hora_salida IS NULL
@@ -706,7 +709,7 @@ def apoyo_hoy(
     db: Session = Depends(get_db),
     user: dict = Depends(_require_roles(*ROLES_RONDA)),
 ):
-    hoy = str(date.today())
+    hoy = _hoy_bog()
     rows = db.execute(text("""
         SELECT * FROM apoyos_operativos
         WHERE recorredor_id = :uid AND fecha = :hoy
@@ -722,7 +725,7 @@ def panel(
     db: Session = Depends(get_db),
     user: dict = Depends(_require_roles(*ROLES_GESTION)),
 ):
-    hoy = str(date.today())
+    hoy = _hoy_bog()
     recorredores = db.execute(text("""
         SELECT u.id, u.nombre FROM usuarios u
         JOIN roles r ON r.id = u.rol_id
