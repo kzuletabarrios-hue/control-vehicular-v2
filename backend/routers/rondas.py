@@ -19,9 +19,9 @@ ROLES_GESTION = ('admin', 'supervisor')
 ROLES_RONDA   = ('admin', 'supervisor', 'recorredor_externo')
 
 RONDAS_POR_TURNO   = 8
-RONDA_CAMINATA_MIN = 20   # min. estimados para recorrer los puntos de una ronda
+RONDA_CAMINATA_MIN = 30   # min. estimados para recorrer los puntos de una ronda
 PERMANENCIA_MIN_MIN = 15  # min. mínimos de permanencia en Tanques entre rondas
-ALERTA_ATRASO_MIN  = 35   # min. sin movimiento para marcar alerta en el panel
+ALERTA_ATRASO_MIN  = 45   # min. sin movimiento para marcar alerta en el panel
 
 TURNOS = {'dia': dtime(6, 0), 'noche': dtime(18, 0)}
 TURNO_DURACION_MIN = 720  # 12h
