@@ -1851,12 +1851,13 @@ function AccesoPage({user,online,addOffline}){
   },[]);
 
   const buscarCedula = async(val)=>{
+    const prev = form.cedula||'';
     setForm(p=>({...p,cedula:val}));
     if(val.length<3){setSugerencias([]);return;}
     try{
       const res = await api.get(`/control-acceso/bd/buscar?q=${val}`);
       setSugerencias(res);
-      if(res.length===1){setForm(p=>({...p,cedula:String(res[0].cedula),nombre:res[0].nombre,contratista:res[0].contratista||''}));setSugerencias([]);}
+      if(res.length===1 && val.length>=prev.length){setForm(p=>({...p,cedula:String(res[0].cedula),nombre:res[0].nombre,contratista:res[0].contratista||''}));setSugerencias([]);}
     }catch(e){}
   };
 
