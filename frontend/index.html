@@ -1091,7 +1091,7 @@ function FlotaPage({user,online,addOffline}){
         ),
         h('div',{className:'fg',style:{position:'relative'}},
           h('label',null,'Cédula conductor'),
-          h('input',{type:'text',value:cedulaBusq,onChange:e=>buscarConductor(e.target.value),placeholder:'Buscar por cédula o nombre...'}),
+          h('input',{type:'text',value:cedulaBusq,onChange:e=>buscarConductor(e.target.value),onBlur:()=>setTimeout(()=>setSugerCond([]),150),placeholder:'Buscar por cédula o nombre...'}),
           sugerCond.length>0&&h('div',{style:{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid var(--border)',borderRadius:8,zIndex:50,boxShadow:'var(--shadow)',maxHeight:180,overflowY:'auto'}},
             sugerCond.map(c=>h('div',{key:c.id,onClick:()=>seleccionarConductor(c),style:{padding:'10px 12px',cursor:'pointer',borderBottom:'1px solid var(--border)',fontSize:13}},
               h('strong',null,c.conductor),h('span',{style:{fontSize:11,color:'var(--slate)',marginLeft:8}},c.n_cedula||'')
