@@ -1029,7 +1029,6 @@ function FlotaPage({user,online,addOffline}){
   const limpiarForm = ()=>{setForm(emptyF);setSelected(null);setCedulaBusq('');setSugerCond([]);};
 
   const load = useCallback(()=>{
-    setLoading(true);
     Promise.all([api.get('/flota'),api.get('/conductores?activo=true&limit=200')])
       .then(([r,c])=>{setRecords(r.items||r);setCond(c);})
       .catch(()=>setAlert({type:'err',msg:'Error cargando datos'}))
@@ -3965,7 +3964,6 @@ function RondaPanelPage({user}){
   const [loading,setLoading] = useState(true);
 
   const load = useCallback(()=>{
-    setLoading(true);
     api.get('/rondas/panel').then(r=>setData(Array.isArray(r)?r:[])).catch(()=>{}).finally(()=>setLoading(false));
   },[]);
   useEffect(()=>{ load(); const t=setInterval(load,30000); return ()=>clearInterval(t); },[load]);
