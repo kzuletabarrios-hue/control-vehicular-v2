@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<title>Manual de Usuario - Guarda Vehicular</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',sans-serif;color:#1e293b;background:#fff;font-size:14px;line-height:1.6}
+  .page{max-width:800px;margin:0 auto;padding:40px 48px}
+
+  .portada{background:linear-gradient(160deg,#0f2440,#1e4570);min-height:280px;border-radius:20px;padding:48px;margin-bottom:40px;color:#fff}
+  .portada-tag{background:rgba(34,197,94,0.2);border:1px solid #86efac;color:#86efac;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:5px 12px;border-radius:20px;display:inline-block;margin-bottom:20px}
+  .portada h1{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;margin-bottom:8px}
+  .portada p{color:rgba(255,255,255,0.7);font-size:15px}
+  .portada .meta{margin-top:32px;display:flex;gap:32px}
+  .portada .meta-item span{display:block;font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px}
+  .portada .meta-item strong{font-size:13px;color:#fff}
+
+  h2{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#0f2440;margin:36px 0 16px;padding-bottom:8px;border-bottom:2px solid #e2e8f0}
+  h3{font-size:15px;font-weight:700;color:#1e4570;margin:20px 0 10px}
+  p{margin-bottom:10px;color:#475569}
+
+  .rol-card{border-radius:12px;padding:20px;border:1px solid;background:#f0fdf4;border-color:#bbf7d0;margin:16px 0}
+  .rol-card h4{font-size:14px;font-weight:700;margin-bottom:8px;color:#15803d}
+  .rol-card ul{list-style:none;padding:0}
+  .rol-card ul li{font-size:13px;color:#475569;padding:3px 0;padding-left:16px;position:relative}
+  .rol-card ul li::before{content:'✓';position:absolute;left:0;font-weight:700;color:#15803d}
+
+  .pasos{margin:16px 0}
+  .paso{display:flex;gap:16px;margin-bottom:16px;align-items:flex-start}
+  .paso-num{background:#0f2440;color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0;margin-top:2px}
+  .paso-body h4{font-size:14px;font-weight:700;color:#0f2440;margin-bottom:4px}
+  .paso-body p{font-size:13px;color:#64748b;margin:0}
+
+  .flujo{display:flex;gap:0;margin:20px 0;align-items:stretch}
+  .flujo-paso{flex:1;text-align:center;padding:16px 12px;position:relative}
+  .flujo-paso:not(:last-child)::after{content:'→';position:absolute;right:-12px;top:50%;transform:translateY(-50%);font-size:20px;color:#94a3b8;z-index:1}
+  .flujo-paso .fp-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;margin:0 auto 8px}
+  .flujo-paso h4{font-size:11px;font-weight:700;margin-bottom:4px}
+  .flujo-paso p{font-size:10px;color:#64748b;margin:0}
+  .fp-bodega{background:#dbeafe;color:#1d4ed8}
+  .fp-vehicular-s{background:#d1fae5;color:#065f46}
+  .fp-vehicular-l{background:#fef3c7;color:#92400e}
+  .fp-bodega h4{color:#1d4ed8}
+  .fp-vehicular-s h4{color:#065f46}
+  .fp-vehicular-l h4{color:#92400e}
+
+  .tip{background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:12px 16px;margin:12px 0;font-size:13px;color:#166534}
+  .tip::before{content:'💡 '}
+  .warn{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 16px;margin:12px 0;font-size:13px;color:#92400e}
+  .warn::before{content:'⚠️ '}
+
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:#0f2440;color:#fff;padding:10px 12px;text-align:left;font-size:12px;font-weight:600}
+  td{padding:9px 12px;border-bottom:1px solid #e2e8f0;color:#475569}
+  tr:nth-child(even) td{background:#f8fafc}
+
+  .badge{display:inline-block;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700}
+  .badge-blue{background:#dbeafe;color:#1d4ed8}
+  .badge-yellow{background:#fef3c7;color:#92400e}
+  .badge-green{background:#d1fae5;color:#065f46}
+
+  @media print{ .page{padding:20px 24px} h2{page-break-before:auto} }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="portada">
+    <div class="portada-tag">Manual de Usuario</div>
+    <h1>🚗 Guarda Vehicular</h1>
+    <p>Guía de uso individual — CEDI R10</p>
+    <div class="meta">
+      <div class="meta-item"><span>Versión</span><strong>2.2</strong></div>
+      <div class="meta-item"><span>Fecha</span><strong>Julio 2026</strong></div>
+      <div class="meta-item"><span>Clasificación</span><strong>Interno</strong></div>
+    </div>
+  </div>
+
+  <h2>1. Cómo ingresar al sistema</h2>
+  <div class="pasos">
+    <div class="paso"><div class="paso-num">1</div><div class="paso-body"><h4>Abrir la aplicación</h4><p>Escanea el código QR con la cámara de tu celular o escribe la dirección en el navegador. La app funciona en cualquier celular con internet.</p></div></div>
+    <div class="paso"><div class="paso-num">2</div><div class="paso-body"><h4>Iniciar sesión</h4><p>Ingresa tu correo electrónico y contraseña personal asignados por el administrador.</p></div></div>
+    <div class="paso"><div class="paso-num">3</div><div class="paso-body"><h4>Acceder a tu módulo</h4><p>El sistema te mostrará automáticamente Flota (salida/regreso) y Proveedores (registro completo).</p></div></div>
+  </div>
+  <div class="tip">Si olvidaste tu contraseña, comunícate con el administrador del sistema.</div>
+
+  <h2>2. Tu rol</h2>
+  <div class="rol-card">
+    <h4>🚗 Guarda Vehicular</h4>
+    <ul>
+      <li>Registra la salida de vehículos de flota propia (sello + temperatura)</li>
+      <li>Registra el regreso de vehículos (sello de entrada + última tienda visitada)</li>
+      <li>Crea y gestiona los registros de Proveedores (terceros)</li>
+      <li>Revisa la evidencia de rechazo que deja el guarda de bodega antes de dar salida</li>
+      <li>No inicia registros de flota — eso lo hace el guarda de bodega</li>
+    </ul>
+  </div>
+
+  <h2>3. Flujo de vehículos de flota propia</h2>
+  <p>El registro se completa en 3 etapas entre dos guardas. Bodega inicia; tú registras salida y regreso:</p>
+  <div class="flujo">
+    <div class="flujo-paso">
+      <div class="fp-icon fp-bodega">🏭</div>
+      <h4 style="color:#1d4ed8">Bodega</h4>
+      <p>Inicia el registro con datos de carga</p>
+      <div class="badge badge-blue" style="margin-top:6px">En bodega</div>
+    </div>
+    <div class="flujo-paso">
+      <div class="fp-icon fp-vehicular-s">🚗</div>
+      <h4 style="color:#065f46">TÚ</h4>
+      <p>Registras la salida + sello</p>
+      <div class="badge badge-yellow" style="margin-top:6px">En ruta</div>
+    </div>
+    <div class="flujo-paso">
+      <div class="fp-icon fp-vehicular-l">🏠</div>
+      <h4 style="color:#92400e">TÚ</h4>
+      <p>Registras el regreso + sello</p>
+      <div class="badge badge-green" style="margin-top:6px">Regresó</div>
+    </div>
+  </div>
+
+  <h3>3.1 Registrar salida</h3>
+  <div class="pasos">
+    <div class="paso"><div class="paso-num">1</div><div class="paso-body"><h4>En Flota, buscar el vehículo con badge "En bodega"</h4><p>El badge azul indica que está listo para salir.</p></div></div>
+    <div class="paso"><div class="paso-num">2</div><div class="paso-body"><h4>Tocar el botón verde "Salida"</h4><p>Se abre un formulario con la hora automática.</p></div></div>
+    <div class="paso"><div class="paso-num">3</div><div class="paso-body"><h4>Ingresar número de sello (obligatorio)</h4><p>El sello es requerido. También registras temperatura, observaciones y foto.</p></div></div>
+    <div class="paso"><div class="paso-num">4</div><div class="paso-body"><h4>Confirmar salida</h4><p>El badge cambia a "En ruta" (amarillo).</p></div></div>
+  </div>
+
+  <h3>3.2 Registrar regreso</h3>
+  <div class="pasos">
+    <div class="paso"><div class="paso-num">1</div><div class="paso-body"><h4>Buscar el vehículo con badge "En ruta"</h4><p>Badge amarillo indica que está fuera y pendiente de regreso.</p></div></div>
+    <div class="paso"><div class="paso-num">2</div><div class="paso-body"><h4>Tocar el botón "Llegada"</h4><p>Se abre el formulario de regreso.</p></div></div>
+    <div class="paso"><div class="paso-num">3</div><div class="paso-body"><h4>Ingresar sello de regreso (obligatorio) + foto</h4><p>Puedes registrar también la última tienda visitada.</p></div></div>
+    <div class="paso"><div class="paso-num">4</div><div class="paso-body"><h4>Confirmar llegada</h4><p>El badge cambia a "Regresó" (verde). Ciclo completo.</p></div></div>
+  </div>
+  <div class="warn">Si un vehículo aparece con badge "En ruta" al iniciar tu turno, significa que quedó pendiente del turno anterior. Notifica al supervisor antes de registrar una nueva salida para el mismo vehículo.</div>
+
+  <h2>4. Proveedores (vehículos terceros)</h2>
+  <p>Tú creas los registros de Proveedores y das la salida. Bodega solo puede agregar evidencia de rechazo, no crear ni eliminar registros.</p>
+
+  <h3>4.1 Registrar proveedor</h3>
+  <div class="pasos">
+    <div class="paso"><div class="paso-num">1</div><div class="paso-body"><h4>Ir a módulo Proveedores → "Nuevo"</h4><p>Completa placa, conductor, empresa, tipo de vehículo, muelle y hora de ingreso (automática).</p></div></div>
+    <div class="paso"><div class="paso-num">2</div><div class="paso-body"><h4>Guardar</h4><p>El vehículo aparece en la lista. Cuando salga, usa el botón naranja <strong>"Salida"</strong> para registrar la hora de salida.</p></div></div>
+  </div>
+
+  <h3>4.2 Identificar rechazos de bodega</h3>
+  <p>Cuando el guarda de bodega registra un rechazo, el vehículo muestra el badge <span class="badge badge-yellow">Con evidencia</span> en la lista. Toca el registro para ver el detalle antes de dar la salida.</p>
+  <div class="tip">Siempre revisa el badge "Con evidencia" antes de registrar la salida de un vehículo proveedor. Puede haber instrucciones o novedades de bodega.</div>
+
+  <h2>5. Consejos importantes</h2>
+  <table>
+    <tr><th>Situación</th><th>Qué hacer</th></tr>
+    <tr><td>No puedo iniciar sesión</td><td>Verifica el correo y contraseña. Si persiste, contacta al administrador.</td></tr>
+    <tr><td>El sello es obligatorio y no lo tengo</td><td>No se puede registrar salida/llegada sin número de sello. Espera a tener el sello físico.</td></tr>
+    <tr><td>Hay vehículos "En ruta" al iniciar turno</td><td>Notifica al supervisor. Son vehículos pendientes del turno anterior.</td></tr>
+    <tr><td>Un proveedor fue rechazado en bodega</td><td>Verás el badge "Con evidencia". Revisa las observaciones antes de dar salida.</td></tr>
+    <tr><td>Cometí un error en un registro</td><td>Toca el registro y edítalo. Algunos campos solo puede corregirlos el administrador.</td></tr>
+  </table>
+
+  <div style="margin-top:48px;text-align:center;color:#94a3b8;font-size:11px;border-top:1px solid #e2e8f0;padding-top:20px">
+    Manual de Usuario · Guarda Vehicular · CEDI R10 · Versión 2.2 · Julio 2026 · Confidencial — Solo para uso interno
+  </div>
+
+</div>
+</body>
+</html>
