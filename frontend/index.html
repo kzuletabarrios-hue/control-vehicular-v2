@@ -1893,8 +1893,8 @@ function AccesoPage({user,online,addOffline}){
           h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg',style:{position:'relative'}},
             h('label',null,'Cédula'),
-            h('input',{type:'number',value:form.cedula,onChange:e=>buscarCedula(e.target.value),placeholder:'Número de cédula'}),
-            sugerencias.length>0&&h('div',{style:{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid var(--border)',borderRadius:8,zIndex:50,boxShadow:'var(--shadow)'}},
+            h('input',{type:'number',value:form.cedula,onChange:e=>buscarCedula(e.target.value),onBlur:()=>setTimeout(()=>setSugerencias([]),150),placeholder:'Número de cédula'}),
+            sugerencias.length>0&&h('div',{style:{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid var(--border)',borderRadius:8,zIndex:50,boxShadow:'var(--shadow)',maxHeight:180,overflowY:'auto'}},
               sugerencias.map(s=>h('div',{key:s.cedula,onClick:()=>{setForm(p=>({...p,cedula:String(s.cedula),nombre:s.nombre,contratista:s.contratista||''}));setSugerencias([]);},
                 style:{padding:'10px 12px',cursor:'pointer',borderBottom:'1px solid var(--border)',fontSize:13}},
                 h('strong',null,s.nombre),' · ',s.contratista||'',h('span',{style:{fontSize:11,color:'var(--slate)',marginLeft:8}},s.cedula)
