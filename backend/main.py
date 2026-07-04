@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import (
-    auth, flota, conductores, proveedores,
+    auth, flota, conductores, proveedores, proveedores_publico,
     control_acceso, visitantes, bd_maestros, export, dashboard, carga_masiva,
     rondas, novedades, busqueda, visita_vehicular, uploads
 )
@@ -27,6 +27,7 @@ app.include_router(auth.router,           prefix="/api/auth",          tags=["Au
 app.include_router(flota.router,          prefix="/api/flota",         tags=["Flota Propia"])
 app.include_router(conductores.router,    prefix="/api/conductores",   tags=["Conductores"])
 app.include_router(proveedores.router,    prefix="/api/proveedores",   tags=["Proveedores"])
+app.include_router(proveedores_publico.router, prefix="/api/proveedores-publico", tags=["Proveedores Autorregistro (público)"])
 app.include_router(control_acceso.router, prefix="/api/control-acceso",tags=["Control Acceso"])
 app.include_router(visitantes.router,     prefix="/api/visitantes",    tags=["Visitantes"])
 app.include_router(bd_maestros.router,    prefix="/api/maestros",      tags=["Maestros BD"])

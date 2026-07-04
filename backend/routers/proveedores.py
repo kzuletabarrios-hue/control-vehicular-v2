@@ -1,11 +1,17 @@
 # backend/routers/proveedores.py
+import io
+import os
 import uuid
+from datetime import datetime, timedelta, timezone
+
+import jwt
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from database import get_db
-from routers.auth import require_permiso
+from routers.auth import require_permiso, SECRET_KEY, ALGORITHM
 
 router = APIRouter()
 
@@ -21,8 +27,30 @@ CAMPOS_VEHICULO = [
 
 CAMPOS_ORDEN = [
     "empresa", "carga_compartida",
-    "actividad_a_desarrollar", "dependencia_autoriza",
+    "actividad_a_desarrollar", "dependencia_autoriza", "numero_orden_compra",
 ]
+
+# ── QR de autorregistro de proveedores ────────────────────────────
+QR_INGRESO_TIPO   = "ingreso_proveedor_qr"
+QR_INGRESO_TTL_SEG = 90  # el token (y por lo tanto una foto del QR) expira en 90s
+
+
+def crear_token_ingreso_qr() -> str:
+    exp = datetime.now(timezone.utc) + timedelta(seconds=QR_INGRESO_TTL_SEG)
+    return jwt.encode({"tipo": QR_INGRESO_TIPO, "exp": exp}, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def validar_token_ingreso_qr(token: str) -> None:
+    if not token:
+        raise HTTPException(400, "Falta el código de la portería. Escanea el QR nuevamente.")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(400, "El código QR expiró. Pide al guarda que muestre el QR actualizado y escanéalo de nuevo.")
+    except jwt.InvalidTokenError:
+        raise HTTPException(400, "Código QR inválido.")
+    if payload.get("tipo") != QR_INGRESO_TIPO:
+        raise HTTPException(400, "Código QR inválido.")
 
 
 def _attach_ordenes(db, items: list[dict]) -> list[dict]:
@@ -88,6 +116,36 @@ def listar(
     items = [dict(r._mapping) for r in rows]
     _attach_ordenes(db, items)
     return {"total": total, "items": items}
+
+
+# ── QR de autorregistro (portería) ────────────────────────────────
+# IMPORTANTE: debe ir ANTES de /{id} (GET) — si no, FastAPI captura
+# "qr-imagen" como si fuera un id y esta ruta queda inalcanzable.
+
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://control-vehicular-v2.vercel.app")
+
+
+@router.get("/qr-imagen")
+def qr_imagen(
+    _: dict = Depends(require_permiso("proveedores", "write")),
+):
+    try:
+        import qrcode
+        from qrcode.image.svg import SvgPathImage
+    except ImportError:
+        raise HTTPException(500, "Librería qrcode no instalada en el servidor")
+
+    token = crear_token_ingreso_qr()
+    url = f"{FRONTEND_URL}/?ingreso_proveedor=1&token={token}"
+    img = qrcode.make(url, image_factory=SvgPathImage)
+    buf = io.BytesIO()
+    img.save(buf)
+    svg = buf.getvalue().decode("utf-8")
+    return Response(
+        content=svg,
+        media_type="image/svg+xml",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.get("/{id}")
@@ -230,6 +288,25 @@ def eliminar(
     db.execute(text("DELETE FROM proveedores WHERE id = :id"), {"id": id})
     db.commit()
     return {"message": "Registro eliminado"}
+
+
+@router.put("/{id}/confirmar")
+def confirmar_autorregistro(
+    id: str,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("proveedores", "write")),
+):
+    row = db.execute(text("SELECT estado_confirmacion FROM proveedores WHERE id = :id"), {"id": id}).fetchone()
+    if not row:
+        raise HTTPException(404, "Registro no encontrado")
+    if row.estado_confirmacion == "confirmado":
+        raise HTTPException(409, "Este registro ya estaba confirmado")
+    db.execute(
+        text("UPDATE proveedores SET estado_confirmacion = 'confirmado', updated_at = NOW() WHERE id = :id"),
+        {"id": id},
+    )
+    db.commit()
+    return {"message": "Ingreso confirmado"}
 
 
 # ── Legacy batch endpoint (kept for backward compat) ──────────────────────────

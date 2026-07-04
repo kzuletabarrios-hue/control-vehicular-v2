@@ -2397,14 +2397,59 @@ function ProveedoresPage({user,online,addOffline}){
   const [ordenEditingIdx,setOrdenEditingIdx] = useState(null);
 
   const load = useCallback(()=>{
-    setLoading(true);
     api.get('/proveedores').then(r=>setRecords(r.items||r)).catch(()=>setAlert({type:'err',msg:'Error cargando datos'})).finally(()=>setLoading(false));
   },[]);
-  useEffect(()=>load(),[load]);
+  useEffect(()=>{ load(); const t=setInterval(load,30000); return ()=>clearInterval(t); },[load]);
 
   useEffect(()=>{
     api.get('/maestros/proveedores').then(r=>setBdProv(Array.isArray(r)?r:(r.items||[]))).catch(()=>{});
   },[]);
+
+  const confirmarIngreso = async(id)=>{
+    try{
+      await api.put(`/proveedores/${id}/confirmar`,{});
+      setAlert({type:'ok',msg:'Ingreso confirmado'});
+      load();
+    }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
+  };
+
+  /* ── QR de ingreso (kiosco de portería) ── */
+  const [qrImgUrl,setQrImgUrl] = useState(null);
+  const [qrError,setQrError]   = useState(null);
+  useEffect(()=>{
+    if(view!=='qr') return;
+    let active=true;
+    const fetchQr = ()=>{
+      fetch(`${API_BASE}/proveedores/qr-imagen`,{headers:{Authorization:'Bearer '+getToken()}})
+        .then(r=>{ if(!r.ok) throw new Error('No se pudo generar el QR'); return r.text(); })
+        .then(svg=>{ if(active){ setQrError(null); setQrImgUrl('data:image/svg+xml;utf8,'+encodeURIComponent(svg)); } })
+        .catch(e=>{ if(active) setQrError(e.message); });
+    };
+    fetchQr();
+    const t=setInterval(fetchQr,60000);
+    return ()=>{ active=false; clearInterval(t); };
+  },[view]);
+
+  if(view==='qr') return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{className:'header'},
+      h('div',{className:'header-inner'},
+        h('button',{onClick:()=>setView('list'),style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
+          h(Ico,{n:'arrowLeft',s:18}),' Volver'
+        ),
+        h('div',{className:'header-brand'},h('h1',null,'QR Ingreso Proveedores'),h('span',null,'Portería'))
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'24px 14px',display:'flex',flexDirection:'column',alignItems:'center',textAlign:'center'}},
+      h('p',{style:{fontSize:13,color:'var(--slate)',marginBottom:16,maxWidth:340}},
+        'Pega esta pantalla en la portería para que los conductores de proveedores escaneen el QR y registren su ingreso. El código se renueva solo cada 60 segundos — una foto guardada del QR deja de funcionar en poco tiempo.'
+      ),
+      qrError&&h(Alert,{type:'err',msg:qrError,onClose:()=>setQrError(null)}),
+      qrImgUrl
+        ? h('img',{src:qrImgUrl,style:{width:280,height:280,background:'#fff',border:'1px solid var(--border)',borderRadius:16,padding:16}})
+        : h(LoadingDots),
+      h('p',{style:{fontSize:11,color:'var(--slate)',marginTop:16}},'Se actualiza automáticamente. No cierres esta pantalla.')
+    )
+  );
 
   const lookupConductor = async(cedula,setter)=>{
     if(!cedula||String(cedula).length<5) return;
@@ -2772,6 +2817,9 @@ function ProveedoresPage({user,online,addOffline}){
         !esBodega&&h('button',{onClick:()=>{setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);setFrecuenteInfo(null);setView('batch');},style:{background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
           h(Ico,{n:'plus',s:15}),' Nuevo'
         ),
+        !esBodega&&h('button',{onClick:()=>setView('qr'),style:{background:'none',border:'1.5px solid var(--navy)',color:'var(--navy)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
+          h(Ico,{n:'qrCode',s:14}),' QR Ingreso'
+        ),
         esBodega&&h('p',{style:{fontSize:12,color:'var(--slate)',alignSelf:'center',margin:'0 0 0 4px'}},h(Ico,{n:'alert',s:12}),' Toca un registro para agregar evidencia de rechazo')
       ),
       h('div',{style:{padding:'0 14px 8px',position:'relative'}},
@@ -2787,14 +2835,16 @@ function ProveedoresPage({user,online,addOffline}){
         const ords=r.ordenes||[];
         const emps=ords.map(o=>o.empresa).filter(Boolean);
         const empLabel=emps.length===0?(r.empresa||'Sin empresa'):emps.length<=2?emps.join(' · '):emps.slice(0,2).join(' · ')+` +${emps.length-2}`;
-        return h('div',{key:r.id,className:'list-item'},
-          h('div',{className:'li-icon',style:{background:'#fde68a'}},
-            h(Ico,{n:'package',s:18,style:{color:'#d97706'}})
+        const pendConf = r.estado_confirmacion==='pendiente';
+        return h('div',{key:r.id,className:'list-item',style:pendConf?{border:'1.5px solid #fcd34d',background:'#fffbeb'}:null},
+          h('div',{className:'li-icon',style:{background:pendConf?'#fef3c7':'#fde68a'}},
+            h(Ico,{n:pendConf?'bell':'package',s:18,style:{color:'#d97706'}})
           ),
           h('div',{className:'li-body',onClick:()=>{
             setForm({...emptyF,...r,cedula_conductor:r.cedula_conductor||'',hora_ingreso:r.hora_ingreso||'',hora_salida:r.hora_salida||''});
             setSelected(r);setFormOrdenes(r.ordenes||[]);setAddingOrd(false);setView('form');
           }},
+            pendConf&&h('span',{className:'pill pill-amber',style:{marginBottom:3,display:'inline-block'}},'🔔 Llegó — Por confirmar'),
             h('div',{className:'li-title'},r.nombre_conductor||r.placa_vehiculo||'Sin nombre'),
             h('div',{className:'li-sub'},[r.cedula_conductor&&'CC '+r.cedula_conductor,r.placa_vehiculo,r.tipo_vehiculo,r.muelle_descargue&&'Muelle '+r.muelle_descargue,r.telefono_conductor&&'📞 '+r.telefono_conductor].filter(Boolean).join(' · ')),
             h('div',{className:'li-sub'},empLabel),
@@ -2805,7 +2855,12 @@ function ProveedoresPage({user,online,addOffline}){
               r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida))
             ),
             h('div',{style:{display:'flex',gap:4,marginTop:3}},
-              !esBodega&&r.hora_ingreso&&!r.hora_salida&&h('button',{
+              !esBodega&&pendConf&&h('button',{
+                title:'Confirmar ingreso',
+                onClick:(e)=>{e.stopPropagation();confirmarIngreso(r.id);},
+                style:{background:'#059669',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
+              },'Confirmar'),
+              !esBodega&&!pendConf&&r.hora_ingreso&&!r.hora_salida&&h('button',{
                 title:'Registrar salida',
                 onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(ahoraHora());setFechaSalidaP(today());},
                 style:{background:'#d97706',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
@@ -4179,8 +4234,132 @@ function PlaceholderPage({label,setPage}){
   );
 }
 
+/* ── AUTORREGISTRO PÚBLICO DE PROVEEDORES (sin login) ── */
+function ProveedorAutorregistroPage({token}){
+  const [estado,setEstado]   = useState('validando'); // validando | valido | invalido | enviado
+  const [errorMsg,setErrorMsg] = useState('');
+  const [saving,setSaving]   = useState(false);
+  const tiposVehiculo = ['Camión','Camioneta','Moto','Furgón','Tractomula','Otro'];
+  const emptyVeh = {placa_vehiculo:'',nombre_conductor:'',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',muelle_descargue:''};
+  const emptyOrd = {empresa:'',numero_orden_compra:'',actividad_a_desarrollar:'',dependencia_autoriza:'',carga_compartida:false};
+  const [vehiculo,setVehiculo] = useState(emptyVeh);
+  const [ordenes,setOrdenes]   = useState([]);
+  const [ordenDraft,setOrdenDraft] = useState(emptyOrd);
+
+  useEffect(()=>{
+    if(!token){ setEstado('invalido'); setErrorMsg('Falta el código del QR. Escanéalo de nuevo desde la portería.'); return; }
+    api.get(`/proveedores-publico/token-info?token=${encodeURIComponent(token)}`)
+      .then(()=>setEstado('valido'))
+      .catch(e=>{ setEstado('invalido'); let msg=e.message; try{msg=JSON.parse(msg).detail||msg;}catch{} setErrorMsg(msg); });
+  },[token]);
+
+  const agregarOrden = ()=>{
+    if(!ordenDraft.empresa.trim()){ setErrorMsg('La empresa/orden es obligatoria'); return; }
+    setOrdenes(p=>[...p,{...ordenDraft}]);
+    setOrdenDraft({...emptyOrd});
+    setErrorMsg('');
+  };
+  const quitarOrden = (i)=>setOrdenes(p=>p.filter((_,idx)=>idx!==i));
+
+  const enviar = async()=>{
+    setErrorMsg('');
+    if(!vehiculo.placa_vehiculo.trim()) return setErrorMsg('La placa es obligatoria');
+    if(!vehiculo.nombre_conductor.trim()) return setErrorMsg('El nombre del conductor es obligatorio');
+    if(ordenes.length===0) return setErrorMsg('Agrega al menos una empresa/orden a la que vienes a entregar');
+    setSaving(true);
+    try{
+      await api.post('/proveedores-publico/autorregistro',{
+        token, vehiculo:{...vehiculo,placa_vehiculo:vehiculo.placa_vehiculo.toUpperCase()}, ordenes,
+      });
+      setEstado('enviado');
+    }catch(e){
+      let msg=e.message; try{msg=JSON.parse(msg).detail||msg;}catch{}
+      setErrorMsg(msg);
+    }finally{ setSaving(false); }
+  };
+
+  const Shell = (children)=>h('div',{style:{minHeight:'100vh',display:'flex',flexDirection:'column',background:'var(--bg,#f8fafc)'}},
+    h('div',{className:'header'},
+      h('div',{className:'header-inner'},
+        h('div',{className:'header-brand'},h('h1',null,'Ingreso de Proveedores'),h('span',null,'CEDI R10'))
+      )
+    ),
+    h('div',{style:{flex:1,padding:'16px 14px',maxWidth:480,margin:'0 auto',width:'100%',boxSizing:'border-box'}},children)
+  );
+
+  if(estado==='validando') return Shell(h('div',{style:{textAlign:'center',paddingTop:60}},h(LoadingDots)));
+
+  if(estado==='invalido') return Shell(
+    h('div',{style:{textAlign:'center',paddingTop:40}},
+      h(Ico,{n:'alert',s:44,style:{color:'#dc2626',marginBottom:12}}),
+      h('p',{style:{fontWeight:700,fontSize:15,marginBottom:6}},'No se pudo validar el código'),
+      h('p',{style:{color:'var(--slate)',fontSize:13}},errorMsg||'Pide al guarda que te muestre el QR actualizado y escanéalo de nuevo.')
+    )
+  );
+
+  if(estado==='enviado') return Shell(
+    h('div',{style:{textAlign:'center',paddingTop:40}},
+      h(Ico,{n:'checkCircle',s:44,style:{color:'#16a34a',marginBottom:12}}),
+      h('p',{style:{fontWeight:700,fontSize:15,marginBottom:6}},'Registro enviado'),
+      h('p',{style:{color:'var(--slate)',fontSize:13}},'El guarda confirmará tu ingreso en un momento. Puedes cerrar esta página.')
+    )
+  );
+
+  return Shell(
+    errorMsg&&h(Alert,{type:'err',msg:errorMsg,onClose:()=>setErrorMsg('')}),
+    h('div',{className:'fcard'},
+      h('p',{className:'sec-ttl'},h(Ico,{n:'truck',s:12}),' Datos del vehículo'),
+      h('div',{className:'fg'},h('label',null,'Placa',h('span',{className:'req'},'*')),
+        h('input',{type:'text',value:vehiculo.placa_vehiculo,onChange:e=>setVehiculo(p=>({...p,placa_vehiculo:e.target.value.toUpperCase()})),placeholder:'ABC-123'})
+      ),
+      h('div',{className:'fgrid2'},
+        h('div',{className:'fg'},h('label',null,'Cédula conductor'),h('input',{type:'text',value:vehiculo.cedula_conductor,onChange:e=>setVehiculo(p=>({...p,cedula_conductor:e.target.value})),placeholder:'Número'})),
+        h('div',{className:'fg'},h('label',null,'Nombre conductor',h('span',{className:'req'},'*')),h('input',{type:'text',value:vehiculo.nombre_conductor,onChange:e=>setVehiculo(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Nombre completo'}))
+      ),
+      h('div',{className:'fgrid2'},
+        h('div',{className:'fg'},h('label',null,'Teléfono'),h('input',{type:'tel',value:vehiculo.telefono_conductor,onChange:e=>setVehiculo(p=>({...p,telefono_conductor:e.target.value})),placeholder:'Opcional'})),
+        h('div',{className:'fg'},h('label',null,'Tipo vehículo'),
+          h('select',{value:vehiculo.tipo_vehiculo,onChange:e=>setVehiculo(p=>({...p,tipo_vehiculo:e.target.value}))},
+            h('option',{value:''},'Seleccionar...'),...tiposVehiculo.map(t=>h('option',{key:t,value:t},t))
+          )
+        )
+      ),
+      h('div',{className:'fg'},h('label',null,'Muelle de descargue'),h('input',{type:'text',value:vehiculo.muelle_descargue,onChange:e=>setVehiculo(p=>({...p,muelle_descargue:e.target.value})),placeholder:'Opcional'}))
+    ),
+    h('div',{className:'fcard',style:{border:'1.5px solid var(--navy)'}},
+      h('p',{className:'sec-ttl',style:{color:'var(--navy)'}},h(Ico,{n:'package',s:12}),` Empresas / órdenes que traes (${ordenes.length})`),
+      ordenes.map((o,i)=>h('div',{key:i,style:{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'1px solid var(--border)'}},
+        h('div',{style:{flex:1,minWidth:0}},
+          h('div',{style:{fontWeight:700,fontSize:13}},o.empresa),
+          h('div',{style:{fontSize:11,color:'var(--slate)'}},[o.numero_orden_compra&&('OC '+o.numero_orden_compra),o.actividad_a_desarrollar].filter(Boolean).join(' · '))
+        ),
+        h('button',{onClick:()=>quitarOrden(i),style:{background:'#fee2e2',border:'none',cursor:'pointer',color:'#dc2626',padding:'4px 8px',borderRadius:6,fontSize:11}},h(Ico,{n:'trash',s:12}))
+      )),
+      h('div',{style:{marginTop:10,paddingTop:10,borderTop:'1px dashed var(--border)'}},
+        h('div',{className:'fg'},h('label',null,'Empresa',h('span',{className:'req'},'*')),
+          h('input',{type:'text',value:ordenDraft.empresa,onChange:e=>setOrdenDraft(p=>({...p,empresa:e.target.value})),placeholder:'Nombre de la empresa'})
+        ),
+        h('div',{className:'fg'},h('label',null,'N° orden de compra'),
+          h('input',{type:'text',value:ordenDraft.numero_orden_compra,onChange:e=>setOrdenDraft(p=>({...p,numero_orden_compra:e.target.value})),placeholder:'Opcional'})
+        ),
+        h('div',{className:'fg'},h('label',null,'Actividad a desarrollar'),
+          h('textarea',{value:ordenDraft.actividad_a_desarrollar,onChange:e=>setOrdenDraft(p=>({...p,actividad_a_desarrollar:e.target.value})),rows:2,placeholder:'Opcional'})
+        ),
+        h('button',{onClick:agregarOrden,style:{width:'100%',background:'var(--navy)',border:'none',color:'#fff',borderRadius:8,padding:'9px 14px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6,fontSize:13,fontWeight:700,fontFamily:'inherit'}},
+          h(Ico,{n:'plus',s:14}),'Agregar a la lista')
+      )
+    ),
+    h('button',{className:'btn-primary',style:{width:'100%',marginTop:4},onClick:enviar,disabled:saving},
+      saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),saving?'Enviando...':'Enviar registro de llegada'
+    )
+  );
+}
+
 /* ── APP ROOT ── */
 function App(){
+  const qs = new URLSearchParams(window.location.search);
+  if(qs.get('ingreso_proveedor')!=null) return h(ProveedorAutorregistroPage,{token:qs.get('token')});
+
   const [user,setUser]       = useState(getUser);
   const [page,setPageState]  = useState('home');
   const [online,setOnline]   = useState(navigator.onLine);
