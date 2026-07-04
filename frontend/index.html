@@ -4278,13 +4278,13 @@ function ProveedorAutorregistroPage({token}){
     }finally{ setSaving(false); }
   };
 
-  const Shell = (children)=>h('div',{style:{minHeight:'100vh',display:'flex',flexDirection:'column',background:'var(--bg,#f8fafc)'}},
+  const Shell = (...children)=>h('div',{style:{minHeight:'100vh',display:'flex',flexDirection:'column',background:'var(--bg,#f8fafc)'}},
     h('div',{className:'header'},
       h('div',{className:'header-inner'},
         h('div',{className:'header-brand'},h('h1',null,'Ingreso de Proveedores'),h('span',null,'CEDI R10'))
       )
     ),
-    h('div',{style:{flex:1,padding:'16px 14px',maxWidth:480,margin:'0 auto',width:'100%',boxSizing:'border-box'}},children)
+    h('div',{style:{flex:1,padding:'16px 14px',maxWidth:480,margin:'0 auto',width:'100%',boxSizing:'border-box'}},...children)
   );
 
   if(estado==='validando') return Shell(h('div',{style:{textAlign:'center',paddingTop:60}},h(LoadingDots)));
