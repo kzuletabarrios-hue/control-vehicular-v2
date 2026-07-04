@@ -2382,7 +2382,7 @@ function ProveedoresPage({user,online,addOffline}){
   const tiposVehiculo = ['Camión','Camioneta','Moto','Furgón','Tractomula','Otro'];
 
   /* ── EDIT FORM STATE ── */
-  const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),hora_llegada_muelle:'',hora_salida:'',muelle_descargue:'',fecha_pago_arl:'',observaciones:'',foto_url:null};
+  const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),hora_salida:'',muelle_descargue:'',fecha_pago_arl:'',observaciones:'',foto_url:null};
   const [form,setForm]               = useState(emptyF);
   const [formOrdenes,setFormOrdenes] = useState([]);
   const [formOrd,setFormOrd]         = useState({empresa:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''});
@@ -2580,10 +2580,7 @@ function ProveedoresPage({user,online,addOffline}){
           h('div',{className:'fg'},h('label',null,'Conductor'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.nombre_conductor||'—')),
           h('div',{className:'fg'},h('label',null,'Placa'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.placa_vehiculo||'—'))
         ),
-        h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.hora_ingreso||'—')),
-          h('div',{className:'fg'},h('label',null,'Llegada a muelle'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.hora_llegada_muelle||'Sin registrar (la marca vehicular)'))
-        )
+        h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.hora_ingreso||'—'))
       ),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'clipboard',s:12}),' Observación del descargue'),
@@ -2639,9 +2636,8 @@ function ProveedoresPage({user,online,addOffline}){
         h('p',{className:'sec-ttl'},h(Ico,{n:'check',s:12}),' Horarios y ARL'),
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('input',{type:'time',value:form.hora_ingreso,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
-          h('div',{className:'fg'},h('label',null,'Llegada a muelle'),h('input',{type:'time',value:form.hora_llegada_muelle||'',readOnly:true,placeholder:'Sin registrar',style:{background:'#f8fafc',cursor:'default'}}))
+          h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida,onChange:e=>setForm(p=>({...p,hora_salida:e.target.value}))}))
         ),
-        h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida,onChange:e=>setForm(p=>({...p,hora_salida:e.target.value}))})),
         h('div',{className:'fg'},h('label',null,'Fecha pago ARL'),h('input',{type:'date',value:form.fecha_pago_arl,onChange:e=>setForm(p=>({...p,fecha_pago_arl:e.target.value}))})),
         h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:2,placeholder:'—'}))
       ),
@@ -2840,11 +2836,9 @@ function ProveedoresPage({user,online,addOffline}){
         const emps=ords.map(o=>o.empresa).filter(Boolean);
         const empLabel=emps.length===0?(r.empresa||'Sin empresa'):emps.length<=2?emps.join(' · '):emps.slice(0,2).join(' · ')+` +${emps.length-2}`;
         const pendConf = r.estado_confirmacion==='pendiente';
-        const enMuelle = !!r.hora_llegada_muelle;
         const conSalida = !!r.hora_salida;
         const etapa = pendConf?{txt:'🔔 Llegó — Por confirmar',cls:'pill-amber'}
           :conSalida?null
-          :enMuelle?{txt:'En muelle',cls:'pill-blue'}
           :{txt:'Ingreso autorizado',cls:'pill-green'};
         return h('div',{key:r.id,className:'list-item',style:pendConf?{border:'1.5px solid #fcd34d',background:'#fffbeb'}:null},
           h('div',{className:'li-icon',style:{background:pendConf?'#fef3c7':'#fde68a'}},
@@ -2870,11 +2864,6 @@ function ProveedoresPage({user,online,addOffline}){
                 onClick:(e)=>{e.stopPropagation();confirmarIngreso(r.id);},
                 style:{background:'#059669',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
               },'Confirmar'),
-              !esBodega&&!pendConf&&!enMuelle&&!conSalida&&h('button',{
-                title:'Registrar llegada a muelle',
-                onClick:async(e)=>{e.stopPropagation();try{await api.put(`/proveedores/${r.id}/llegada-muelle`,{});setAlert({type:'ok',msg:'Llegada a muelle registrada'});load();}catch(err){setAlert({type:'err',msg:'Error: '+err.message});}},
-                style:{background:'#1d4ed8',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
-              },'Llegada muelle'),
               !esBodega&&!pendConf&&r.hora_ingreso&&!r.hora_salida&&h('button',{
                 title:'Registrar salida',
                 onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(ahoraHora());setFechaSalidaP(today());},

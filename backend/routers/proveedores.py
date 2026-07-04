@@ -18,7 +18,7 @@ router = APIRouter()
 CAMPOS_VEHICULO = [
     "fecha", "placa_vehiculo", "nombre_conductor", "cedula_conductor",
     "telefono_conductor",
-    "tipo_vehiculo", "hora_ingreso", "hora_llegada_muelle", "hora_salida", "fecha_salida",
+    "tipo_vehiculo", "hora_ingreso", "hora_salida", "fecha_salida",
     "fecha_pago_arl", "observaciones", "foto_url",
     # Legacy columns kept nullable for backward compat
     "empresa", "muelle_descargue", "carga_compartida",
@@ -307,34 +307,6 @@ def confirmar_autorregistro(
     )
     db.commit()
     return {"message": "Ingreso confirmado"}
-
-
-@router.put("/{id}/llegada-muelle")
-def marcar_llegada_muelle(
-    id: str,
-    db: Session = Depends(get_db),
-    _: dict = Depends(require_permiso("proveedores", "write")),
-):
-    row = db.execute(
-        text("SELECT estado_confirmacion, hora_llegada_muelle, hora_salida FROM proveedores WHERE id = :id"),
-        {"id": id},
-    ).fetchone()
-    if not row:
-        raise HTTPException(404, "Registro no encontrado")
-    if row.estado_confirmacion != "confirmado":
-        raise HTTPException(409, "El ingreso todavía no ha sido autorizado")
-    if row.hora_salida is not None:
-        raise HTTPException(409, "Este vehículo ya registró salida")
-    if row.hora_llegada_muelle is not None:
-        raise HTTPException(409, "Ya se registró la llegada a muelle")
-    _BOG = timezone(timedelta(hours=-5))
-    hora = datetime.now(_BOG).strftime("%H:%M:%S")
-    db.execute(
-        text("UPDATE proveedores SET hora_llegada_muelle = :hora, updated_at = NOW() WHERE id = :id"),
-        {"id": id, "hora": hora},
-    )
-    db.commit()
-    return {"message": "Llegada a muelle registrada"}
 
 
 # ── Legacy batch endpoint (kept for backward compat) ──────────────────────────
