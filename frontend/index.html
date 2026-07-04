@@ -4240,8 +4240,8 @@ function ProveedorAutorregistroPage({token}){
   const [errorMsg,setErrorMsg] = useState('');
   const [saving,setSaving]   = useState(false);
   const tiposVehiculo = ['Camión','Camioneta','Moto','Furgón','Tractomula','Otro'];
-  const emptyVeh = {placa_vehiculo:'',nombre_conductor:'',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',muelle_descargue:''};
-  const emptyOrd = {empresa:'',numero_orden_compra:'',actividad_a_desarrollar:'',dependencia_autoriza:'',carga_compartida:false};
+  const emptyVeh = {placa_vehiculo:'',nombre_conductor:'',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:''};
+  const emptyOrd = {empresa:'',numero_orden_compra:''};
   const [vehiculo,setVehiculo] = useState(emptyVeh);
   const [ordenes,setOrdenes]   = useState([]);
   const [ordenDraft,setOrdenDraft] = useState(emptyOrd);
@@ -4254,7 +4254,8 @@ function ProveedorAutorregistroPage({token}){
   },[token]);
 
   const agregarOrden = ()=>{
-    if(!ordenDraft.empresa.trim()){ setErrorMsg('La empresa/orden es obligatoria'); return; }
+    if(!ordenDraft.empresa.trim()){ setErrorMsg('El proveedor es obligatorio'); return; }
+    if(!ordenDraft.numero_orden_compra.trim()){ setErrorMsg('El número de orden de compra es obligatorio'); return; }
     setOrdenes(p=>[...p,{...ordenDraft}]);
     setOrdenDraft({...emptyOrd});
     setErrorMsg('');
@@ -4264,8 +4265,11 @@ function ProveedorAutorregistroPage({token}){
   const enviar = async()=>{
     setErrorMsg('');
     if(!vehiculo.placa_vehiculo.trim()) return setErrorMsg('La placa es obligatoria');
+    if(!vehiculo.cedula_conductor.trim()) return setErrorMsg('La cédula del conductor es obligatoria');
     if(!vehiculo.nombre_conductor.trim()) return setErrorMsg('El nombre del conductor es obligatorio');
-    if(ordenes.length===0) return setErrorMsg('Agrega al menos una empresa/orden a la que vienes a entregar');
+    if(!vehiculo.telefono_conductor.trim()) return setErrorMsg('El teléfono del conductor es obligatorio');
+    if(!vehiculo.tipo_vehiculo.trim()) return setErrorMsg('Selecciona el tipo de vehículo');
+    if(ordenes.length===0) return setErrorMsg('Agrega al menos un proveedor/orden a la que vienes a entregar');
     setSaving(true);
     try{
       await api.post('/proveedores-publico/autorregistro',{
@@ -4278,13 +4282,13 @@ function ProveedorAutorregistroPage({token}){
     }finally{ setSaving(false); }
   };
 
-  const Shell = (...children)=>h('div',{style:{minHeight:'100vh',display:'flex',flexDirection:'column',background:'var(--bg,#f8fafc)'}},
+  const Shell = (...children)=>h('div',{style:{height:'100%',display:'flex',flexDirection:'column',overflow:'hidden',background:'var(--bg,#f8fafc)'}},
     h('div',{className:'header'},
       h('div',{className:'header-inner'},
         h('div',{className:'header-brand'},h('h1',null,'Ingreso de Proveedores'),h('span',null,'CEDI R10'))
       )
     ),
-    h('div',{style:{flex:1,padding:'16px 14px',maxWidth:480,margin:'0 auto',width:'100%',boxSizing:'border-box'}},...children)
+    h('div',{className:'scroll-body',style:{padding:'16px 14px',maxWidth:480,margin:'0 auto',width:'100%',boxSizing:'border-box'}},...children)
   );
 
   if(estado==='validando') return Shell(h('div',{style:{textAlign:'center',paddingTop:60}},h(LoadingDots)));
@@ -4313,37 +4317,33 @@ function ProveedorAutorregistroPage({token}){
         h('input',{type:'text',value:vehiculo.placa_vehiculo,onChange:e=>setVehiculo(p=>({...p,placa_vehiculo:e.target.value.toUpperCase()})),placeholder:'ABC-123'})
       ),
       h('div',{className:'fgrid2'},
-        h('div',{className:'fg'},h('label',null,'Cédula conductor'),h('input',{type:'text',value:vehiculo.cedula_conductor,onChange:e=>setVehiculo(p=>({...p,cedula_conductor:e.target.value})),placeholder:'Número'})),
+        h('div',{className:'fg'},h('label',null,'Cédula conductor',h('span',{className:'req'},'*')),h('input',{type:'text',value:vehiculo.cedula_conductor,onChange:e=>setVehiculo(p=>({...p,cedula_conductor:e.target.value})),placeholder:'Número'})),
         h('div',{className:'fg'},h('label',null,'Nombre conductor',h('span',{className:'req'},'*')),h('input',{type:'text',value:vehiculo.nombre_conductor,onChange:e=>setVehiculo(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Nombre completo'}))
       ),
       h('div',{className:'fgrid2'},
-        h('div',{className:'fg'},h('label',null,'Teléfono'),h('input',{type:'tel',value:vehiculo.telefono_conductor,onChange:e=>setVehiculo(p=>({...p,telefono_conductor:e.target.value})),placeholder:'Opcional'})),
-        h('div',{className:'fg'},h('label',null,'Tipo vehículo'),
+        h('div',{className:'fg'},h('label',null,'Teléfono',h('span',{className:'req'},'*')),h('input',{type:'tel',value:vehiculo.telefono_conductor,onChange:e=>setVehiculo(p=>({...p,telefono_conductor:e.target.value})),placeholder:'Número de contacto'})),
+        h('div',{className:'fg'},h('label',null,'Tipo vehículo',h('span',{className:'req'},'*')),
           h('select',{value:vehiculo.tipo_vehiculo,onChange:e=>setVehiculo(p=>({...p,tipo_vehiculo:e.target.value}))},
             h('option',{value:''},'Seleccionar...'),...tiposVehiculo.map(t=>h('option',{key:t,value:t},t))
           )
         )
-      ),
-      h('div',{className:'fg'},h('label',null,'Muelle de descargue'),h('input',{type:'text',value:vehiculo.muelle_descargue,onChange:e=>setVehiculo(p=>({...p,muelle_descargue:e.target.value})),placeholder:'Opcional'}))
+      )
     ),
     h('div',{className:'fcard',style:{border:'1.5px solid var(--navy)'}},
-      h('p',{className:'sec-ttl',style:{color:'var(--navy)'}},h(Ico,{n:'package',s:12}),` Empresas / órdenes que traes (${ordenes.length})`),
+      h('p',{className:'sec-ttl',style:{color:'var(--navy)'}},h(Ico,{n:'package',s:12}),` Proveedores / órdenes que traes (${ordenes.length})`),
       ordenes.map((o,i)=>h('div',{key:i,style:{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'1px solid var(--border)'}},
         h('div',{style:{flex:1,minWidth:0}},
           h('div',{style:{fontWeight:700,fontSize:13}},o.empresa),
-          h('div',{style:{fontSize:11,color:'var(--slate)'}},[o.numero_orden_compra&&('OC '+o.numero_orden_compra),o.actividad_a_desarrollar].filter(Boolean).join(' · '))
+          h('div',{style:{fontSize:11,color:'var(--slate)'}},'OC '+o.numero_orden_compra)
         ),
         h('button',{onClick:()=>quitarOrden(i),style:{background:'#fee2e2',border:'none',cursor:'pointer',color:'#dc2626',padding:'4px 8px',borderRadius:6,fontSize:11}},h(Ico,{n:'trash',s:12}))
       )),
       h('div',{style:{marginTop:10,paddingTop:10,borderTop:'1px dashed var(--border)'}},
-        h('div',{className:'fg'},h('label',null,'Empresa',h('span',{className:'req'},'*')),
-          h('input',{type:'text',value:ordenDraft.empresa,onChange:e=>setOrdenDraft(p=>({...p,empresa:e.target.value})),placeholder:'Nombre de la empresa'})
+        h('div',{className:'fg'},h('label',null,'Proveedor',h('span',{className:'req'},'*')),
+          h('input',{type:'text',value:ordenDraft.empresa,onChange:e=>setOrdenDraft(p=>({...p,empresa:e.target.value})),placeholder:'Nombre del proveedor'})
         ),
-        h('div',{className:'fg'},h('label',null,'N° orden de compra'),
-          h('input',{type:'text',value:ordenDraft.numero_orden_compra,onChange:e=>setOrdenDraft(p=>({...p,numero_orden_compra:e.target.value})),placeholder:'Opcional'})
-        ),
-        h('div',{className:'fg'},h('label',null,'Actividad a desarrollar'),
-          h('textarea',{value:ordenDraft.actividad_a_desarrollar,onChange:e=>setOrdenDraft(p=>({...p,actividad_a_desarrollar:e.target.value})),rows:2,placeholder:'Opcional'})
+        h('div',{className:'fg'},h('label',null,'N° orden de compra',h('span',{className:'req'},'*')),
+          h('input',{type:'text',value:ordenDraft.numero_orden_compra,onChange:e=>setOrdenDraft(p=>({...p,numero_orden_compra:e.target.value})),placeholder:'Número de orden'})
         ),
         h('button',{onClick:agregarOrden,style:{width:'100%',background:'var(--navy)',border:'none',color:'#fff',borderRadius:8,padding:'9px 14px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6,fontSize:13,fontWeight:700,fontFamily:'inherit'}},
           h(Ico,{n:'plus',s:14}),'Agregar a la lista')
