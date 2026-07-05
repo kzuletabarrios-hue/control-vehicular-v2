@@ -2382,7 +2382,7 @@ function ProveedoresPage({user,online,addOffline}){
   const tiposVehiculo = ['Camión','Camioneta','Moto','Furgón','Tractomula','Otro'];
 
   /* ── EDIT FORM STATE ── */
-  const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),hora_salida:'',muelle_descargue:'',fecha_pago_arl:'',observaciones:'',foto_url:null};
+  const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),hora_ingreso_confirmado:'',hora_salida:'',muelle_descargue:'',fecha_pago_arl:'',observaciones:'',foto_url:null};
   const [form,setForm]               = useState(emptyF);
   const [formOrdenes,setFormOrdenes] = useState([]);
   const [formOrd,setFormOrd]         = useState({empresa:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''});
@@ -2580,7 +2580,10 @@ function ProveedoresPage({user,online,addOffline}){
           h('div',{className:'fg'},h('label',null,'Conductor'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.nombre_conductor||'—')),
           h('div',{className:'fg'},h('label',null,'Placa'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.placa_vehiculo||'—'))
         ),
-        h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.hora_ingreso||'—'))
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Hora de llegada'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.hora_ingreso||'—')),
+          h('div',{className:'fg'},h('label',null,'Hora de ingreso'),h('p',{style:{padding:'4px 0',color:'var(--text2)'}},form.hora_ingreso_confirmado||'Sin confirmar'))
+        )
       ),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'clipboard',s:12}),' Observación del descargue'),
@@ -2635,9 +2638,10 @@ function ProveedoresPage({user,online,addOffline}){
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'check',s:12}),' Horarios y ARL'),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('input',{type:'time',value:form.hora_ingreso,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
-          h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida,onChange:e=>setForm(p=>({...p,hora_salida:e.target.value}))}))
+          h('div',{className:'fg'},h('label',null,'Hora de llegada'),h('input',{type:'time',value:form.hora_ingreso,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
+          h('div',{className:'fg'},h('label',null,'Hora de ingreso'),h('input',{type:'time',value:form.hora_ingreso_confirmado||'',readOnly:true,placeholder:'Sin confirmar',style:{background:'#f8fafc',cursor:'default'}}))
         ),
+        h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida,onChange:e=>setForm(p=>({...p,hora_salida:e.target.value}))})),
         h('div',{className:'fg'},h('label',null,'Fecha pago ARL'),h('input',{type:'date',value:form.fecha_pago_arl,onChange:e=>setForm(p=>({...p,fecha_pago_arl:e.target.value}))})),
         h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:2,placeholder:'—'}))
       ),

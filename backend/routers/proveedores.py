@@ -192,6 +192,9 @@ def crear(
     vals = {c: _clean(vehiculo.get(c)) for c in CAMPOS_VEHICULO}
     vals["id"] = rid
     vals["creado_por"] = current_user["id"]
+    # El registro creado directamente por un guarda ya queda con ingreso
+    # autorizado de inmediato (estado_confirmacion='confirmado' por defecto).
+    vals["hora_ingreso_confirmado"] = vals.get("hora_ingreso")
     cols = ", ".join(vals.keys())
     placeholders = ", ".join(f":{k}" for k in vals.keys())
     db.execute(text(f"INSERT INTO proveedores ({cols}) VALUES ({placeholders})"), vals)
@@ -301,9 +304,15 @@ def confirmar_autorregistro(
         raise HTTPException(404, "Registro no encontrado")
     if row.estado_confirmacion == "confirmado":
         raise HTTPException(409, "Este registro ya estaba confirmado")
+    _BOG = timezone(timedelta(hours=-5))
+    hora = datetime.now(_BOG).strftime("%H:%M:%S")
     db.execute(
-        text("UPDATE proveedores SET estado_confirmacion = 'confirmado', updated_at = NOW() WHERE id = :id"),
-        {"id": id},
+        text("""
+            UPDATE proveedores
+            SET estado_confirmacion = 'confirmado', hora_ingreso_confirmado = :hora, updated_at = NOW()
+            WHERE id = :id
+        """),
+        {"id": id, "hora": hora},
     )
     db.commit()
     return {"message": "Ingreso confirmado"}
