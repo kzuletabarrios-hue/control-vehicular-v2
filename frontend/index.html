@@ -1243,14 +1243,18 @@ function FlotaPage({user,online,addOffline}){
           h(CameraField,{value:fotoLleg,onChange:setFotoLleg})
         ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
-          h('button',{className:'btn-cancel',onClick:()=>{setLlegada(null);setDetalleVeh(null);}},'Cancelar'),
-          h('button',{className:'btn-primary',onClick:async()=>{
+          h('button',{className:'btn-cancel',onClick:()=>{setLlegada(null);setDetalleVeh(null);},disabled:saving},'Cancelar'),
+          h('button',{className:'btn-primary',disabled:saving,onClick:async()=>{
             if(!selloLleg.trim()) return setAlert({type:'err',msg:'El número de sello de regreso es obligatorio'});
-            const ts=await _tsBog();const body={hora_llegada:ts.hora,fecha_llegada:ts.fecha,sello_entrada:selloLleg,obs_llegada:obsLleg||undefined,foto_llegada:fotoLleg||undefined};
-            if(ultimaTiendaLleg) body.ultima_tienda=ultimaTiendaLleg;
-            await api.put(`/flota/${llegada.id}`,body);
-            setLlegada(null);setDetalleVeh(null);setSelloLleg('');setObsLleg('');setFotoLleg(null);setUltimaTiendaLleg('');load();setAlert({type:'ok',msg:'Llegada registrada'});
-          }},h(Ico,{n:'checkCircle',s:16}),'Confirmar llegada')
+            setSaving(true);
+            try{
+              const ts=await _tsBog();const body={hora_llegada:ts.hora,fecha_llegada:ts.fecha,sello_entrada:selloLleg,obs_llegada:obsLleg||undefined,foto_llegada:fotoLleg||undefined};
+              if(ultimaTiendaLleg) body.ultima_tienda=ultimaTiendaLleg;
+              await api.put(`/flota/${llegada.id}`,body);
+              setLlegada(null);setDetalleVeh(null);setSelloLleg('');setObsLleg('');setFotoLleg(null);setUltimaTiendaLleg('');load();setAlert({type:'ok',msg:'Llegada registrada'});
+            }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
+            finally{setSaving(false);}
+          }},saving?h('div',{className:'spinner'}):h(Ico,{n:'checkCircle',s:16}),saving?'Guardando...':'Confirmar llegada')
         )
       )
     ),
@@ -1290,14 +1294,18 @@ function FlotaPage({user,online,addOffline}){
           h(CameraField,{value:fotoSalida,onChange:setFotoSalida})
         ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
-          h('button',{className:'btn-cancel',onClick:()=>{setSalida2(null);setDetalleVeh(null);}},'Cancelar'),
-          h('button',{className:'btn-primary',style:{background:'#059669'},onClick:async()=>{
+          h('button',{className:'btn-cancel',onClick:()=>{setSalida2(null);setDetalleVeh(null);},disabled:saving},'Cancelar'),
+          h('button',{className:'btn-primary',style:{background:'#059669'},disabled:saving,onClick:async()=>{
             if(!selloSalida.trim()) return setAlert({type:'err',msg:'El número de sello de salida es obligatorio'});
+            setSaving(true);
+            try{
             const ts=await _tsBog();const body={hora_salida_cedi:ts.hora,fecha_salida:ts.fecha,sello:selloSalida,obs_salida:obsSalida||undefined,foto_salida:fotoSalida||undefined};
             if(tempSalida) body.temperatura=tempSalida;
             await api.put(`/flota/${salida.id}`,body);
             setSalida2(null);setDetalleVeh(null);setSelloSalida('');setObsSalida('');setFotoSalida(null);setTempSalida('');load();setAlert({type:'ok',msg:'Salida registrada'});
-          }},h(Ico,{n:'checkCircle',s:16}),'Confirmar salida')
+            }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
+            finally{setSaving(false);}
+          }},saving?h('div',{className:'spinner'}):h(Ico,{n:'checkCircle',s:16}),saving?'Guardando...':'Confirmar salida')
         )
       )
     ),
@@ -1804,11 +1812,15 @@ function ItemAccesoPage({tipo,user}){
           )
         ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
-          h('button',{className:'btn-cancel',onClick:()=>setSalidaItem(null)},'Cancelar'),
-          h('button',{className:'btn-primary',style:{background:cfg.color},onClick:async()=>{
-            const ts=await _tsBog();await api.put(`${cfg.endpoint}/${salidaItem.id}`,{hora_salida:ts.hora,fecha_salida:ts.fecha});
-            setSalidaItem(null);load();setAlert({type:'ok',msg:'Salida registrada'});
-          }},h(Ico,{n:'check',s:16}),'Confirmar salida')
+          h('button',{className:'btn-cancel',onClick:()=>setSalidaItem(null),disabled:saving},'Cancelar'),
+          h('button',{className:'btn-primary',style:{background:cfg.color},disabled:saving,onClick:async()=>{
+            setSaving(true);
+            try{
+              const ts=await _tsBog();await api.put(`${cfg.endpoint}/${salidaItem.id}`,{hora_salida:ts.hora,fecha_salida:ts.fecha});
+              setSalidaItem(null);load();setAlert({type:'ok',msg:'Salida registrada'});
+            }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
+            finally{setSaving(false);}
+          }},saving?h('div',{className:'spinner'}):h(Ico,{n:'check',s:16}),saving?'Guardando...':'Confirmar salida')
         )
       )
     ),
@@ -2003,14 +2015,18 @@ function AccesoPage({user,online,addOffline}){
           h(CameraField,{value:fotoSalida,onChange:setFotoSalida})
         ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
-          h('button',{className:'btn-cancel',onClick:()=>setSalida(null)},'Cancelar'),
-          h('button',{className:'btn-primary',style:{background:'#16a34a'},onClick:async()=>{
-            const ts=await _tsBog();const upd={hora_salida:ts.hora,fecha_salida:ts.fecha};
-            if(obsSalida) upd.observaciones=obsSalida;
-            if(fotoSalida) upd.foto_url=fotoSalida;
-            await api.put(`/control-acceso/${salida.id}`,upd);
-            setSalida(null);setObsSalida('');setFotoSalida(null);load();setAlert({type:'ok',msg:'Salida registrada'});
-          }},h(Ico,{n:'checkCircle',s:16}),'Confirmar salida')
+          h('button',{className:'btn-cancel',onClick:()=>setSalida(null),disabled:saving},'Cancelar'),
+          h('button',{className:'btn-primary',style:{background:'#16a34a'},disabled:saving,onClick:async()=>{
+            setSaving(true);
+            try{
+              const ts=await _tsBog();const upd={hora_salida:ts.hora,fecha_salida:ts.fecha};
+              if(obsSalida) upd.observaciones=obsSalida;
+              if(fotoSalida) upd.foto_url=fotoSalida;
+              await api.put(`/control-acceso/${salida.id}`,upd);
+              setSalida(null);setObsSalida('');setFotoSalida(null);load();setAlert({type:'ok',msg:'Salida registrada'});
+            }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
+            finally{setSaving(false);}
+          }},saving?h('div',{className:'spinner'}):h(Ico,{n:'checkCircle',s:16}),saving?'Guardando...':'Confirmar salida')
         )
       )
     ),
@@ -2172,14 +2188,18 @@ function VisitantesPage({user,online,addOffline}){
           h(CameraField,{value:fotoVisita,onChange:setFotoVisita})
         ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
-          h('button',{className:'btn-cancel',onClick:()=>setSalida(null)},'Cancelar'),
-          h('button',{className:'btn-primary',style:{background:'#7c3aed'},onClick:async()=>{
+          h('button',{className:'btn-cancel',onClick:()=>setSalida(null),disabled:saving},'Cancelar'),
+          h('button',{className:'btn-primary',style:{background:'#7c3aed'},disabled:saving,onClick:async()=>{
+            setSaving(true);
+            try{
             const ts=await _tsBog();const upd={hora_salida:ts.hora,fecha_salida:ts.fecha};
             if(obsVisita) upd.observaciones=obsVisita;
             if(fotoVisita) upd.foto_url=fotoVisita;
             await api.put(`/visitantes/${salida.id}`,upd);
             setSalida(null);setObsVisita('');setFotoVisita(null);load();setAlert({type:'ok',msg:'Salida registrada'});
-          }},h(Ico,{n:'check',s:16}),'Confirmar salida')
+            }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
+            finally{setSaving(false);}
+          }},saving?h('div',{className:'spinner'}):h(Ico,{n:'check',s:16}),saving?'Guardando...':'Confirmar salida')
         )
       )
     ),
@@ -2344,14 +2364,18 @@ function VisitaVehicularPage({user,online,addOffline}){
           h(CameraField,{value:fotoSalida,onChange:setFotoSalida})
         ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
-          h('button',{className:'btn-cancel',onClick:()=>setSalida(null)},'Cancelar'),
-          h('button',{className:'btn-primary',style:{background:'#0284c7'},onClick:async()=>{
-            const ts=await _tsBog();const upd={hora_salida:ts.hora,fecha_salida:ts.fecha};
-            if(obsSalida) upd.observaciones=obsSalida;
-            if(fotoSalida) upd.foto_url=fotoSalida;
-            await api.put(`/visita-vehicular/${salida.id}`,upd);
-            setSalida(null);setObsSalida('');setFotoSalida(null);load();setAlert({type:'ok',msg:'Salida registrada'});
-          }},h(Ico,{n:'check',s:16}),'Confirmar salida')
+          h('button',{className:'btn-cancel',onClick:()=>setSalida(null),disabled:saving},'Cancelar'),
+          h('button',{className:'btn-primary',style:{background:'#0284c7'},disabled:saving,onClick:async()=>{
+            setSaving(true);
+            try{
+              const ts=await _tsBog();const upd={hora_salida:ts.hora,fecha_salida:ts.fecha};
+              if(obsSalida) upd.observaciones=obsSalida;
+              if(fotoSalida) upd.foto_url=fotoSalida;
+              await api.put(`/visita-vehicular/${salida.id}`,upd);
+              setSalida(null);setObsSalida('');setFotoSalida(null);load();setAlert({type:'ok',msg:'Salida registrada'});
+            }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
+            finally{setSaving(false);}
+          }},saving?h('div',{className:'spinner'}):h(Ico,{n:'check',s:16}),saving?'Guardando...':'Confirmar salida')
         )
       )
     ),
