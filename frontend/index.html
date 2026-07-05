@@ -1121,8 +1121,8 @@ function FlotaPage({user,online,addOffline}){
         h('p',{className:'sec-ttl'},h(Ico,{n:'thermometer',s:12}),' Horarios y temperatura'),
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},h('label',null,'Salida muelle'),h('input',{type:'time',value:form.hora_salida_muelle||'',onChange:e=>setForm(p=>({...p,hora_salida_muelle:e.target.value}))})),
-          !esBodega&&h('div',{className:'fg'},h('label',null,'Salida CEDI'),h('input',{type:'time',value:form.hora_salida_cedi||'',onChange:e=>setForm(p=>({...p,hora_salida_cedi:e.target.value}))})),
-          !esBodega&&h('div',{className:'fg'},h('label',null,'Hora llegada'),h('input',{type:'time',value:form.hora_llegada||'',onChange:e=>setForm(p=>({...p,hora_llegada:e.target.value}))})),
+          !esBodega&&h('div',{className:'fg'},h('label',null,'Salida CEDI'),h('input',{type:'time',value:form.hora_salida_cedi||'',readOnly:true,placeholder:'Usa el botón "Salida"',style:{background:'#f8fafc',cursor:'default'}})),
+          !esBodega&&h('div',{className:'fg'},h('label',null,'Hora llegada'),h('input',{type:'time',value:form.hora_llegada||'',readOnly:true,placeholder:'Usa el botón "Llegada"',style:{background:'#f8fafc',cursor:'default'}})),
           !esBodega&&h('div',{className:'fg'},h('label',null,'Temperatura °C'),h('input',{type:'number',step:'0.1',value:form.temperatura||'',onChange:e=>setForm(p=>({...p,temperatura:e.target.value}))}))
         ),
         h('div',{className:'fgrid2'},
@@ -1916,7 +1916,7 @@ function AccesoPage({user,online,addOffline}){
         h('p',{className:'sec-ttl'},h(Ico,{n:'clock',s:12}),' Horarios'),
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('input',{type:'time',value:form.hora_ingreso,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
-          h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida,onChange:e=>setForm(p=>({...p,hora_salida:e.target.value}))}))
+          h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida||'',readOnly:true,placeholder:'Usa el botón "Salida"',style:{background:'#f8fafc',cursor:'default'}}))
         ),
         h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:3,placeholder:'—'}))
       )
@@ -2081,7 +2081,7 @@ function VisitantesPage({user,online,addOffline}){
         h('p',{className:'sec-ttl'},h(Ico,{n:'check',s:12}),' Horarios'),
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('input',{type:'time',value:form.hora_ingreso,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
-          h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida,onChange:e=>setForm(p=>({...p,hora_salida:e.target.value}))}))
+          h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida||'',readOnly:true,placeholder:'Usa el botón "Salida"',style:{background:'#f8fafc',cursor:'default'}}))
         ),
         h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:3,placeholder:'—'}))
       ),
@@ -2250,7 +2250,7 @@ function VisitaVehicularPage({user,online,addOffline}){
         h('p',{className:'sec-ttl'},h(Ico,{n:'check',s:12}),' Horarios'),
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('input',{type:'time',value:form.hora_ingreso,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
-          h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida,onChange:e=>setForm(p=>({...p,hora_salida:e.target.value}))}))
+          h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida||'',readOnly:true,placeholder:'Usa el botón "Salida"',style:{background:'#f8fafc',cursor:'default'}}))
         ),
         h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:3,placeholder:'—'}))
       ),
@@ -2641,7 +2641,7 @@ function ProveedoresPage({user,online,addOffline}){
           h('div',{className:'fg'},h('label',null,'Hora de llegada'),h('input',{type:'time',value:form.hora_ingreso,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg'},h('label',null,'Hora de ingreso'),h('input',{type:'time',value:form.hora_ingreso_confirmado||'',readOnly:true,placeholder:'Sin confirmar',style:{background:'#f8fafc',cursor:'default'}}))
         ),
-        h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida,onChange:e=>setForm(p=>({...p,hora_salida:e.target.value}))})),
+        h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida||'',readOnly:true,placeholder:'Usa el botón "Salida"',style:{background:'#f8fafc',cursor:'default'}})),
         h('div',{className:'fg'},h('label',null,'Fecha pago ARL'),h('input',{type:'date',value:form.fecha_pago_arl,onChange:e=>setForm(p=>({...p,fecha_pago_arl:e.target.value}))})),
         h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:2,placeholder:'—'}))
       ),
