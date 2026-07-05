@@ -34,13 +34,14 @@ def crear_sustancia(
 ):
     rid = str(uuid.uuid4())
     db.execute(text("""
-        INSERT INTO sustancias (id, fecha, descripcion, cantidad, responsable, hora_salida, fecha_salida, observaciones, foto_url, creado_por)
-        VALUES (:id, :fecha, :descripcion, :cantidad, :responsable, :hora_salida, :fecha_salida, :observaciones, :foto_url, :creado_por)
+        INSERT INTO sustancias (id, fecha, descripcion, cantidad, responsable, hora_salida, fecha_salida, observaciones, foto_url, es_consumible, creado_por)
+        VALUES (:id, :fecha, :descripcion, :cantidad, :responsable, :hora_salida, :fecha_salida, :observaciones, :foto_url, :es_consumible, :creado_por)
     """), {
         "id": rid, "fecha": body.get("fecha"), "descripcion": body.get("descripcion"),
         "cantidad": body.get("cantidad"), "responsable": body.get("responsable"),
         "hora_salida": body.get("hora_salida"), "fecha_salida": body.get("fecha_salida"),
         "observaciones": body.get("observaciones"), "foto_url": body.get("foto_url"),
+        "es_consumible": bool(body.get("es_consumible")),
         "creado_por": current_user["id"],
     })
     db.commit()
@@ -52,7 +53,7 @@ def actualizar_sustancia(
     db: Session = Depends(get_db),
     _: dict = Depends(require_permiso("control_acceso", "write")),
 ):
-    campos = ["fecha", "descripcion", "cantidad", "responsable", "hora_salida", "fecha_salida", "observaciones", "foto_url"]
+    campos = ["fecha", "descripcion", "cantidad", "responsable", "hora_salida", "fecha_salida", "observaciones", "foto_url", "es_consumible"]
     vals = {c: body[c] for c in campos if c in body}
     if not vals:
         raise HTTPException(400, "Sin campos")
@@ -96,13 +97,14 @@ def crear_herramienta(
 ):
     rid = str(uuid.uuid4())
     db.execute(text("""
-        INSERT INTO herramientas (id, fecha, descripcion, cantidad, responsable, hora_salida, fecha_salida, observaciones, foto_url, creado_por)
-        VALUES (:id, :fecha, :descripcion, :cantidad, :responsable, :hora_salida, :fecha_salida, :observaciones, :foto_url, :creado_por)
+        INSERT INTO herramientas (id, fecha, descripcion, cantidad, responsable, hora_salida, fecha_salida, observaciones, foto_url, es_consumible, creado_por)
+        VALUES (:id, :fecha, :descripcion, :cantidad, :responsable, :hora_salida, :fecha_salida, :observaciones, :foto_url, :es_consumible, :creado_por)
     """), {
         "id": rid, "fecha": body.get("fecha"), "descripcion": body.get("descripcion"),
         "cantidad": body.get("cantidad"), "responsable": body.get("responsable"),
         "hora_salida": body.get("hora_salida"), "fecha_salida": body.get("fecha_salida"),
         "observaciones": body.get("observaciones"), "foto_url": body.get("foto_url"),
+        "es_consumible": bool(body.get("es_consumible")),
         "creado_por": current_user["id"],
     })
     db.commit()
@@ -114,7 +116,7 @@ def actualizar_herramienta(
     db: Session = Depends(get_db),
     _: dict = Depends(require_permiso("control_acceso", "write")),
 ):
-    campos = ["fecha", "descripcion", "cantidad", "responsable", "hora_salida", "fecha_salida", "observaciones", "foto_url"]
+    campos = ["fecha", "descripcion", "cantidad", "responsable", "hora_salida", "fecha_salida", "observaciones", "foto_url", "es_consumible"]
     vals = {c: body[c] for c in campos if c in body}
     if not vals:
         raise HTTPException(400, "Sin campos")

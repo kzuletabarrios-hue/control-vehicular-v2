@@ -1692,7 +1692,7 @@ function ItemAccesoPage({tipo,user}){
   const [salidaItem,setSalidaItem]       = useState(null);
   const [horaSalidaItem,setHoraSalidaItem] = useState('');
   const [fechaSalidaItem,setFechaSalidaItem] = useState('');
-  const emptyF = {fecha:today(),descripcion:'',cantidad:'',responsable:'',observaciones:'',foto_url:null};
+  const emptyF = {fecha:today(),descripcion:'',cantidad:'',responsable:'',observaciones:'',foto_url:null,es_consumible:false};
   const [form,setForm]       = useState(emptyF);
   const [filtro,setFiltro]   = useState('pendientes');
   const [busqueda,setBusqueda] = useState('');
@@ -1729,6 +1729,11 @@ function ItemAccesoPage({tipo,user}){
           h('input',{type:'text',value:form.descripcion,onChange:e=>setForm(p=>({...p,descripcion:e.target.value})),placeholder:tipo==='sustancias'?'Ej: Thinner, pintura...':'Ej: Taladro, llave inglesa...'})
         ),
         h('div',{className:'fg'},h('label',null,'Responsable / Persona asociada'),h('input',{type:'text',value:form.responsable,onChange:e=>setForm(p=>({...p,responsable:e.target.value})),placeholder:'Nombre'})),
+        h('div',{className:'fg'},h('label',null,'¿Es consumible?'),
+          h('select',{value:form.es_consumible?'si':'no',onChange:e=>setForm(p=>({...p,es_consumible:e.target.value==='si'}))},
+            h('option',{value:'no'},'No — debe salir'),h('option',{value:'si'},'Sí — se queda/se gasta')
+          )
+        ),
         h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:3,placeholder:'—'}))
       ),
       h('div',{className:'fcard'},
@@ -1744,9 +1749,9 @@ function ItemAccesoPage({tipo,user}){
     )
   );
 
-  const nPend = records.filter(r=>!r.hora_salida).length;
+  const nPend = records.filter(r=>!r.hora_salida&&!r.es_consumible).length;
   const visibles = records
-    .filter(r=>filtro==='pendientes'?!r.hora_salida:true)
+    .filter(r=>filtro==='pendientes'?(!r.hora_salida&&!r.es_consumible):true)
     .filter(r=>{if(!busqueda.trim())return true;const q=busqueda.trim().toLowerCase();return (r.descripcion&&r.descripcion.toLowerCase().includes(q))||(r.responsable&&r.responsable.toLowerCase().includes(q));});
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
@@ -1774,6 +1779,7 @@ function ItemAccesoPage({tipo,user}){
       visibles.map(r=>h('div',{key:r.id,className:'list-item'},
         h('div',{className:'li-icon',style:{background:r.hora_salida?'#dcfce7':cfg.bg}},h(Ico,{n:cfg.icono,s:18,style:{color:r.hora_salida?'#16a34a':cfg.color}})),
         h('div',{className:'li-body',onClick:()=>{setForm({...emptyF,...r});setSelected(r);setView('form');}},
+          r.es_consumible&&h('span',{className:'pill pill-slate',style:{marginBottom:3,display:'inline-block'}},'Consumible'),
           h('div',{className:'li-title'},r.descripcion),
           h('div',{className:'li-sub'},r.cantidad?`Cantidad: ${r.cantidad}`:''),
           r.responsable&&h('div',{className:'li-sub'},'Responsable: ',r.responsable),
@@ -1784,7 +1790,7 @@ function ItemAccesoPage({tipo,user}){
             r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida))
           ),
           h('div',{style:{display:'flex',gap:4,marginTop:3}},
-            !r.hora_salida&&h('button',{
+            !r.hora_salida&&!r.es_consumible&&h('button',{
               title:'Registrar salida',
               onClick:(e)=>{e.stopPropagation();setSalidaItem(r);setHoraSalidaItem(ahoraHora());setFechaSalidaItem(today());},
               style:{background:cfg.color,border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}

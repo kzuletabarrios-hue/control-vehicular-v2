@@ -399,7 +399,7 @@ def export_sustancias(
 
     rows = db.execute(text(f"""
         SELECT fecha, descripcion, cantidad, responsable,
-               fecha_salida, hora_salida, observaciones
+               fecha_salida, hora_salida, es_consumible, observaciones
         FROM sustancias
         WHERE {' AND '.join(where)}
         ORDER BY fecha DESC, created_at DESC
@@ -410,10 +410,12 @@ def export_sustancias(
     ws.title = "Sustancias"
 
     headers = ["Fecha Ingreso", "Descripción", "Cantidad", "Responsable",
-               "Fecha Salida", "H. Salida", "Observaciones"]
+               "Fecha Salida", "H. Salida", "Consumible", "Observaciones"]
     _header_style(ws, headers)
     for row in rows:
-        ws.append(list(row))
+        vals = list(row)
+        vals[6] = "Sí" if vals[6] else "No"
+        ws.append(vals)
     _autowidth(ws)
     return _stream(wb, f"sustancias_{date.today()}.xlsx")
 
@@ -436,7 +438,7 @@ def export_herramientas(
 
     rows = db.execute(text(f"""
         SELECT fecha, descripcion, cantidad, responsable,
-               fecha_salida, hora_salida, observaciones
+               fecha_salida, hora_salida, es_consumible, observaciones
         FROM herramientas
         WHERE {' AND '.join(where)}
         ORDER BY fecha DESC, created_at DESC
@@ -447,10 +449,12 @@ def export_herramientas(
     ws.title = "Herramientas"
 
     headers = ["Fecha Ingreso", "Descripción", "Cantidad", "Responsable",
-               "Fecha Salida", "H. Salida", "Observaciones"]
+               "Fecha Salida", "H. Salida", "Consumible", "Observaciones"]
     _header_style(ws, headers)
     for row in rows:
-        ws.append(list(row))
+        vals = list(row)
+        vals[6] = "Sí" if vals[6] else "No"
+        ws.append(vals)
     _autowidth(ws)
     return _stream(wb, f"herramientas_{date.today()}.xlsx")
 
