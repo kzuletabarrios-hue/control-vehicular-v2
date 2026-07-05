@@ -2896,16 +2896,25 @@ function ProveedoresPage({user,online,addOffline}){
         (salida.ordenes||[]).length>1&&h('p',{style:{fontSize:11,color:'#059669',marginBottom:8,fontWeight:600}},
           '✓ Se registra salida de '+(salida.ordenes||[]).length+' orden(es) simultáneamente'
         ),
+        (salida.observaciones||salida.foto_url)&&h('div',{style:{background:'#fef3c7',border:'1px solid #fcd34d',borderRadius:8,padding:'8px 10px',marginBottom:10}},
+          h('p',{style:{fontSize:11,fontWeight:700,color:'#92400e',marginBottom:4}},h(Ico,{n:'alert',s:11}),' Observación de bodega'),
+          salida.observaciones&&h('p',{style:{fontSize:12,color:'#78350f',whiteSpace:'pre-wrap'}},salida.observaciones),
+          salida.foto_url&&h('img',{src:salida.foto_url,style:{maxWidth:'100%',borderRadius:6,marginTop:6}})
+        ),
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},h('label',null,'Fecha de salida'),h('input',{type:'date',value:fechaSalidaP,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg'},h('label',null,'Hora de salida'),h('input',{type:'time',value:horaSalida,readOnly:true,style:{background:'#f8fafc',cursor:'default'}}))
         ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
-          h('button',{className:'btn-cancel',onClick:()=>setSalida(null)},'Cancelar'),
-          h('button',{className:'btn-primary',style:{background:'#d97706'},onClick:async()=>{
-            const ts=await _tsBog();await api.put(`/proveedores/${salida.id}`,{hora_salida:ts.hora,fecha_salida:ts.fecha});
-            setSalida(null);load();setAlert({type:'ok',msg:'Salida registrada'});
-          }},h(Ico,{n:'check',s:16}),'Confirmar salida')
+          h('button',{className:'btn-cancel',onClick:()=>setSalida(null),disabled:saving},'Cancelar'),
+          h('button',{className:'btn-primary',style:{background:'#d97706'},disabled:saving,onClick:async()=>{
+            setSaving(true);
+            try{
+              const ts=await _tsBog();await api.put(`/proveedores/${salida.id}`,{hora_salida:ts.hora,fecha_salida:ts.fecha});
+              setSalida(null);load();setAlert({type:'ok',msg:'Salida registrada'});
+            }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
+            finally{setSaving(false);}
+          }},saving?h('div',{className:'spinner'}):h(Ico,{n:'check',s:16}),saving?'Guardando...':'Confirmar salida')
         )
       )
     ),
