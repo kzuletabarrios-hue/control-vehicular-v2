@@ -14,14 +14,17 @@ BUCKET = "fotos"
 
 def _storage_upload(img_bytes: bytes, filename: str) -> str:
     supabase_url = os.environ.get("SUPABASE_URL", "https://vhzxtgrpnztwntoqhfaf.supabase.co").rstrip("/")
-    anon_key     = os.environ.get("SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZoenh0Z3Jwbnp0d250b3FoZmFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NzE5MzcsImV4cCI6MjA5NjQ0NzkzN30.YvQz9ELVagHoHl6C91eVjPiAp2rO341PPb98craAijs")
+    # Publishable key (no es secreta, reemplaza la legacy anon key que quedo filtrada
+    # en el historial del repo publico). Solo da acceso al bucket "fotos" (publico);
+    # las tablas ya estan protegidas con RLS sin importar esta clave.
+    publishable_key = os.environ.get("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_2uJ9BDV4zSRAE7z24Ow4ag_xfKHdZXM")
 
     upload_url = f"{supabase_url}/storage/v1/object/{BUCKET}/{filename}"
     r = req.post(
         upload_url,
         data=img_bytes,
         headers={
-            "Authorization": f"Bearer {anon_key}",
+            "apikey": publishable_key,
             "Content-Type": "image/jpeg",
         },
         timeout=30,
