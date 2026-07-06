@@ -206,7 +206,7 @@ def crear(
         db.commit()
     except (IntegrityError, DataError):
         db.rollback()
-        raise HTTPException(400, "Datos inválidos: revisa que las fechas ingresadas sean correctas.")
+        raise HTTPException(400, "Datos inválidos: revisa las fechas y los campos de selección (tipo de documento, tipo/formato de carga, quién maneja la carga).")
     return {"id": rid, "message": "Registro creado"}
 
 
@@ -287,7 +287,7 @@ def actualizar(
         db.commit()
     except (IntegrityError, DataError):
         db.rollback()
-        raise HTTPException(400, "Datos inválidos: revisa que las fechas ingresadas sean correctas.")
+        raise HTTPException(400, "Datos inválidos: revisa las fechas y los campos de selección (tipo de documento, tipo/formato de carga, quién maneja la carga).")
     return {"message": "Registro actualizado"}
 
 
@@ -357,5 +357,5 @@ def crear_batch(
         db.commit()
     except (IntegrityError, DataError):
         db.rollback()
-        raise HTTPException(400, "Datos inválidos: revisa que las fechas ingresadas sean correctas.")
+        raise HTTPException(400, "Datos inválidos: revisa las fechas y los campos de selección (tipo de documento, tipo/formato de carga, quién maneja la carga).")
     return {"ids": ids, "message": f"{len(ids)} registros creados"}
