@@ -831,8 +831,8 @@ function AppHeader({user,page,setPage,online,offlineQueue}){
 }
 
 /* ── HOME PAGE ── */
-function StatCard({label,value,color,icon}){
-  return h('div',{style:{background:'#fff',borderRadius:10,padding:'10px 10px',boxShadow:'0 1px 4px rgba(0,0,0,0.07)',display:'flex',alignItems:'center',gap:8}},
+function StatCard({label,value,color,icon,onClick,active}){
+  return h('div',{onClick,style:{background:active?'#f0f9ff':'#fff',borderRadius:10,padding:'10px 10px',boxShadow:'0 1px 4px rgba(0,0,0,0.07)',display:'flex',alignItems:'center',gap:8,cursor:onClick?'pointer':'default',border:active?'1.5px solid #0891b2':'1.5px solid transparent'}},
     h('div',{style:{width:32,height:32,borderRadius:8,background:color+'22',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}},
       h(Ico,{n:icon,s:16,style:{color}})
     ),
@@ -846,6 +846,7 @@ function StatCard({label,value,color,icon}){
 function HomePage({setPage,user}){
   const [resumen,setResumen] = useState(null);
   const [tab,setTab]         = useState('dashboard');
+  const [showMuelle,setShowMuelle] = useState(false);
   const fechaHoy = new Intl.DateTimeFormat('es-CO',{timeZone:'America/Bogota',weekday:'long',day:'numeric',month:'long'}).format(new Date());
   const rol = user?.rol||'';
   const isAdmin = ['admin','supervisor','operador'].includes(rol);
@@ -910,8 +911,21 @@ function HomePage({setPage,user}){
           showAccesoStats&&h(StatCard,{label:'Acceso hoy',     value:resumen.control_acceso.hoy, color:'#7c3aed',icon:'userCheck'}),
           showAccesoStats&&h(StatCard,{label:'Sin salida',     value:accesoPend,                  color:'#e11d48',icon:'userCheck'}),
           showProvStats&&h(StatCard,{label:'Proveedores hoy',          value:resumen.proveedores.hoy,    color:'#d97706',icon:'package'}),
-          showProvStats&&h(StatCard,{label:'En muelle',        value:resumen.proveedores.en_muelle, color:'#0891b2',icon:'package'}),
+          showProvStats&&h(StatCard,{label:'En muelle',        value:resumen.proveedores.en_muelle, color:'#0891b2',icon:'package',active:showMuelle,onClick:()=>setShowMuelle(v=>!v)}),
           !isCoordinador&&showProvStats&&h(StatCard,{label:'Visitantes hoy',   value:resumen.visitantes.hoy,     color:'#059669',icon:'users'})
+        ),
+        showMuelle&&h('div',{style:{marginTop:8,background:'#ecfeff',border:'1.5px solid #a5f3fc',borderRadius:12,padding:12}},
+          h('p',{style:{fontSize:12,fontWeight:600,color:'#0e7490',marginBottom:6}},
+            `${(resumen.proveedores.en_muelle_detalle||[]).length} proveedor(es) en muelle ahora:`
+          ),
+          (resumen.proveedores.en_muelle_detalle||[]).length===0
+            ? h('p',{style:{fontSize:12,color:'var(--slate)'}},'Ninguno en este momento')
+            : resumen.proveedores.en_muelle_detalle.map((v,i)=>h('div',{key:i,style:{fontSize:11,color:'var(--slate)',padding:'5px 8px',background:'#fff',borderRadius:6,marginBottom:3}},
+                h('strong',null,v.placa||'Sin placa'),' · ',v.conductor||'—',
+                v.muelle&&h('span',null,' · Muelle ',v.muelle),
+                ' · Ingresó: ',v.hora_ingreso?v.hora_ingreso.slice(0,5):'—',
+                v.empresas&&h('div',{style:{marginTop:2,color:'#0e7490',fontWeight:600}},v.empresas)
+              ))
         )
       ),
       (()=>{

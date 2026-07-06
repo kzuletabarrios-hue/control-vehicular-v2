@@ -80,6 +80,27 @@ def resumen(
         LIMIT 10
     """), {"d": hace30}).fetchall()
 
+    # Detalle de proveedores actualmente en muelle (ingreso confirmado, sin salida)
+    en_muelle = db.execute(text("""
+        SELECT p.placa_vehiculo, p.nombre_conductor, p.muelle_descargue, p.hora_ingreso,
+               string_agg(DISTINCT po.empresa, ', ') AS empresas
+        FROM proveedores p
+        LEFT JOIN proveedores_ordenes po ON po.proveedor_id = p.id
+        WHERE p.estado_confirmacion = 'confirmado' AND p.hora_salida IS NULL
+        GROUP BY p.id, p.placa_vehiculo, p.nombre_conductor, p.muelle_descargue, p.hora_ingreso
+        ORDER BY p.hora_ingreso ASC
+    """)).fetchall()
+    en_muelle_detalle = [
+        {
+            "placa":     r.placa_vehiculo,
+            "conductor": r.nombre_conductor,
+            "muelle":    r.muelle_descargue,
+            "hora_ingreso": r.hora_ingreso.isoformat() if r.hora_ingreso else None,
+            "empresas":  r.empresas,
+        }
+        for r in en_muelle
+    ]
+
     # Pendientes vehículos sin llegada + personas sin salida en 1 query
     pendientes = db.execute(text("""
         SELECT 'flota' AS tipo, placa, conductor,
@@ -113,9 +134,10 @@ def resumen(
             "en_ruta": stats["f_en_ruta"],
         },
         "proveedores": {
-            "hoy":       stats["p_hoy"],
-            "semana":    stats["p_semana"],
-            "en_muelle": stats["p_en_muelle"],
+            "hoy":               stats["p_hoy"],
+            "semana":            stats["p_semana"],
+            "en_muelle":         stats["p_en_muelle"],
+            "en_muelle_detalle": en_muelle_detalle,
         },
         "control_acceso": {
             "hoy":                stats["c_hoy"],
