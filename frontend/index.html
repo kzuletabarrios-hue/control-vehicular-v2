@@ -2978,6 +2978,7 @@ function ProveedoresPage({user,online,addOffline}){
             etapa&&h('span',{className:`pill ${etapa.cls}`,style:{marginBottom:3,display:'inline-block'}},etapa.txt),
             h('div',{className:'li-title'},r.nombre_conductor||r.placa_vehiculo||'Sin nombre'),
             h('div',{className:'li-sub'},[r.cedula_conductor&&'CC '+r.cedula_conductor,r.placa_vehiculo,r.tipo_vehiculo,r.muelle_descargue&&'Muelle '+r.muelle_descargue,r.telefono_conductor&&'📞 '+r.telefono_conductor].filter(Boolean).join(' · ')),
+            r.hora_ingreso&&h('div',{className:'li-sub'},'Ingreso '+r.hora_ingreso.slice(0,5)),
             h('div',{className:'li-sub'},empLabel),
             ords.length>1&&h('span',{style:{fontSize:10,background:'#dbeafe',color:'#1d4ed8',borderRadius:4,padding:'1px 6px',fontWeight:700,display:'inline-block',marginTop:2}},ords.length+' órdenes')
           ),
