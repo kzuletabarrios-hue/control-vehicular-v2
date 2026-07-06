@@ -843,10 +843,24 @@ function StatCard({label,value,color,icon,onClick,active}){
   );
 }
 
+function DetalleLista({items,render,emptyMsg}){
+  return h('div',{style:{marginTop:8,background:'#ecfeff',border:'1.5px solid #a5f3fc',borderRadius:12,padding:12}},
+    items.length===0
+      ? h('p',{style:{fontSize:12,color:'var(--slate)'}},emptyMsg||'Sin registros')
+      : items.map((v,i)=>h('div',{key:i,style:{fontSize:11,color:'var(--slate)',padding:'5px 8px',background:'#fff',borderRadius:6,marginBottom:3}},render(v)))
+  );
+}
+
 function HomePage({setPage,user}){
   const [resumen,setResumen] = useState(null);
   const [tab,setTab]         = useState('dashboard');
   const [showMuelle,setShowMuelle] = useState(false);
+  const [showFlotaHoy,setShowFlotaHoy] = useState(false);
+  const [showEnRuta,setShowEnRuta] = useState(false);
+  const [showAccesoHoy,setShowAccesoHoy] = useState(false);
+  const [showSinSalida,setShowSinSalida] = useState(false);
+  const [showProvHoy,setShowProvHoy] = useState(false);
+  const [showVisitantesHoy,setShowVisitantesHoy] = useState(false);
   const fechaHoy = new Intl.DateTimeFormat('es-CO',{timeZone:'America/Bogota',weekday:'long',day:'numeric',month:'long'}).format(new Date());
   const rol = user?.rol||'';
   const isAdmin = ['admin','supervisor','operador'].includes(rol);
@@ -906,27 +920,38 @@ function HomePage({setPage,user}){
       resumen&&(showFlotaStats||showAccesoStats||showProvStats)&&h('div',{className:'dash-section'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'clipboard',s:12}),' Resumen de hoy'),
         h('div',{className:'sgrid',style:{marginBottom:4}},
-          showFlotaStats&&h(StatCard,{label:'Flota hoy',       value:resumen.flota.hoy,          color:'#1e4570',icon:'truck'}),
-          showFlotaStats&&h(StatCard,{label:'En ruta',          value:resumen.flota.en_ruta,      color:'#f59e0b',icon:'truck'}),
-          showAccesoStats&&h(StatCard,{label:'Acceso hoy',     value:resumen.control_acceso.hoy, color:'#7c3aed',icon:'userCheck'}),
-          showAccesoStats&&h(StatCard,{label:'Sin salida',     value:accesoPend,                  color:'#e11d48',icon:'userCheck'}),
-          showProvStats&&h(StatCard,{label:'Proveedores hoy',          value:resumen.proveedores.hoy,    color:'#d97706',icon:'package'}),
+          showFlotaStats&&h(StatCard,{label:'Flota hoy',       value:resumen.flota.hoy,          color:'#1e4570',icon:'truck',active:showFlotaHoy,onClick:()=>setShowFlotaHoy(v=>!v)}),
+          showFlotaStats&&h(StatCard,{label:'En ruta',          value:resumen.flota.en_ruta,      color:'#f59e0b',icon:'truck',active:showEnRuta,onClick:()=>setShowEnRuta(v=>!v)}),
+          showAccesoStats&&h(StatCard,{label:'Acceso hoy',     value:resumen.control_acceso.hoy, color:'#7c3aed',icon:'userCheck',active:showAccesoHoy,onClick:()=>setShowAccesoHoy(v=>!v)}),
+          showAccesoStats&&h(StatCard,{label:'Sin salida',     value:accesoPend,                  color:'#e11d48',icon:'userCheck',active:showSinSalida,onClick:()=>setShowSinSalida(v=>!v)}),
+          showProvStats&&h(StatCard,{label:'Proveedores hoy',          value:resumen.proveedores.hoy,    color:'#d97706',icon:'package',active:showProvHoy,onClick:()=>setShowProvHoy(v=>!v)}),
           showProvStats&&h(StatCard,{label:'En muelle',        value:resumen.proveedores.en_muelle, color:'#0891b2',icon:'package',active:showMuelle,onClick:()=>setShowMuelle(v=>!v)}),
-          !isCoordinador&&showProvStats&&h(StatCard,{label:'Visitantes hoy',   value:resumen.visitantes.hoy,     color:'#059669',icon:'users'})
+          !isCoordinador&&showProvStats&&h(StatCard,{label:'Visitantes hoy',   value:resumen.visitantes.hoy,     color:'#059669',icon:'users',active:showVisitantesHoy,onClick:()=>setShowVisitantesHoy(v=>!v)})
         ),
-        showMuelle&&h('div',{style:{marginTop:8,background:'#ecfeff',border:'1.5px solid #a5f3fc',borderRadius:12,padding:12}},
-          h('p',{style:{fontSize:12,fontWeight:600,color:'#0e7490',marginBottom:6}},
-            `${(resumen.proveedores.en_muelle_detalle||[]).length} proveedor(es) en muelle ahora:`
-          ),
-          (resumen.proveedores.en_muelle_detalle||[]).length===0
-            ? h('p',{style:{fontSize:12,color:'var(--slate)'}},'Ninguno en este momento')
-            : resumen.proveedores.en_muelle_detalle.map((v,i)=>h('div',{key:i,style:{fontSize:11,color:'var(--slate)',padding:'5px 8px',background:'#fff',borderRadius:6,marginBottom:3}},
-                h('strong',null,v.placa||'Sin placa'),' · ',v.conductor||'—',
-                v.muelle&&h('span',null,' · Muelle ',v.muelle),
-                ' · Ingresó: ',v.hora_ingreso?v.hora_ingreso.slice(0,5):'—',
-                v.empresas&&h('div',{style:{marginTop:2,color:'#0e7490',fontWeight:600}},v.empresas)
-              ))
-        )
+        showFlotaHoy&&h(DetalleLista,{items:resumen.flota.hoy_detalle||[],emptyMsg:'Sin registros de flota hoy',render:v=>[
+          h('strong',{key:'p'},v.placa),' · ',v.conductor||'—',v.muelle&&(' · Muelle '+v.muelle),' · ',v.estado
+        ]}),
+        showEnRuta&&h(DetalleLista,{items:pendFlota,emptyMsg:'Ningún vehículo en ruta ahora',render:v=>[
+          h('strong',{key:'p'},v.placa),' · ',v.conductor||'—',' · Salió: ',v.hora_salida||'—',' (',v.fecha,')'
+        ]}),
+        showAccesoHoy&&h(DetalleLista,{items:resumen.control_acceso.hoy_detalle||[],emptyMsg:'Sin registros de acceso hoy',render:v=>[
+          h('strong',{key:'p'},v.nombre),' · ',v.contratista||'—',' · Ingresó: ',v.hora_ingreso?v.hora_ingreso.slice(0,5):'—',v.activo?' · Activo':' · Salió'
+        ]}),
+        showSinSalida&&h(DetalleLista,{items:pendAcceso,emptyMsg:'Nadie dentro sin salida ahora',render:v=>[
+          h('strong',{key:'p'},v.nombre),' · ',v.contratista||'—',' · Ingresó: ',v.hora_ingreso||'—',' (',v.fecha,')'
+        ]}),
+        showProvHoy&&h(DetalleLista,{items:resumen.proveedores.hoy_detalle||[],emptyMsg:'Sin registros de proveedores hoy',render:v=>[
+          h('strong',{key:'p'},v.placa||'Sin placa'),' · ',v.conductor||'—',' · Ingresó: ',v.hora_ingreso?v.hora_ingreso.slice(0,5):'—',' · ',v.estado,
+          v.empresas&&h('div',{key:'e',style:{marginTop:2,color:'#0e7490',fontWeight:600}},v.empresas)
+        ]}),
+        showMuelle&&h(DetalleLista,{items:resumen.proveedores.en_muelle_detalle||[],emptyMsg:'Ninguno en este momento',render:v=>[
+          h('strong',{key:'p'},v.placa||'Sin placa'),' · ',v.conductor||'—',
+          v.muelle&&(' · Muelle '+v.muelle),' · Ingresó: ',v.hora_ingreso?v.hora_ingreso.slice(0,5):'—',
+          v.empresas&&h('div',{key:'e',style:{marginTop:2,color:'#0e7490',fontWeight:600}},v.empresas)
+        ]}),
+        showVisitantesHoy&&h(DetalleLista,{items:resumen.visitantes.hoy_detalle||[],emptyMsg:'Sin registros de visitantes hoy',render:v=>[
+          h('strong',{key:'p'},v.nombre),' · ',v.empresa||'—',' · Ingresó: ',v.hora_ingreso?v.hora_ingreso.slice(0,5):'—',v.activo?' · Activo':' · Salió'
+        ]})
       ),
       (()=>{
         const showFlotaPend  = !isGuardaPeatonal;

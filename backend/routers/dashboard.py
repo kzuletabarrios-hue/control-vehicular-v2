@@ -101,6 +101,73 @@ def resumen(
         for r in en_muelle
     ]
 
+    # Detalle de flota, acceso, proveedores y visitantes de hoy (para el clic en cada tarjeta)
+    flota_hoy_rows = db.execute(text("""
+        SELECT placa, conductor, muelle_cargue, hora_salida_muelle, hora_salida_cedi, hora_llegada
+        FROM flota_propia
+        WHERE fecha = :hoy
+        ORDER BY created_at DESC
+        LIMIT 30
+    """), {"hoy": hoy}).fetchall()
+    flota_hoy_detalle = [
+        {
+            "placa": r.placa, "conductor": r.conductor, "muelle": r.muelle_cargue,
+            "estado": "Regresó" if r.hora_llegada else ("En ruta" if r.hora_salida_cedi else "En bodega"),
+        }
+        for r in flota_hoy_rows
+    ]
+
+    acceso_hoy_rows = db.execute(text("""
+        SELECT nombre, contratista, hora_ingreso, hora_salida
+        FROM control_acceso
+        WHERE fecha = :hoy
+        ORDER BY hora_ingreso DESC
+    """), {"hoy": hoy}).fetchall()
+    acceso_hoy_detalle = [
+        {
+            "nombre": r.nombre, "contratista": r.contratista,
+            "hora_ingreso": r.hora_ingreso.isoformat() if r.hora_ingreso else None,
+            "activo": r.hora_salida is None,
+        }
+        for r in acceso_hoy_rows
+    ][:30]
+
+    prov_hoy_rows = db.execute(text("""
+        SELECT p.placa_vehiculo, p.nombre_conductor, p.hora_ingreso, p.hora_salida,
+               p.estado_confirmacion,
+               string_agg(DISTINCT po.empresa, ', ') AS empresas
+        FROM proveedores p
+        LEFT JOIN proveedores_ordenes po ON po.proveedor_id = p.id
+        WHERE p.fecha = :hoy
+        GROUP BY p.id, p.placa_vehiculo, p.nombre_conductor, p.hora_ingreso, p.hora_salida, p.estado_confirmacion
+        ORDER BY p.hora_ingreso DESC
+    """), {"hoy": hoy}).fetchall()
+    prov_hoy_detalle = [
+        {
+            "placa": r.placa_vehiculo, "conductor": r.nombre_conductor,
+            "hora_ingreso": r.hora_ingreso.isoformat() if r.hora_ingreso else None,
+            "empresas": r.empresas,
+            "estado": "Por confirmar" if r.estado_confirmacion == "pendiente"
+                      else ("Salió" if r.hora_salida else "En muelle"),
+        }
+        for r in prov_hoy_rows
+    ][:30]
+
+    visitantes_hoy_rows = db.execute(text("""
+        SELECT nombre, empresa, hora_ingreso, hora_salida
+        FROM visitantes
+        WHERE fecha = :hoy
+        ORDER BY hora_ingreso DESC
+    """), {"hoy": hoy}).fetchall()
+    visitantes_hoy_detalle = [
+        {
+            "nombre": r.nombre, "empresa": r.empresa,
+            "hora_ingreso": r.hora_ingreso.isoformat() if r.hora_ingreso else None,
+            "activo": r.hora_salida is None,
+        }
+        for r in visitantes_hoy_rows
+    ][:30]
+
     # Pendientes vehículos sin llegada + personas sin salida en 1 query
     pendientes = db.execute(text("""
         SELECT 'flota' AS tipo, placa, conductor,
@@ -128,23 +195,27 @@ def resumen(
     return {
         "fecha": hoy,
         "flota": {
-            "hoy":     stats["f_hoy"],
-            "semana":  stats["f_semana"],
-            "mes":     stats["f_mes"],
-            "en_ruta": stats["f_en_ruta"],
+            "hoy":         stats["f_hoy"],
+            "semana":      stats["f_semana"],
+            "mes":         stats["f_mes"],
+            "en_ruta":     stats["f_en_ruta"],
+            "hoy_detalle": flota_hoy_detalle,
         },
         "proveedores": {
             "hoy":               stats["p_hoy"],
             "semana":            stats["p_semana"],
             "en_muelle":         stats["p_en_muelle"],
             "en_muelle_detalle": en_muelle_detalle,
+            "hoy_detalle":       prov_hoy_detalle,
         },
         "control_acceso": {
             "hoy":                stats["c_hoy"],
             "activos_sin_salida": stats["c_activos"],
+            "hoy_detalle":        acceso_hoy_detalle,
         },
         "visitantes": {
-            "hoy": stats["v_hoy"],
+            "hoy":         stats["v_hoy"],
+            "hoy_detalle": visitantes_hoy_detalle,
         },
         "visita_vehicular": {
             "hoy": stats["vv_hoy"],
