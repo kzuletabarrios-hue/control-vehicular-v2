@@ -858,8 +858,8 @@ function HomePage({setPage,user}){
   useEffect(()=>{ cargar(); const t=setInterval(cargar,60000); return ()=>clearInterval(t); },[]);
 
   const allMods = [
-    {id:'flota', label:'Flota Propia',     desc:'Salidas de vehículos',   cls:'m-flota',icon:'truck',    roles:['admin','supervisor','operador','guarda_bodega','guarda_vehicular'],cnt:resumen?.flota?.hoy},
-    {id:'prov',  label:'Proveedores',desc:'Vehículos terceros',     cls:'m-prov', icon:'package',  roles:['admin','supervisor','operador','guarda_vehicular','guarda_bodega'],cnt:resumen?.proveedores?.hoy},
+    {id:'flota', label:'Flota Propia',     desc:'Salidas de vehículos',   cls:'m-flota',icon:'truck',    roles:['admin','supervisor','operador','guarda_bodega','guarda_vehicular','coordinador'],cnt:resumen?.flota?.hoy},
+    {id:'prov',  label:'Proveedores',desc:'Vehículos terceros',     cls:'m-prov', icon:'package',  roles:['admin','supervisor','operador','guarda_vehicular','guarda_bodega','coordinador'],cnt:resumen?.proveedores?.hoy},
     {id:'visitavh',label:'Visita Vehicular',desc:'Visitas puntuales en vehículo', cls:'m-visitavh', icon:'truck', roles:['admin','supervisor','operador','guarda_bodega','guarda_vehicular'],cnt:resumen?.visita_vehicular?.hoy},
     {id:'acceso',label:'Control Acceso',   desc:'Entrada/salida personal',cls:'m-acc',  icon:'userCheck',roles:['admin','supervisor','operador','guarda_peatonal'],  cnt:resumen?.control_acceso?.hoy},
     {id:'visit', label:'Visitantes',       desc:'Registro de visitas',    cls:'m-vis',  icon:'users',    roles:['admin','supervisor','operador','guarda_peatonal'],  cnt:resumen?.visitantes?.hoy},
@@ -1017,6 +1017,7 @@ function FlotaPage({user,online,addOffline}){
   const [selloEntradaDetalle,setSelloEntradaDetalle] = useState('');
   const esBodega    = user?.rol==='guarda_bodega';
   const esVehicular = user?.rol==='guarda_vehicular';
+  const esCoordinador = user?.rol==='coordinador';
   const [cedulaBusq,setCedulaBusq]   = useState('');
   const [sugerCond,setSugerCond]     = useState([]);
   const emptyF = {fecha:today(),placa:'',conductor:'',codigo_conductor:'',n_pallets:'',n_contenedores:'',cant_volumen_externo:'',muelle_cargue:'',tienda_1:'',tienda_2:'',tienda_3:'',tienda_4:'',tienda_5:'',ultima_tienda:'',protocolo:'',sello:'',tipo_sello:'',sello_entrada:'',tipo_sello_entrada:'',hora_salida_muelle:ahoraHora(),temperatura:'',hora_salida_cedi:'',hora_llegada:'',observacion:'',foto_url:null};
@@ -1161,17 +1162,18 @@ function FlotaPage({user,online,addOffline}){
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
       h('div',{style:{display:'flex',gap:8,padding:'8px 14px 6px'}},
-        !esVehicular&&h('button',{onClick:()=>api.exportar('flota'),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
+        !esVehicular&&!esCoordinador&&h('button',{onClick:()=>api.exportar('flota'),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
           h(Ico,{n:'download',s:14}),' Excel'
         ),
         !esVehicular&&h('div',{style:{marginLeft:'auto',display:'flex',gap:6,alignItems:'center',flexShrink:0}},
           h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
           h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
         ),
-        !esVehicular&&h('button',{onClick:()=>setView('form'),style:{background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+        !esVehicular&&!esCoordinador&&h('button',{onClick:()=>setView('form'),style:{background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
           h(Ico,{n:'plus',s:15}),esBodega?' Nuevo en bodega':' Nuevo'
         ),
-        esVehicular&&h('p',{style:{fontSize:12,color:'var(--slate)',marginLeft:'auto',alignSelf:'center'}},'Registra salida y regreso de vehículos')
+        esVehicular&&h('p',{style:{fontSize:12,color:'var(--slate)',marginLeft:'auto',alignSelf:'center'}},'Registra salida y regreso de vehículos'),
+        esCoordinador&&h('p',{style:{fontSize:12,color:'var(--slate)',marginLeft:'auto',alignSelf:'center'}},'Solo lectura')
       ),
       h('div',{style:{padding:'0 14px 8px',position:'relative'}},
         h(Ico,{n:'search',s:14,style:{position:'absolute',left:24,top:'50%',transform:'translateY(-50%)',color:'var(--slate)',pointerEvents:'none'}}),
@@ -1184,7 +1186,7 @@ function FlotaPage({user,online,addOffline}){
       visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'truck',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='pendientes'?'Sin vehículos activos':'Sin registros hoy')):
       visibles.map(r=>h('div',{key:r.id,className:'list-item'},
         h('div',{className:'li-icon',style:{background:'#dbeafe'}},h(Ico,{n:'truck',s:18,c:'',style:{color:'#1d4ed8'}})),
-        h('div',{className:'li-body',onClick:()=>{ if(esVehicular){setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');setTipoSelloEntrada(r.tipo_sello_entrada||'');setSelloEntradaDetalle(r.sello_entrada||'');setSelloSalida(r.sello||'');setTempSalida(r.temperatura||'');setObsSalida(r.obs_salida||'');setObsLleg(r.obs_llegada||'');}else{setForm({...emptyF,...r});setSelected(r);setView('form');} }},
+        h('div',{className:'li-body',onClick:esCoordinador?undefined:()=>{ if(esVehicular){setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');setTipoSelloEntrada(r.tipo_sello_entrada||'');setSelloEntradaDetalle(r.sello_entrada||'');setSelloSalida(r.sello||'');setTempSalida(r.temperatura||'');setObsSalida(r.obs_salida||'');setObsLleg(r.obs_llegada||'');}else{setForm({...emptyF,...r});setSelected(r);setView('form');} }},
           h('div',{className:'li-title'},r.placa,
             h('span',{style:{fontSize:10,fontWeight:600,marginLeft:6,padding:'2px 6px',borderRadius:4,
               background:r.hora_llegada?'#d1fae5':r.hora_salida_cedi?'#fef3c7':'#dbeafe',
@@ -1199,7 +1201,7 @@ function FlotaPage({user,online,addOffline}){
             r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#d97706',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida)),
             r.fecha_llegada&&r.fecha_llegada!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Regr: '+fmtDate(r.fecha_llegada))
           ),
-          h('div',{style:{display:'flex',gap:4,marginTop:3}},
+          !esCoordinador&&h('div',{style:{display:'flex',gap:4,marginTop:3}},
             esVehicular&&!r.hora_salida_cedi&&h('button',{
               title:'Ver detalle y registrar salida',
               onClick:(e)=>{e.stopPropagation();setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');setTipoSelloEntrada(r.tipo_sello_entrada||'');setSelloEntradaDetalle(r.sello_entrada||'');setSelloSalida(r.sello||'');setTempSalida(r.temperatura||'');setObsSalida(r.obs_salida||'');setObsLleg(r.obs_llegada||'');},
@@ -2414,6 +2416,7 @@ function ProveedoresPage({user,online,addOffline}){
   const [busqueda,setBusqueda] = useState('');
   const esBodega    = user?.rol==='guarda_bodega';
   const esVehicular = user?.rol==='guarda_vehicular';
+  const esCoordinador = user?.rol==='coordinador';
   const [bdProv,setBdProv]           = useState([]);
   const [frecuenteInfo,setFrecuenteInfo] = useState(null); // {estado:'encontrado'|'inactivo'|'nuevo', data:obj}
   const [saveFrModal,setSaveFrModal]     = useState(false);
@@ -2930,20 +2933,21 @@ function ProveedoresPage({user,online,addOffline}){
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
       h('div',{style:{display:'flex',gap:8,padding:'8px 14px 6px'}},
-        !esBodega&&h('button',{onClick:()=>api.exportar('proveedores'),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
+        !esBodega&&!esCoordinador&&h('button',{onClick:()=>api.exportar('proveedores'),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
           h(Ico,{n:'download',s:14}),' Excel'
         ),
         !esBodega&&h('div',{style:{marginLeft:'auto',display:'flex',gap:6,alignItems:'center',flexShrink:0}},
           h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
           h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
         ),
-        !esBodega&&h('button',{onClick:()=>{setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);setFrecuenteInfo(null);setView('batch');},style:{background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+        !esBodega&&!esCoordinador&&h('button',{onClick:()=>{setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);setFrecuenteInfo(null);setView('batch');},style:{background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
           h(Ico,{n:'plus',s:15}),' Nuevo'
         ),
-        !esBodega&&h('button',{onClick:()=>setView('qr'),style:{background:'none',border:'1.5px solid var(--navy)',color:'var(--navy)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
+        !esBodega&&!esCoordinador&&h('button',{onClick:()=>setView('qr'),style:{background:'none',border:'1.5px solid var(--navy)',color:'var(--navy)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
           h(Ico,{n:'qrCode',s:14}),' QR Ingreso'
         ),
-        esBodega&&h('p',{style:{fontSize:12,color:'var(--slate)',alignSelf:'center',margin:'0 0 0 4px'}},h(Ico,{n:'alert',s:12}),' Toca un registro para agregar evidencia de rechazo')
+        esBodega&&h('p',{style:{fontSize:12,color:'var(--slate)',alignSelf:'center',margin:'0 0 0 4px'}},h(Ico,{n:'alert',s:12}),' Toca un registro para agregar evidencia de rechazo'),
+        esCoordinador&&h('p',{style:{fontSize:12,color:'var(--slate)',alignSelf:'center',margin:'0 0 0 4px'}},'Solo lectura')
       ),
       h('div',{style:{padding:'0 14px 8px',position:'relative'}},
         h(Ico,{n:'search',s:14,style:{position:'absolute',left:24,top:'50%',transform:'translateY(-50%)',color:'var(--slate)',pointerEvents:'none'}}),
@@ -2967,7 +2971,7 @@ function ProveedoresPage({user,online,addOffline}){
           h('div',{className:'li-icon',style:{background:pendConf?'#fef3c7':'#fde68a'}},
             h(Ico,{n:pendConf?'bell':'package',s:18,style:{color:'#d97706'}})
           ),
-          h('div',{className:'li-body',onClick:()=>{
+          h('div',{className:'li-body',onClick:esCoordinador?undefined:()=>{
             setForm({...emptyF,...r,cedula_conductor:r.cedula_conductor||'',hora_ingreso:r.hora_ingreso||'',hora_salida:r.hora_salida||''});
             setSelected(r);setFormOrdenes(r.ordenes||[]);setAddingOrd(false);setView('form');
           }},
@@ -2981,7 +2985,7 @@ function ProveedoresPage({user,online,addOffline}){
             h('span',{className:'li-date'},fmtDate(r.fecha),
               r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida))
             ),
-            h('div',{style:{display:'flex',gap:4,marginTop:3}},
+            !esCoordinador&&h('div',{style:{display:'flex',gap:4,marginTop:3}},
               !esBodega&&pendConf&&h('button',{
                 title:'Confirmar ingreso',
                 onClick:(e)=>{e.stopPropagation();confirmarIngreso(r.id);},
@@ -3416,7 +3420,7 @@ function BdConductoresTab(){
 const ROL_LABELS = {
   admin:'Administrador', supervisor:'Supervisor', operador:'Operador', consulta:'Consulta',
   guarda_bodega:'Guarda - Bodega', guarda_peatonal:'Guarda - Peatonal', guarda_vehicular:'Guarda - Vehicular',
-  recorredor_externo:'Recorredor Externo',
+  recorredor_externo:'Recorredor Externo', coordinador:'Coordinador',
 };
 
 function BdUsuariosTab(){
@@ -4623,6 +4627,7 @@ function App(){
     :rol==='guarda_peatonal'     ? [{id:'home',label:'Inicio',icon:'home'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'},{id:'sust',label:'Sust.',icon:'alert'},{id:'herr',label:'Herram.',icon:'key'}]
     :rol==='guarda_vehicular'    ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'visitavh',label:'Visita Vh.',icon:'truck'}]
     :rol==='recorredor_externo'  ? [{id:'home',label:'Inicio',icon:'home'},{id:'ronda',label:'Ronda',icon:'mapPin'},{id:'novedades',label:'Novedades',icon:'bell'}]
+    :rol==='coordinador'         ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'}]
     :[
       {id:'home',  label:'Inicio',  icon:'home'},
       {id:'flota', label:'Flota',   icon:'truck'},
