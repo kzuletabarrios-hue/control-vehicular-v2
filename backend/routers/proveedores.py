@@ -17,10 +17,12 @@ from routers.auth import require_permiso, SECRET_KEY, ALGORITHM
 router = APIRouter()
 
 CAMPOS_VEHICULO = [
-    "fecha", "placa_vehiculo", "nombre_conductor", "cedula_conductor",
+    "fecha", "placa_vehiculo", "nombre_conductor", "tipo_documento", "cedula_conductor",
     "telefono_conductor",
     "tipo_vehiculo", "hora_ingreso", "hora_salida", "fecha_salida",
-    "fecha_pago_arl", "observaciones", "foto_url",
+    "fecha_pago_arl", "arl_proveedor", "epp_cumple",
+    "tipo_carga", "formato_carga", "cantidad_pallets", "manejo_carga",
+    "observaciones", "foto_url",
     # Legacy columns kept nullable for backward compat
     "empresa", "muelle_descargue", "carga_compartida",
     "actividad_a_desarrollar", "dependencia_autoriza",

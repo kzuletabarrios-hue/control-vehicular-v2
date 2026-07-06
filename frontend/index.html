@@ -2419,16 +2419,19 @@ function ProveedoresPage({user,online,addOffline}){
   const [saveFrModal,setSaveFrModal]     = useState(false);
   const [frDraft,setFrDraft]             = useState({cedula:'',nombre_conductor:'',empresa_principal:'',tipo_vehiculo:''});
   const tiposVehiculo = ['Camión','Camioneta','Moto','Furgón','Tractomula','Otro'];
+  const tiposCarga = ['Seca','Refrigerada','Mixta'];
+  const formatosCarga = ['Paletizada','Granel','Mixta'];
+  const manejosCarga = ['Conductor con certificado de montacargas','Reciservicios','Ercol','Operador logístico externo'];
 
   /* ── EDIT FORM STATE ── */
-  const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),hora_ingreso_confirmado:'',hora_salida:'',muelle_descargue:'',fecha_pago_arl:'',observaciones:'',foto_url:null};
+  const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',tipo_documento:'CC',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),hora_ingreso_confirmado:'',hora_salida:'',muelle_descargue:'',fecha_pago_arl:'',arl_proveedor:'',epp_cumple:'',tipo_carga:'',formato_carga:'',cantidad_pallets:'',manejo_carga:'',observaciones:'',foto_url:null};
   const [form,setForm]               = useState(emptyF);
   const [formOrdenes,setFormOrdenes] = useState([]);
   const [formOrd,setFormOrd]         = useState({empresa:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''});
   const [addingOrd,setAddingOrd]     = useState(false);
 
   /* ── NUEVO INGRESO STATE ── */
-  const emptyVeh = ()=>({fecha:today(),placa_vehiculo:'',cedula_conductor:'',nombre_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),muelle_descargue:'',fecha_pago_arl:'',observaciones:'',foto_url:null});
+  const emptyVeh = ()=>({fecha:today(),placa_vehiculo:'',tipo_documento:'CC',cedula_conductor:'',nombre_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),muelle_descargue:'',fecha_pago_arl:'',arl_proveedor:'',epp_cumple:'',tipo_carga:'',formato_carga:'',cantidad_pallets:'',manejo_carga:'',observaciones:'',foto_url:null});
   const emptyOrd = {empresa:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''};
   const [vehiculoForm,setVehiculoForm]     = useState(emptyVeh);
   const [ordenes,setOrdenes]               = useState([]);
@@ -2663,9 +2666,14 @@ function ProveedoresPage({user,online,addOffline}){
           h('div',{className:'fg'},h('label',null,'Placa'),h('input',{type:'text',value:form.placa_vehiculo,onChange:e=>setForm(p=>({...p,placa_vehiculo:e.target.value.toUpperCase()})),placeholder:'ABC-123'}))
         ),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Cédula conductor'),h('input',{type:'text',value:form.cedula_conductor||'',onChange:e=>setForm(p=>({...p,cedula_conductor:e.target.value})),placeholder:'Número de cédula'})),
-          h('div',{className:'fg'},h('label',null,'Nombre conductor'),h('input',{type:'text',value:form.nombre_conductor,onChange:e=>setForm(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Nombre completo'}))
+          h('div',{className:'fg'},h('label',null,'Tipo documento'),
+            h('select',{value:form.tipo_documento||'CC',onChange:e=>setForm(p=>({...p,tipo_documento:e.target.value}))},
+              h('option',{value:'CC'},'CC'),h('option',{value:'NIT'},'NIT'),h('option',{value:'Otro'},'Otro')
+            )
+          ),
+          h('div',{className:'fg'},h('label',null,'N° documento conductor'),h('input',{type:'text',value:form.cedula_conductor||'',onChange:e=>setForm(p=>({...p,cedula_conductor:e.target.value})),placeholder:'Número'}))
         ),
+        h('div',{className:'fg'},h('label',null,'Nombre conductor'),h('input',{type:'text',value:form.nombre_conductor,onChange:e=>setForm(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Nombre completo'})),
         h('div',{className:'fg'},h('label',null,'Teléfono conductor'),h('input',{type:'tel',value:form.telefono_conductor||'',onChange:e=>setForm(p=>({...p,telefono_conductor:e.target.value})),placeholder:'Número de contacto (opcional)'})),
         h('div',{className:'fg'},h('label',null,'Tipo vehículo'),
           h('select',{value:form.tipo_vehiculo,onChange:e=>setForm(p=>({...p,tipo_vehiculo:e.target.value}))},
@@ -2673,6 +2681,37 @@ function ProveedoresPage({user,online,addOffline}){
           )
         ),
         h('div',{className:'fg'},h('label',null,'Muelle descargue'),h('input',{type:'text',value:form.muelle_descargue||'',onChange:e=>setForm(p=>({...p,muelle_descargue:e.target.value})),placeholder:'N° muelle'}))
+      ),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'checkCircle',s:12}),' Seguridad y carga'),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Proveedor ARL'),h('input',{type:'text',value:form.arl_proveedor||'',onChange:e=>setForm(p=>({...p,arl_proveedor:e.target.value})),placeholder:'Nombre de la ARL'})),
+          h('div',{className:'fg'},h('label',null,'¿Cuenta con EPP?'),
+            h('select',{value:form.epp_cumple===true?'si':form.epp_cumple===false?'no':'',onChange:e=>setForm(p=>({...p,epp_cumple:e.target.value===''?'':e.target.value==='si'}))},
+              h('option',{value:''},'—'),h('option',{value:'si'},'Sí'),h('option',{value:'no'},'No')
+            )
+          )
+        ),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Tipo de carga'),
+            h('select',{value:form.tipo_carga||'',onChange:e=>setForm(p=>({...p,tipo_carga:e.target.value}))},
+              h('option',{value:''},'—'),...tiposCarga.map(t=>h('option',{key:t,value:t},t))
+            )
+          ),
+          h('div',{className:'fg'},h('label',null,'Formato de carga'),
+            h('select',{value:form.formato_carga||'',onChange:e=>setForm(p=>({...p,formato_carga:e.target.value}))},
+              h('option',{value:''},'—'),...formatosCarga.map(t=>h('option',{key:t,value:t},t))
+            )
+          )
+        ),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Cantidad de pallets'),h('input',{type:'text',value:form.cantidad_pallets||'',onChange:e=>setForm(p=>({...p,cantidad_pallets:e.target.value})),placeholder:'Ej: 10'})),
+          h('div',{className:'fg'},h('label',null,'Maneja la carga'),
+            h('select',{value:form.manejo_carga||'',onChange:e=>setForm(p=>({...p,manejo_carga:e.target.value}))},
+              h('option',{value:''},'—'),...manejosCarga.map(t=>h('option',{key:t,value:t},t))
+            )
+          )
+        )
       ),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'check',s:12}),' Horarios y ARL'),
@@ -2754,11 +2793,16 @@ function ProveedoresPage({user,online,addOffline}){
             h('input',{type:'text',value:vehiculoForm.placa_vehiculo,onChange:e=>setVehiculoForm(p=>({...p,placa_vehiculo:e.target.value.toUpperCase()})),placeholder:'ABC-123',style:{textTransform:'uppercase'}})
           ),
           h('div',{className:'fg'},
-            h('label',null,'Cédula conductor',h('span',{className:'req'},'*')),
-            h('input',{type:'text',value:vehiculoForm.cedula_conductor,
-              onChange:e=>{setVehiculoForm(p=>({...p,cedula_conductor:e.target.value}));setFrecuenteInfo(null);},
-              onBlur:e=>lookupConductor(e.target.value,setVehiculoForm),
-              placeholder:'Número de cédula'}),
+            h('label',null,'Documento conductor',h('span',{className:'req'},'*')),
+            h('div',{style:{display:'flex',gap:6}},
+              h('select',{value:vehiculoForm.tipo_documento||'CC',onChange:e=>setVehiculoForm(p=>({...p,tipo_documento:e.target.value})),style:{flex:'0 0 80px'}},
+                h('option',{value:'CC'},'CC'),h('option',{value:'NIT'},'NIT'),h('option',{value:'Otro'},'Otro')
+              ),
+              h('input',{type:'text',value:vehiculoForm.cedula_conductor,
+                onChange:e=>{setVehiculoForm(p=>({...p,cedula_conductor:e.target.value}));setFrecuenteInfo(null);},
+                onBlur:e=>lookupConductor(e.target.value,setVehiculoForm),
+                placeholder:'Número',style:{flex:1}})
+            ),
             frecuenteInfo&&h('div',{style:{marginTop:5,padding:'5px 9px',borderRadius:7,fontSize:11,fontWeight:700,display:'flex',alignItems:'center',gap:5,
               background:frecuenteInfo.estado==='encontrado'?'#d1fae5':frecuenteInfo.estado==='inactivo'?'#fef3c7':'#f1f5f9',
               color:frecuenteInfo.estado==='encontrado'?'#065f46':frecuenteInfo.estado==='inactivo'?'#92400e':'#475569',
@@ -2780,6 +2824,38 @@ function ProveedoresPage({user,online,addOffline}){
         ),
         h('div',{className:'fg'},h('label',null,'Fecha pago ARL'),h('input',{type:'date',min:'2000-01-01',max:'2100-12-31',value:vehiculoForm.fecha_pago_arl,onChange:e=>{if(fechaValida(e.target.value))setVehiculoForm(p=>({...p,fecha_pago_arl:e.target.value}));}})),
         h('div',{className:'fg'},h('label',null,'Muelle descargue'),h('input',{type:'text',value:vehiculoForm.muelle_descargue,onChange:e=>setVehiculoForm(p=>({...p,muelle_descargue:e.target.value})),placeholder:'N° muelle (opcional)'}))
+      ),
+
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'checkCircle',s:12}),' Seguridad y carga'),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Proveedor ARL'),h('input',{type:'text',value:vehiculoForm.arl_proveedor||'',onChange:e=>setVehiculoForm(p=>({...p,arl_proveedor:e.target.value})),placeholder:'Nombre de la ARL'})),
+          h('div',{className:'fg'},h('label',null,'¿Cuenta con EPP?'),
+            h('select',{value:vehiculoForm.epp_cumple===true?'si':vehiculoForm.epp_cumple===false?'no':'',onChange:e=>setVehiculoForm(p=>({...p,epp_cumple:e.target.value===''?'':e.target.value==='si'}))},
+              h('option',{value:''},'—'),h('option',{value:'si'},'Sí'),h('option',{value:'no'},'No')
+            )
+          )
+        ),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Tipo de carga'),
+            h('select',{value:vehiculoForm.tipo_carga||'',onChange:e=>setVehiculoForm(p=>({...p,tipo_carga:e.target.value}))},
+              h('option',{value:''},'—'),...tiposCarga.map(t=>h('option',{key:t,value:t},t))
+            )
+          ),
+          h('div',{className:'fg'},h('label',null,'Formato de carga'),
+            h('select',{value:vehiculoForm.formato_carga||'',onChange:e=>setVehiculoForm(p=>({...p,formato_carga:e.target.value}))},
+              h('option',{value:''},'—'),...formatosCarga.map(t=>h('option',{key:t,value:t},t))
+            )
+          )
+        ),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Cantidad de pallets'),h('input',{type:'text',value:vehiculoForm.cantidad_pallets||'',onChange:e=>setVehiculoForm(p=>({...p,cantidad_pallets:e.target.value})),placeholder:'Ej: 10'})),
+          h('div',{className:'fg'},h('label',null,'Maneja la carga'),
+            h('select',{value:vehiculoForm.manejo_carga||'',onChange:e=>setVehiculoForm(p=>({...p,manejo_carga:e.target.value}))},
+              h('option',{value:''},'—'),...manejosCarga.map(t=>h('option',{key:t,value:t},t))
+            )
+          )
+        )
       ),
 
       h('div',{className:'fcard',style:{border:'1.5px solid var(--navy)'}},
@@ -4317,7 +4393,12 @@ function ProveedorAutorregistroPage({token}){
   const [errorMsg,setErrorMsg] = useState('');
   const [saving,setSaving]   = useState(false);
   const tiposVehiculo = ['Camión','Camioneta','Moto','Furgón','Tractomula','Otro'];
-  const emptyVeh = {placa_vehiculo:'',nombre_conductor:'',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:''};
+  const tiposDocumento = ['CC','NIT','Otro'];
+  const tiposCarga = ['Seca','Refrigerada','Mixta'];
+  const formatosCarga = ['Paletizada','Granel','Mixta'];
+  const manejosCarga = ['Conductor con certificado de montacargas','Reciservicios','Ercol','Operador logístico externo'];
+  const emptyVeh = {placa_vehiculo:'',nombre_conductor:'',tipo_documento:'CC',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',
+    arl_proveedor:'',epp_cumple:'',tipo_carga:'',formato_carga:'',cantidad_pallets:'',manejo_carga:''};
   const emptyOrd = {empresa:'',numero_orden_compra:''};
   const [vehiculo,setVehiculo] = useState(emptyVeh);
   const [ordenes,setOrdenes]   = useState([]);
@@ -4342,15 +4423,22 @@ function ProveedorAutorregistroPage({token}){
   const enviar = async()=>{
     setErrorMsg('');
     if(!vehiculo.placa_vehiculo.trim()) return setErrorMsg('La placa es obligatoria');
-    if(!vehiculo.cedula_conductor.trim()) return setErrorMsg('La cédula del conductor es obligatoria');
     if(!vehiculo.nombre_conductor.trim()) return setErrorMsg('El nombre del conductor es obligatorio');
+    if(!vehiculo.tipo_documento) return setErrorMsg('Selecciona el tipo de documento');
+    if(!vehiculo.cedula_conductor.trim()) return setErrorMsg('El número de documento es obligatorio');
     if(!vehiculo.telefono_conductor.trim()) return setErrorMsg('El teléfono del conductor es obligatorio');
     if(!vehiculo.tipo_vehiculo.trim()) return setErrorMsg('Selecciona el tipo de vehículo');
+    if(!vehiculo.arl_proveedor.trim()) return setErrorMsg('El proveedor de ARL es obligatorio');
+    if(vehiculo.epp_cumple==='') return setErrorMsg('Indica si cuentas con los elementos de protección personal');
+    if(!vehiculo.tipo_carga) return setErrorMsg('Selecciona el tipo de carga');
+    if(!vehiculo.formato_carga) return setErrorMsg('Selecciona el formato de carga');
+    if(!vehiculo.cantidad_pallets.trim()) return setErrorMsg('La cantidad de pallets es obligatoria');
+    if(!vehiculo.manejo_carga) return setErrorMsg('Selecciona quién maneja la carga');
     if(ordenes.length===0) return setErrorMsg('Agrega al menos un proveedor/orden a la que vienes a entregar');
     setSaving(true);
     try{
       await api.post('/proveedores-publico/autorregistro',{
-        token, vehiculo:{...vehiculo,placa_vehiculo:vehiculo.placa_vehiculo.toUpperCase()}, ordenes,
+        token, vehiculo:{...vehiculo,placa_vehiculo:vehiculo.placa_vehiculo.toUpperCase(),epp_cumple:vehiculo.epp_cumple==='si'}, ordenes,
       });
       setEstado('enviado');
     }catch(e){
@@ -4389,13 +4477,18 @@ function ProveedorAutorregistroPage({token}){
   return Shell(
     errorMsg&&h(Alert,{type:'err',msg:errorMsg,onClose:()=>setErrorMsg('')}),
     h('div',{className:'fcard'},
-      h('p',{className:'sec-ttl'},h(Ico,{n:'truck',s:12}),' Datos del vehículo'),
+      h('p',{className:'sec-ttl'},h(Ico,{n:'truck',s:12}),' Datos del vehículo y conductor'),
       h('div',{className:'fg'},h('label',null,'Placa',h('span',{className:'req'},'*')),
         h('input',{type:'text',value:vehiculo.placa_vehiculo,onChange:e=>setVehiculo(p=>({...p,placa_vehiculo:e.target.value.toUpperCase()})),placeholder:'ABC-123'})
       ),
+      h('div',{className:'fg'},h('label',null,'Nombre conductor',h('span',{className:'req'},'*')),h('input',{type:'text',value:vehiculo.nombre_conductor,onChange:e=>setVehiculo(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Nombre completo'})),
       h('div',{className:'fgrid2'},
-        h('div',{className:'fg'},h('label',null,'Cédula conductor',h('span',{className:'req'},'*')),h('input',{type:'text',value:vehiculo.cedula_conductor,onChange:e=>setVehiculo(p=>({...p,cedula_conductor:e.target.value})),placeholder:'Número'})),
-        h('div',{className:'fg'},h('label',null,'Nombre conductor',h('span',{className:'req'},'*')),h('input',{type:'text',value:vehiculo.nombre_conductor,onChange:e=>setVehiculo(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Nombre completo'}))
+        h('div',{className:'fg'},h('label',null,'Tipo de documento',h('span',{className:'req'},'*')),
+          h('select',{value:vehiculo.tipo_documento,onChange:e=>setVehiculo(p=>({...p,tipo_documento:e.target.value}))},
+            ...tiposDocumento.map(t=>h('option',{key:t,value:t},t))
+          )
+        ),
+        h('div',{className:'fg'},h('label',null,'N° de documento',h('span',{className:'req'},'*')),h('input',{type:'text',value:vehiculo.cedula_conductor,onChange:e=>setVehiculo(p=>({...p,cedula_conductor:e.target.value})),placeholder:'Número'}))
       ),
       h('div',{className:'fgrid2'},
         h('div',{className:'fg'},h('label',null,'Teléfono',h('span',{className:'req'},'*')),h('input',{type:'tel',value:vehiculo.telefono_conductor,onChange:e=>setVehiculo(p=>({...p,telefono_conductor:e.target.value})),placeholder:'Número de contacto'})),
@@ -4405,6 +4498,39 @@ function ProveedorAutorregistroPage({token}){
           )
         )
       )
+    ),
+    h('div',{className:'fcard'},
+      h('p',{className:'sec-ttl'},h(Ico,{n:'checkCircle',s:12}),' Seguridad y carga'),
+      h('div',{className:'fgrid2'},
+        h('div',{className:'fg'},h('label',null,'Proveedor de ARL',h('span',{className:'req'},'*')),h('input',{type:'text',value:vehiculo.arl_proveedor,onChange:e=>setVehiculo(p=>({...p,arl_proveedor:e.target.value})),placeholder:'Nombre de la ARL'})),
+        h('div',{className:'fg'},h('label',null,'¿Cuentas con EPP?',h('span',{className:'req'},'*')),
+          h('select',{value:vehiculo.epp_cumple,onChange:e=>setVehiculo(p=>({...p,epp_cumple:e.target.value}))},
+            h('option',{value:''},'Seleccionar...'),h('option',{value:'si'},'Sí'),h('option',{value:'no'},'No')
+          )
+        )
+      ),
+      vehiculo.epp_cumple==='no'&&h('div',{className:'warn'},'Sin los elementos de protección personal completos, puede que no se autorice tu ingreso.'),
+      h('div',{className:'fgrid2'},
+        h('div',{className:'fg'},h('label',null,'Tipo de carga',h('span',{className:'req'},'*')),
+          h('select',{value:vehiculo.tipo_carga,onChange:e=>setVehiculo(p=>({...p,tipo_carga:e.target.value}))},
+            h('option',{value:''},'Seleccionar...'),...tiposCarga.map(t=>h('option',{key:t,value:t},t))
+          )
+        ),
+        h('div',{className:'fg'},h('label',null,'Formato de carga',h('span',{className:'req'},'*')),
+          h('select',{value:vehiculo.formato_carga,onChange:e=>setVehiculo(p=>({...p,formato_carga:e.target.value}))},
+            h('option',{value:''},'Seleccionar...'),...formatosCarga.map(t=>h('option',{key:t,value:t},t))
+          )
+        )
+      ),
+      h('div',{className:'fgrid2'},
+        h('div',{className:'fg'},h('label',null,'Cantidad de pallets',h('span',{className:'req'},'*')),h('input',{type:'text',inputMode:'numeric',value:vehiculo.cantidad_pallets,onChange:e=>setVehiculo(p=>({...p,cantidad_pallets:e.target.value})),placeholder:'Ej: 10'})),
+        h('div',{className:'fg'},h('label',null,'¿Quién maneja la carga?',h('span',{className:'req'},'*')),
+          h('select',{value:vehiculo.manejo_carga,onChange:e=>setVehiculo(p=>({...p,manejo_carga:e.target.value}))},
+            h('option',{value:''},'Seleccionar...'),...manejosCarga.map(t=>h('option',{key:t,value:t},t))
+          )
+        )
+      ),
+      vehiculo.manejo_carga==='Conductor con certificado de montacargas'&&h('div',{className:'tip'},'Recuerda traer tu certificado de montacargas vigente.')
     ),
     h('div',{className:'fcard',style:{border:'1.5px solid var(--navy)'}},
       h('p',{className:'sec-ttl',style:{color:'var(--navy)'}},h(Ico,{n:'package',s:12}),` Proveedores / órdenes que traes (${ordenes.length})`),

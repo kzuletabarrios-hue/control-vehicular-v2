@@ -121,10 +121,14 @@ def export_proveedores(
         p_where.append("p.fecha <= :hasta")
 
     rows = db.execute(text(f"""
-        SELECT p.placa_vehiculo, p.nombre_conductor, p.tipo_vehiculo,
-               po.empresa, COALESCE(p.muelle_descargue, po.muelle_descargue) AS muelle_descargue, po.carga_compartida,
+        SELECT p.placa_vehiculo, p.nombre_conductor, p.tipo_documento, p.cedula_conductor,
+               p.tipo_vehiculo,
+               po.empresa, po.numero_orden_compra,
+               COALESCE(p.muelle_descargue, po.muelle_descargue) AS muelle_descargue, po.carga_compartida,
                p.fecha, p.hora_ingreso,
                p.fecha_salida, p.hora_salida,
+               p.arl_proveedor, p.epp_cumple, p.tipo_carga, p.formato_carga,
+               p.cantidad_pallets, p.manejo_carga,
                po.actividad_a_desarrollar, po.dependencia_autoriza,
                p.fecha_pago_arl, p.observaciones
         FROM proveedores p
@@ -138,15 +142,21 @@ def export_proveedores(
     ws.title = "Proveedores"
 
     headers = [
-        "Placa", "Conductor", "Tipo Vehículo", "Empresa",
+        "Placa", "Conductor", "Tipo Doc.", "N° Documento",
+        "Tipo Vehículo", "Empresa", "N° Orden Compra",
         "Muelle Descargue", "Carga Compartida",
         "Fecha Ingreso", "H. Ingreso",
         "Fecha Salida", "H. Salida",
+        "Proveedor ARL", "EPP", "Tipo Carga", "Formato Carga",
+        "Cant. Pallets", "Maneja Carga",
         "Actividad", "Dependencia Autoriza", "Pago ARL", "Observaciones",
     ]
     _header_style(ws, headers)
     for row in rows:
-        ws.append(list(row))
+        vals = list(row)
+        idx_epp = headers.index("EPP")
+        vals[idx_epp] = "Sí" if vals[idx_epp] else ("No" if vals[idx_epp] is False else "")
+        ws.append(vals)
     _autowidth(ws)
     return _stream(wb, f"proveedores_{date.today()}.xlsx")
 
