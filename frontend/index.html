@@ -459,6 +459,15 @@ const today     = () => _bogSnap().fecha;
 const ahoraHora = () => _bogSnap().hora;
 const fmtDate   = d  => d?new Date(d+'T12:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short'}):'—';
 const initials  = n  => (n||'U').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+// Valida que un valor de <input type="date"> sea una fecha real con año de 4 dígitos
+// razonable. Los navegadores no siempre lo garantizan (ver bug de "20226-06-11").
+const fechaValida = v => {
+  if(!v) return true;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if(!m) return false;
+  const anio = +m[1];
+  return anio>=2000 && anio<=2100;
+};
 
 /* ── CAMERA COMPONENT ── */
 function CameraField({value,onChange}){
@@ -2672,7 +2681,7 @@ function ProveedoresPage({user,online,addOffline}){
           h('div',{className:'fg'},h('label',null,'Hora de ingreso'),h('input',{type:'time',value:form.hora_ingreso_confirmado||'',readOnly:true,placeholder:'Sin confirmar',style:{background:'#f8fafc',cursor:'default'}}))
         ),
         h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida||'',readOnly:true,placeholder:'Usa el botón "Salida"',style:{background:'#f8fafc',cursor:'default'}})),
-        h('div',{className:'fg'},h('label',null,'Fecha pago ARL'),h('input',{type:'date',value:form.fecha_pago_arl,onChange:e=>setForm(p=>({...p,fecha_pago_arl:e.target.value}))})),
+        h('div',{className:'fg'},h('label',null,'Fecha pago ARL'),h('input',{type:'date',min:'2000-01-01',max:'2100-12-31',value:form.fecha_pago_arl,onChange:e=>{if(fechaValida(e.target.value))setForm(p=>({...p,fecha_pago_arl:e.target.value}));}})),
         h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:2,placeholder:'—'}))
       ),
       h('div',{className:'fcard'},
@@ -2769,7 +2778,7 @@ function ProveedoresPage({user,online,addOffline}){
             h('option',{value:''},'Seleccionar...'),...tiposVehiculo.map(t=>h('option',{key:t,value:t},t))
           )
         ),
-        h('div',{className:'fg'},h('label',null,'Fecha pago ARL'),h('input',{type:'date',value:vehiculoForm.fecha_pago_arl,onChange:e=>setVehiculoForm(p=>({...p,fecha_pago_arl:e.target.value}))})),
+        h('div',{className:'fg'},h('label',null,'Fecha pago ARL'),h('input',{type:'date',min:'2000-01-01',max:'2100-12-31',value:vehiculoForm.fecha_pago_arl,onChange:e=>{if(fechaValida(e.target.value))setVehiculoForm(p=>({...p,fecha_pago_arl:e.target.value}));}})),
         h('div',{className:'fg'},h('label',null,'Muelle descargue'),h('input',{type:'text',value:vehiculoForm.muelle_descargue,onChange:e=>setVehiculoForm(p=>({...p,muelle_descargue:e.target.value})),placeholder:'N° muelle (opcional)'}))
       ),
 
