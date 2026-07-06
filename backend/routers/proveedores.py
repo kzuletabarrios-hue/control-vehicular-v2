@@ -35,7 +35,7 @@ CAMPOS_ORDEN = [
 
 # ── QR de autorregistro de proveedores ────────────────────────────
 QR_INGRESO_TIPO   = "ingreso_proveedor_qr"
-QR_INGRESO_TTL_SEG = 90  # el token (y por lo tanto una foto del QR) expira en 90s
+QR_INGRESO_TTL_SEG = 300  # 5 min: tiempo para que el conductor llene el formulario antes de que expire
 
 
 def crear_token_ingreso_qr() -> str:
