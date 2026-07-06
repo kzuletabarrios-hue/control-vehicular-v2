@@ -18,7 +18,7 @@ router = APIRouter()
 ROLES_GESTION = ('admin', 'supervisor')
 ROLES_RONDA   = ('admin', 'supervisor', 'recorredor_externo')
 
-RONDAS_POR_TURNO   = 8
+RONDAS_POR_TURNO   = 7
 RONDA_CAMINATA_MIN = 30   # min. estimados para recorrer los puntos de una ronda
 PERMANENCIA_MIN_MIN = 15  # min. mínimos de permanencia en Tanques entre rondas
 ALERTA_ATRASO_MIN  = 45   # min. sin movimiento para marcar alerta en el panel
@@ -28,9 +28,11 @@ TURNO_DURACION_MIN = 720  # 12h
 
 # Bloques de apoyo fijo en Control de Acceso (hora absoluta del día)
 APOYOS_FIJOS = [
+    (dtime(5, 45), dtime(6, 0),  'Apoyo relevo de turno en Control de Acceso'),
     (dtime(6, 0),  dtime(8, 0),  'Apoyo en Control de Acceso'),
     (dtime(11, 0), dtime(13, 0), 'Cubrimiento de almuerzos'),
     (dtime(13, 30), dtime(14, 30), 'Apoyo por cambio de turno en Control de Acceso'),
+    (dtime(17, 45), dtime(18, 0), 'Apoyo relevo de turno en Control de Acceso'),
     (dtime(20, 0), dtime(22, 0), 'Apoyo nocturno en Control de Acceso'),
 ]
 

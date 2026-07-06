@@ -3753,19 +3753,26 @@ function RondaPage({user}){
   const [showPausa,setShowPausa] = useState(false);
   const [pausaMotivo,setPausaMotivo] = useState('Baño');
   const [pausaOtro,setPausaOtro] = useState('');
+  const [turnoSel,setTurnoSel] = useState(()=>localStorage.getItem('cv_turno_ronda')||'');
 
   const esAdmin      = ['admin','supervisor'].includes(user?.rol);
   const esRecorredor = user?.rol==='recorredor_externo';
 
   const load = useCallback(()=>{
     setLoading(true);
+    const qs = turnoSel ? `?turno=${turnoSel}` : '';
     Promise.all([
-      api.get('/rondas/turno/cronograma').then(r=>setCronograma(r)).catch(()=>{}),
+      api.get(`/rondas/turno/cronograma${qs}`).then(r=>setCronograma(r)).catch(()=>{}),
       esRecorredor ? api.get('/rondas/ciclo/activo').then(r=>setCiclo(r)).catch(()=>{}) : Promise.resolve(),
       esRecorredor ? api.get('/rondas/apoyo/hoy').then(r=>setApoyos(Array.isArray(r)?r:[])).catch(()=>{}) : Promise.resolve(),
     ]).finally(()=>setLoading(false));
-  },[esRecorredor]);
+  },[esRecorredor,turnoSel]);
   useEffect(()=>{ load(); },[load]);
+
+  const elegirTurno = (t)=>{
+    setTurnoSel(t);
+    if(t) localStorage.setItem('cv_turno_ronda',t); else localStorage.removeItem('cv_turno_ronda');
+  };
 
   const apoyoEnCurso = apoyos.find(a=>!a.hora_salida);
 
@@ -3949,6 +3956,20 @@ function RondaPage({user}){
         style:{flex:1,padding:'8px 0',borderRadius:8,border:'none',cursor:'pointer',fontSize:12,fontWeight:700,
           background:tab==='activa'?'var(--navy2)':'#e2e8f0',color:tab==='activa'?'#fff':'var(--text2)'}},
         'Ronda activa')
+    ),
+    esRecorredor&&h('div',{style:{display:'flex',gap:6,alignItems:'center',padding:'8px 14px 0'}},
+      h('span',{style:{fontSize:11,color:'var(--slate)',fontWeight:600}},'Mi turno:'),
+      h('button',{onClick:()=>elegirTurno('dia'),
+        style:{padding:'4px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',
+          background:turnoSel==='dia'?'var(--navy)':'transparent',color:turnoSel==='dia'?'#fff':'var(--slate)',borderColor:turnoSel==='dia'?'var(--navy)':'var(--border)'}},
+        'Día (06-18h)'),
+      h('button',{onClick:()=>elegirTurno('noche'),
+        style:{padding:'4px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',
+          background:turnoSel==='noche'?'var(--navy)':'transparent',color:turnoSel==='noche'?'#fff':'var(--slate)',borderColor:turnoSel==='noche'?'var(--navy)':'var(--border)'}},
+        'Noche (18-06h)'),
+      turnoSel&&h('button',{onClick:()=>elegirTurno(''),title:'Volver a detección automática',
+        style:{padding:'4px 8px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'none',background:'none',color:'var(--slate)',textDecoration:'underline'}},
+        'Auto')
     ),
     h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
