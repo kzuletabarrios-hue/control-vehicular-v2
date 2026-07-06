@@ -853,6 +853,7 @@ function HomePage({setPage,user}){
   const isGuardaPeatonal  = rol==='guarda_peatonal';
   const isGuardaVehicular = rol==='guarda_vehicular';
   const isRecorredor      = rol==='recorredor_externo';
+  const isCoordinador     = rol==='coordinador';
 
   const cargar = ()=>api.get('/dashboard/resumen').then(setResumen).catch(()=>{});
   useEffect(()=>{ cargar(); const t=setInterval(cargar,60000); return ()=>clearInterval(t); },[]);
@@ -879,9 +880,9 @@ function HomePage({setPage,user}){
   const pendFlota  = resumen?.pendientes?.flota_sin_llegada||[];
   const pendAcceso = resumen?.pendientes?.acceso_sin_salida||[];
 
-  const showFlotaStats   = isAdmin||isGuardaBodega||isGuardaVehicular;
+  const showFlotaStats   = isAdmin||isGuardaBodega||isGuardaVehicular||isCoordinador;
   const showAccesoStats  = isAdmin||isGuardaPeatonal;
-  const showProvStats    = isAdmin||isGuardaVehicular||isGuardaBodega;
+  const showProvStats    = isAdmin||isGuardaVehicular||isGuardaBodega||isCoordinador;
   const showDashboard    = !isRecorredor;
 
   const tabBtn = (id,label,icon)=>h('button',{
@@ -909,12 +910,13 @@ function HomePage({setPage,user}){
           showAccesoStats&&h(StatCard,{label:'Acceso hoy',     value:resumen.control_acceso.hoy, color:'#7c3aed',icon:'userCheck'}),
           showAccesoStats&&h(StatCard,{label:'Sin salida',     value:accesoPend,                  color:'#e11d48',icon:'userCheck'}),
           showProvStats&&h(StatCard,{label:'Proveedores hoy',          value:resumen.proveedores.hoy,    color:'#d97706',icon:'package'}),
-          showProvStats&&h(StatCard,{label:'Visitantes hoy',   value:resumen.visitantes.hoy,     color:'#059669',icon:'users'})
+          showProvStats&&h(StatCard,{label:'En muelle',        value:resumen.proveedores.en_muelle, color:'#0891b2',icon:'package'}),
+          !isCoordinador&&showProvStats&&h(StatCard,{label:'Visitantes hoy',   value:resumen.visitantes.hoy,     color:'#059669',icon:'users'})
         )
       ),
       (()=>{
         const showFlotaPend  = !isGuardaPeatonal;
-        const showAccesoPend = !isGuardaVehicular && !isGuardaBodega;
+        const showAccesoPend = !isGuardaVehicular && !isGuardaBodega && !isCoordinador;
         const hayFlota  = showFlotaPend  && flotaPend>0;
         const hayAcceso = showAccesoPend && accesoPend>0;
         if(!hayFlota && !hayAcceso) return null;

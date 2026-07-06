@@ -36,7 +36,8 @@ def resumen(
         prov_stats AS (
             SELECT
                 COUNT(*) FILTER (WHERE fecha = :hoy)    AS p_hoy,
-                COUNT(*) FILTER (WHERE fecha >= :hace7) AS p_semana
+                COUNT(*) FILTER (WHERE fecha >= :hace7) AS p_semana,
+                COUNT(*) FILTER (WHERE estado_confirmacion = 'confirmado' AND hora_salida IS NULL) AS p_en_muelle
             FROM proveedores
         ),
         ca_stats AS (
@@ -53,7 +54,7 @@ def resumen(
         )
         SELECT
             f.f_hoy, f.f_semana, f.f_mes, f.f_en_ruta,
-            p.p_hoy, p.p_semana,
+            p.p_hoy, p.p_semana, p.p_en_muelle,
             c.c_hoy, c.c_activos,
             v.v_hoy,
             vv.vv_hoy
@@ -112,8 +113,9 @@ def resumen(
             "en_ruta": stats["f_en_ruta"],
         },
         "proveedores": {
-            "hoy":    stats["p_hoy"],
-            "semana": stats["p_semana"],
+            "hoy":       stats["p_hoy"],
+            "semana":    stats["p_semana"],
+            "en_muelle": stats["p_en_muelle"],
         },
         "control_acceso": {
             "hoy":                stats["c_hoy"],
