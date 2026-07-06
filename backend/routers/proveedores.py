@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError, DataError
 
 from database import get_db
 from routers.auth import require_permiso, SECRET_KEY, ALGORITHM
@@ -197,9 +198,13 @@ def crear(
     vals["hora_ingreso_confirmado"] = vals.get("hora_ingreso")
     cols = ", ".join(vals.keys())
     placeholders = ", ".join(f":{k}" for k in vals.keys())
-    db.execute(text(f"INSERT INTO proveedores ({cols}) VALUES ({placeholders})"), vals)
-    _insert_ordenes(db, rid, ordenes)
-    db.commit()
+    try:
+        db.execute(text(f"INSERT INTO proveedores ({cols}) VALUES ({placeholders})"), vals)
+        _insert_ordenes(db, rid, ordenes)
+        db.commit()
+    except (IntegrityError, DataError):
+        db.rollback()
+        raise HTTPException(400, "Datos inválidos: revisa que las fechas ingresadas sean correctas.")
     return {"id": rid, "message": "Registro creado"}
 
 
@@ -275,8 +280,12 @@ def actualizar(
         raise HTTPException(400, "Sin campos para actualizar")
     vals["id"] = id
     sets = ", ".join(f"{c} = :{c}" for c in vals if c != "id")
-    db.execute(text(f"UPDATE proveedores SET {sets}, updated_at = NOW() WHERE id = :id"), vals)
-    db.commit()
+    try:
+        db.execute(text(f"UPDATE proveedores SET {sets}, updated_at = NOW() WHERE id = :id"), vals)
+        db.commit()
+    except (IntegrityError, DataError):
+        db.rollback()
+        raise HTTPException(400, "Datos inválidos: revisa que las fechas ingresadas sean correctas.")
     return {"message": "Registro actualizado"}
 
 
@@ -330,18 +339,21 @@ def crear_batch(
         raise HTTPException(400, "Sin registros para guardar")
 
     ids = []
-    for reg in registros:
-        rid = str(uuid.uuid4())
-        vals = {c: _clean(reg.get(c)) for c in CAMPOS_VEHICULO}
-        vals["id"] = rid
-        vals["creado_por"] = current_user["id"]
-        cols = ", ".join(vals.keys())
-        placeholders = ", ".join(f":{k}" for k in vals.keys())
-        db.execute(text(f"INSERT INTO proveedores ({cols}) VALUES ({placeholders})"), vals)
-        orden_data = {c: reg.get(c) for c in CAMPOS_ORDEN}
-        if any(v for v in orden_data.values()):
-            _insert_ordenes(db, rid, [orden_data])
-        ids.append(rid)
-
-    db.commit()
+    try:
+        for reg in registros:
+            rid = str(uuid.uuid4())
+            vals = {c: _clean(reg.get(c)) for c in CAMPOS_VEHICULO}
+            vals["id"] = rid
+            vals["creado_por"] = current_user["id"]
+            cols = ", ".join(vals.keys())
+            placeholders = ", ".join(f":{k}" for k in vals.keys())
+            db.execute(text(f"INSERT INTO proveedores ({cols}) VALUES ({placeholders})"), vals)
+            orden_data = {c: reg.get(c) for c in CAMPOS_ORDEN}
+            if any(v for v in orden_data.values()):
+                _insert_ordenes(db, rid, [orden_data])
+            ids.append(rid)
+        db.commit()
+    except (IntegrityError, DataError):
+        db.rollback()
+        raise HTTPException(400, "Datos inválidos: revisa que las fechas ingresadas sean correctas.")
     return {"ids": ids, "message": f"{len(ids)} registros creados"}
