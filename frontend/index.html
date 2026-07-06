@@ -2424,14 +2424,14 @@ function ProveedoresPage({user,online,addOffline}){
   const manejosCarga = ['Conductor con certificado de montacargas','Reciservicios','Ercol','Operador logístico externo'];
 
   /* ── EDIT FORM STATE ── */
-  const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',tipo_documento:'CC',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),hora_ingreso_confirmado:'',hora_salida:'',muelle_descargue:'',fecha_pago_arl:'',arl_proveedor:'',epp_cumple:'',tipo_carga:'',formato_carga:'',cantidad_pallets:'',manejo_carga:'',observaciones:'',foto_url:null};
+  const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',tipo_documento:'CC',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),hora_ingreso_confirmado:'',hora_salida:'',muelle_descargue:'',fecha_pago_arl:'',epp_cumple:'',tipo_carga:'',formato_carga:'',cantidad_pallets:'',manejo_carga:'',observaciones:'',foto_url:null};
   const [form,setForm]               = useState(emptyF);
   const [formOrdenes,setFormOrdenes] = useState([]);
   const [formOrd,setFormOrd]         = useState({empresa:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''});
   const [addingOrd,setAddingOrd]     = useState(false);
 
   /* ── NUEVO INGRESO STATE ── */
-  const emptyVeh = ()=>({fecha:today(),placa_vehiculo:'',tipo_documento:'CC',cedula_conductor:'',nombre_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),muelle_descargue:'',fecha_pago_arl:'',arl_proveedor:'',epp_cumple:'',tipo_carga:'',formato_carga:'',cantidad_pallets:'',manejo_carga:'',observaciones:'',foto_url:null});
+  const emptyVeh = ()=>({fecha:today(),placa_vehiculo:'',tipo_documento:'CC',cedula_conductor:'',nombre_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),muelle_descargue:'',fecha_pago_arl:'',epp_cumple:'',tipo_carga:'',formato_carga:'',cantidad_pallets:'',manejo_carga:'',observaciones:'',foto_url:null});
   const emptyOrd = {empresa:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''};
   const [vehiculoForm,setVehiculoForm]     = useState(emptyVeh);
   const [ordenes,setOrdenes]               = useState([]);
@@ -2684,12 +2684,9 @@ function ProveedoresPage({user,online,addOffline}){
       ),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'checkCircle',s:12}),' Seguridad y carga'),
-        h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Proveedor ARL'),h('input',{type:'text',value:form.arl_proveedor||'',onChange:e=>setForm(p=>({...p,arl_proveedor:e.target.value})),placeholder:'Nombre de la ARL'})),
-          h('div',{className:'fg'},h('label',null,'¿Cuenta con EPP?'),
-            h('select',{value:form.epp_cumple===true?'si':form.epp_cumple===false?'no':'',onChange:e=>setForm(p=>({...p,epp_cumple:e.target.value===''?'':e.target.value==='si'}))},
-              h('option',{value:''},'—'),h('option',{value:'si'},'Sí'),h('option',{value:'no'},'No')
-            )
+        h('div',{className:'fg'},h('label',null,'¿Cuenta con EPP?'),
+          h('select',{value:form.epp_cumple===true?'si':form.epp_cumple===false?'no':'',onChange:e=>setForm(p=>({...p,epp_cumple:e.target.value===''?'':e.target.value==='si'}))},
+            h('option',{value:''},'—'),h('option',{value:'si'},'Sí'),h('option',{value:'no'},'No')
           )
         ),
         h('div',{className:'fgrid2'},
@@ -2699,13 +2696,18 @@ function ProveedoresPage({user,online,addOffline}){
             )
           ),
           h('div',{className:'fg'},h('label',null,'Formato de carga'),
-            h('select',{value:form.formato_carga||'',onChange:e=>setForm(p=>({...p,formato_carga:e.target.value}))},
+            h('select',{value:form.formato_carga||'',onChange:e=>{
+              const v=e.target.value;
+              setForm(p=>({...p,formato_carga:v,cantidad_pallets:(v==='Granel'||v==='Mixta')?'No aplica':(p.cantidad_pallets==='No aplica'?'':p.cantidad_pallets)}));
+            }},
               h('option',{value:''},'—'),...formatosCarga.map(t=>h('option',{key:t,value:t},t))
             )
           )
         ),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Cantidad de pallets'),h('input',{type:'text',value:form.cantidad_pallets||'',onChange:e=>setForm(p=>({...p,cantidad_pallets:e.target.value})),placeholder:'Ej: 10'})),
+          h('div',{className:'fg'},h('label',null,'Cantidad de pallets'),
+            h('input',{type:'text',value:form.cantidad_pallets||'',readOnly:form.formato_carga==='Granel'||form.formato_carga==='Mixta',onChange:e=>setForm(p=>({...p,cantidad_pallets:e.target.value})),placeholder:'Ej: 10',style:(form.formato_carga==='Granel'||form.formato_carga==='Mixta')?{background:'#f8fafc',cursor:'default'}:null})
+          ),
           h('div',{className:'fg'},h('label',null,'Maneja la carga'),
             h('select',{value:form.manejo_carga||'',onChange:e=>setForm(p=>({...p,manejo_carga:e.target.value}))},
               h('option',{value:''},'—'),...manejosCarga.map(t=>h('option',{key:t,value:t},t))
@@ -2828,12 +2830,9 @@ function ProveedoresPage({user,online,addOffline}){
 
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'checkCircle',s:12}),' Seguridad y carga'),
-        h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Proveedor ARL'),h('input',{type:'text',value:vehiculoForm.arl_proveedor||'',onChange:e=>setVehiculoForm(p=>({...p,arl_proveedor:e.target.value})),placeholder:'Nombre de la ARL'})),
-          h('div',{className:'fg'},h('label',null,'¿Cuenta con EPP?'),
-            h('select',{value:vehiculoForm.epp_cumple===true?'si':vehiculoForm.epp_cumple===false?'no':'',onChange:e=>setVehiculoForm(p=>({...p,epp_cumple:e.target.value===''?'':e.target.value==='si'}))},
-              h('option',{value:''},'—'),h('option',{value:'si'},'Sí'),h('option',{value:'no'},'No')
-            )
+        h('div',{className:'fg'},h('label',null,'¿Cuenta con EPP?'),
+          h('select',{value:vehiculoForm.epp_cumple===true?'si':vehiculoForm.epp_cumple===false?'no':'',onChange:e=>setVehiculoForm(p=>({...p,epp_cumple:e.target.value===''?'':e.target.value==='si'}))},
+            h('option',{value:''},'—'),h('option',{value:'si'},'Sí'),h('option',{value:'no'},'No')
           )
         ),
         h('div',{className:'fgrid2'},
@@ -2843,13 +2842,18 @@ function ProveedoresPage({user,online,addOffline}){
             )
           ),
           h('div',{className:'fg'},h('label',null,'Formato de carga'),
-            h('select',{value:vehiculoForm.formato_carga||'',onChange:e=>setVehiculoForm(p=>({...p,formato_carga:e.target.value}))},
+            h('select',{value:vehiculoForm.formato_carga||'',onChange:e=>{
+              const v=e.target.value;
+              setVehiculoForm(p=>({...p,formato_carga:v,cantidad_pallets:(v==='Granel'||v==='Mixta')?'No aplica':(p.cantidad_pallets==='No aplica'?'':p.cantidad_pallets)}));
+            }},
               h('option',{value:''},'—'),...formatosCarga.map(t=>h('option',{key:t,value:t},t))
             )
           )
         ),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Cantidad de pallets'),h('input',{type:'text',value:vehiculoForm.cantidad_pallets||'',onChange:e=>setVehiculoForm(p=>({...p,cantidad_pallets:e.target.value})),placeholder:'Ej: 10'})),
+          h('div',{className:'fg'},h('label',null,'Cantidad de pallets'),
+            h('input',{type:'text',value:vehiculoForm.cantidad_pallets||'',readOnly:vehiculoForm.formato_carga==='Granel'||vehiculoForm.formato_carga==='Mixta',onChange:e=>setVehiculoForm(p=>({...p,cantidad_pallets:e.target.value})),placeholder:'Ej: 10',style:(vehiculoForm.formato_carga==='Granel'||vehiculoForm.formato_carga==='Mixta')?{background:'#f8fafc',cursor:'default'}:null})
+          ),
           h('div',{className:'fg'},h('label',null,'Maneja la carga'),
             h('select',{value:vehiculoForm.manejo_carga||'',onChange:e=>setVehiculoForm(p=>({...p,manejo_carga:e.target.value}))},
               h('option',{value:''},'—'),...manejosCarga.map(t=>h('option',{key:t,value:t},t))
@@ -4398,7 +4402,7 @@ function ProveedorAutorregistroPage({token}){
   const formatosCarga = ['Paletizada','Granel','Mixta'];
   const manejosCarga = ['Conductor con certificado de montacargas','Reciservicios','Ercol','Operador logístico externo'];
   const emptyVeh = {placa_vehiculo:'',nombre_conductor:'',tipo_documento:'CC',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',
-    arl_proveedor:'',epp_cumple:'',tipo_carga:'',formato_carga:'',cantidad_pallets:'',manejo_carga:''};
+    fecha_pago_arl:'',epp_cumple:'',tipo_carga:'',formato_carga:'',cantidad_pallets:'',manejo_carga:''};
   const emptyOrd = {empresa:'',numero_orden_compra:''};
   const [vehiculo,setVehiculo] = useState(emptyVeh);
   const [ordenes,setOrdenes]   = useState([]);
@@ -4428,7 +4432,7 @@ function ProveedorAutorregistroPage({token}){
     if(!vehiculo.cedula_conductor.trim()) return setErrorMsg('El número de documento es obligatorio');
     if(!vehiculo.telefono_conductor.trim()) return setErrorMsg('El teléfono del conductor es obligatorio');
     if(!vehiculo.tipo_vehiculo.trim()) return setErrorMsg('Selecciona el tipo de vehículo');
-    if(!vehiculo.arl_proveedor.trim()) return setErrorMsg('El proveedor de ARL es obligatorio');
+    if(!vehiculo.fecha_pago_arl) return setErrorMsg('La fecha de ARL es obligatoria');
     if(vehiculo.epp_cumple==='') return setErrorMsg('Indica si cuentas con los elementos de protección personal');
     if(!vehiculo.tipo_carga) return setErrorMsg('Selecciona el tipo de carga');
     if(!vehiculo.formato_carga) return setErrorMsg('Selecciona el formato de carga');
@@ -4502,7 +4506,7 @@ function ProveedorAutorregistroPage({token}){
     h('div',{className:'fcard'},
       h('p',{className:'sec-ttl'},h(Ico,{n:'checkCircle',s:12}),' Seguridad y carga'),
       h('div',{className:'fgrid2'},
-        h('div',{className:'fg'},h('label',null,'Proveedor de ARL',h('span',{className:'req'},'*')),h('input',{type:'text',value:vehiculo.arl_proveedor,onChange:e=>setVehiculo(p=>({...p,arl_proveedor:e.target.value})),placeholder:'Nombre de la ARL'})),
+        h('div',{className:'fg'},h('label',null,'Fecha ARL',h('span',{className:'req'},'*')),h('input',{type:'date',min:'2000-01-01',max:'2100-12-31',value:vehiculo.fecha_pago_arl,onChange:e=>{if(fechaValida(e.target.value))setVehiculo(p=>({...p,fecha_pago_arl:e.target.value}));}})),
         h('div',{className:'fg'},h('label',null,'¿Cuentas con EPP?',h('span',{className:'req'},'*')),
           h('select',{value:vehiculo.epp_cumple,onChange:e=>setVehiculo(p=>({...p,epp_cumple:e.target.value}))},
             h('option',{value:''},'Seleccionar...'),h('option',{value:'si'},'Sí'),h('option',{value:'no'},'No')
@@ -4517,13 +4521,18 @@ function ProveedorAutorregistroPage({token}){
           )
         ),
         h('div',{className:'fg'},h('label',null,'Formato de carga',h('span',{className:'req'},'*')),
-          h('select',{value:vehiculo.formato_carga,onChange:e=>setVehiculo(p=>({...p,formato_carga:e.target.value}))},
+          h('select',{value:vehiculo.formato_carga,onChange:e=>{
+            const v=e.target.value;
+            setVehiculo(p=>({...p,formato_carga:v,cantidad_pallets:(v==='Granel'||v==='Mixta')?'No aplica':(p.cantidad_pallets==='No aplica'?'':p.cantidad_pallets)}));
+          }},
             h('option',{value:''},'Seleccionar...'),...formatosCarga.map(t=>h('option',{key:t,value:t},t))
           )
         )
       ),
       h('div',{className:'fgrid2'},
-        h('div',{className:'fg'},h('label',null,'Cantidad de pallets',h('span',{className:'req'},'*')),h('input',{type:'text',inputMode:'numeric',value:vehiculo.cantidad_pallets,onChange:e=>setVehiculo(p=>({...p,cantidad_pallets:e.target.value})),placeholder:'Ej: 10'})),
+        h('div',{className:'fg'},h('label',null,'Cantidad de pallets',h('span',{className:'req'},'*')),
+          h('input',{type:'text',inputMode:'numeric',value:vehiculo.cantidad_pallets,readOnly:vehiculo.formato_carga==='Granel'||vehiculo.formato_carga==='Mixta',onChange:e=>setVehiculo(p=>({...p,cantidad_pallets:e.target.value})),placeholder:'Ej: 10',style:(vehiculo.formato_carga==='Granel'||vehiculo.formato_carga==='Mixta')?{background:'#f8fafc',cursor:'default'}:null})
+        ),
         h('div',{className:'fg'},h('label',null,'¿Quién maneja la carga?',h('span',{className:'req'},'*')),
           h('select',{value:vehiculo.manejo_carga,onChange:e=>setVehiculo(p=>({...p,manejo_carga:e.target.value}))},
             h('option',{value:''},'Seleccionar...'),...manejosCarga.map(t=>h('option',{key:t,value:t},t))

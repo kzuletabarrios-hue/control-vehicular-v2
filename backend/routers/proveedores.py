@@ -171,6 +171,21 @@ def _clean(v):
     return None if v == "" else v
 
 
+import re as _re
+_FECHA_RE = _re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
+
+
+def fecha_valida(v) -> bool:
+    """Espejo del fechaValida() del frontend: YYYY-MM-DD con año 2000-2100."""
+    if not v:
+        return True
+    m = _FECHA_RE.match(str(v))
+    if not m:
+        return False
+    anio = int(m.group(1))
+    return 2000 <= anio <= 2100
+
+
 def _insert_ordenes(db, proveedor_id: str, ordenes: list[dict]):
     for orden in ordenes:
         oid = str(uuid.uuid4())

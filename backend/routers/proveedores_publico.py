@@ -11,7 +11,7 @@ from sqlalchemy import text
 from database import get_db
 from routers.proveedores import (
     CAMPOS_VEHICULO, CAMPOS_ORDEN, _clean, _insert_ordenes,
-    validar_token_ingreso_qr,
+    validar_token_ingreso_qr, fecha_valida,
 )
 from sqlalchemy.exc import IntegrityError, DataError
 
@@ -22,7 +22,7 @@ _BOG = timezone(timedelta(hours=-5))
 CAMPOS_VEHICULO_PUBLICOS = [
     "placa_vehiculo", "nombre_conductor", "tipo_documento", "cedula_conductor",
     "telefono_conductor", "tipo_vehiculo",
-    "arl_proveedor", "epp_cumple", "tipo_carga", "formato_carga",
+    "fecha_pago_arl", "epp_cumple", "tipo_carga", "formato_carga",
     "cantidad_pallets", "manejo_carga",
 ]
 # Nota: muelle_descargue NO lo llena el conductor — el guarda lo asigna al
@@ -57,7 +57,7 @@ def autorregistro(
     cedula      = (vehiculo.get("cedula_conductor") or "").strip()
     telefono    = (vehiculo.get("telefono_conductor") or "").strip()
     tipo_veh    = (vehiculo.get("tipo_vehiculo") or "").strip()
-    arl         = (vehiculo.get("arl_proveedor") or "").strip()
+    fecha_arl   = (vehiculo.get("fecha_pago_arl") or "").strip()
     epp         = vehiculo.get("epp_cumple")
     tipo_carga  = (vehiculo.get("tipo_carga") or "").strip()
     formato_c   = (vehiculo.get("formato_carga") or "").strip()
@@ -76,8 +76,10 @@ def autorregistro(
         raise HTTPException(400, "El teléfono del conductor es obligatorio")
     if not tipo_veh:
         raise HTTPException(400, "El tipo de vehículo es obligatorio")
-    if not arl:
-        raise HTTPException(400, "El proveedor de ARL es obligatorio")
+    if not fecha_arl:
+        raise HTTPException(400, "La fecha de ARL es obligatoria")
+    if not fecha_valida(fecha_arl):
+        raise HTTPException(400, "La fecha de ARL no es válida")
     if epp is None or epp == "":
         raise HTTPException(400, "Indica si cuentas con los elementos de protección personal")
     if tipo_carga not in TIPOS_CARGA:
