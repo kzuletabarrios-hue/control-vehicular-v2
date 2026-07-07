@@ -507,6 +507,54 @@ def ciclo_reanudar(
     return {"id": str(ciclo.id), "message": "Ronda reanudada"}
 
 
+@router.post("/ciclo/cancelar", status_code=201)
+def ciclo_cancelar(
+    body: dict = None,
+    db: Session = Depends(get_db),
+    user: dict = Depends(_require_roles(*ROLES_RONDA)),
+):
+    """El propio recorredor abandona su ronda en curso o en pausa (ej. se le
+    olvidó cerrarla y quedó bloqueado días sin poder iniciar una nueva)."""
+    body = body or {}
+    motivo = (body.get("motivo") or "").strip() or None
+
+    ciclo = db.execute(text("""
+        SELECT * FROM rondas_ciclos WHERE recorredor_id = :uid AND estado IN ('en_curso', 'pausada')
+        ORDER BY hora_inicio DESC LIMIT 1
+    """), {"uid": user["id"]}).fetchone()
+    if not ciclo:
+        raise HTTPException(404, "No tienes una ronda en curso ni en pausa para cancelar")
+
+    db.execute(text("""
+        UPDATE rondas_ciclos
+        SET estado = 'cancelada', hora_fin = NOW(), pausa_motivo = COALESCE(:motivo, pausa_motivo)
+        WHERE id = :id
+    """), {"motivo": motivo, "id": ciclo.id})
+    db.commit()
+    return {"id": str(ciclo.id), "message": "Ronda cancelada"}
+
+
+@router.post("/ciclo/{ciclo_id}/cancelar-admin", status_code=201)
+def ciclo_cancelar_admin(
+    ciclo_id: str,
+    db: Session = Depends(get_db),
+    user: dict = Depends(_require_roles(*ROLES_GESTION)),
+):
+    """El supervisor/admin cancela desde el panel la ronda atascada de un
+    recorredor (que quedó en curso/pausada días sin cerrarse)."""
+    ciclo = db.execute(text("""
+        SELECT * FROM rondas_ciclos WHERE id = :id AND estado IN ('en_curso', 'pausada')
+    """), {"id": ciclo_id}).fetchone()
+    if not ciclo:
+        raise HTTPException(404, "Ronda no encontrada o ya cerrada")
+
+    db.execute(text("""
+        UPDATE rondas_ciclos SET estado = 'cancelada', hora_fin = NOW() WHERE id = :id
+    """), {"id": ciclo_id})
+    db.commit()
+    return {"message": "Ronda cancelada por supervisor"}
+
+
 # ── MARCAR PUNTO DENTRO DE UN CICLO ──────────────────────────────
 
 @router.put("/marcar", status_code=201)
@@ -642,6 +690,26 @@ def _debug_fecha_mismatch(
         ORDER BY r.created_at DESC
     """)).fetchall()
     return {"count": len(rows), "rows": [dict(r._mapping) for r in rows]}
+
+
+@router.post("/_debug_fix_fecha_mismatch_simple")
+def _debug_fix_fecha_mismatch_simple(
+    db: Session = Depends(get_db),
+    user: dict = Depends(_require_roles(*ROLES_GESTION)),
+):
+    # TEMPORAL: corrige SOLO los casos simples de 1 dia de diferencia (el bug de
+    # zona horaria en si), dejando intactos los de 2-3 dias (ciclos que quedaron
+    # atascados dias abiertos -- caso distinto, revisado aparte). Quitar endpoint
+    # despues de confirmar.
+    result = db.execute(text("""
+        UPDATE rondas r SET fecha = rc.fecha
+        FROM rondas_ciclos rc
+        WHERE r.ciclo_id = rc.id AND r.fecha = rc.fecha + INTERVAL '1 day'
+        RETURNING r.id
+    """))
+    ids = [row[0] for row in result.fetchall()]
+    db.commit()
+    return {"corregidos": len(ids), "ids": [str(i) for i in ids]}
 
 
 @router.get("/historial")

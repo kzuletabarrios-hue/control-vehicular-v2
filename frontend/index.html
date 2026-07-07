@@ -3899,6 +3899,7 @@ function RondaPage({user}){
   const [saving,setSaving] = useState(false);
   const [alert,setAlert]   = useState(null);
   const [showPausa,setShowPausa] = useState(false);
+  const [confirmCancelar,setConfirmCancelar] = useState(false);
   const [pausaMotivo,setPausaMotivo] = useState('Baño');
   const [pausaOtro,setPausaOtro] = useState('');
   const [turnoSel,setTurnoSel] = useState(()=>localStorage.getItem('cv_turno_ronda')||'');
@@ -3976,6 +3977,19 @@ function RondaPage({user}){
       await api.post('/rondas/ciclo/pausar',{motivo});
       setShowPausa(false); setPausaOtro('');
       setAlert({type:'ok',msg:'Ronda en pausa'});
+      load();
+    }catch(e){
+      let msg=e.message; try{msg=JSON.parse(msg).detail||msg;}catch{}
+      setAlert({type:'err',msg});
+    }
+  };
+
+  const handleCancelar = async()=>{
+    setAlert(null);
+    try{
+      await api.post('/rondas/ciclo/cancelar',{});
+      setConfirmCancelar(false);
+      setAlert({type:'ok',msg:'Ronda cancelada'});
       load();
     }catch(e){
       let msg=e.message; try{msg=JSON.parse(msg).detail||msg;}catch{}
@@ -4168,7 +4182,8 @@ function RondaPage({user}){
                 h('p',{style:{fontSize:12,fontWeight:700,color:'#92400e',margin:'2px 0'}},ciclo.ciclo.pausa_motivo||'Pausa breve'),
                 h('p',{style:{fontSize:11,color:'var(--slate)'}},'Reanuda la ronda para seguir marcando puntos.')
               ),
-              h('button',{className:'btn-primary',onClick:handleReanudar},h(Ico,{n:'checkCircle',s:16}),' Reanudar ronda')
+              h('button',{className:'btn-primary',onClick:handleReanudar},h(Ico,{n:'checkCircle',s:16}),' Reanudar ronda'),
+              h('button',{className:'btn-cancel',style:{marginTop:8,width:'100%',color:'#dc2626'},onClick:()=>setConfirmCancelar(true)},h(Ico,{n:'x',s:14}),' Cancelar ronda')
             ) : h(React.Fragment,null,
               h('div',{className:'fcard',style:{marginBottom:10,border:'1.5px solid #93c5fd'}},
                 h('p',{className:'sec-ttl'},h(Ico,{n:'mapPin',s:12}),` Ronda ${ciclo.ciclo.numero_ronda} en curso`),
@@ -4176,6 +4191,8 @@ function RondaPage({user}){
               ),
               !showPausa && h('button',{className:'btn-cancel',style:{marginBottom:10,width:'100%'},onClick:()=>setShowPausa(true)},
                 h(Ico,{n:'clock',s:14}),' Pausar ronda (baño, llaves, etc.)'),
+              !showPausa && h('button',{className:'btn-cancel',style:{marginBottom:10,width:'100%',color:'#dc2626'},onClick:()=>setConfirmCancelar(true)},
+                h(Ico,{n:'x',s:14}),' Cancelar ronda'),
               showPausa && h('div',{className:'fcard',style:{marginBottom:10}},
                 h('p',{className:'sec-ttl'},h(Ico,{n:'clock',s:12}),' Motivo de la pausa'),
                 h('div',{className:'fg'},
@@ -4226,7 +4243,12 @@ function RondaPage({user}){
         background:apoyoEnCurso?'#dc2626':'#0f766e',color:'#fff',border:'none',borderRadius:'50%',
         cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
         boxShadow:'0 4px 16px rgba(15,118,110,0.5)',zIndex:90}
-    }, h(Ico,{n:'userCheck',s:19}))
+    }, h(Ico,{n:'userCheck',s:19})),
+    confirmCancelar&&h(ConfirmSheet,{
+      msg:'Se cancelará la ronda en curso. Los puntos ya marcados quedan registrados, pero esta ronda no contará como completada.',
+      onOk:handleCancelar,
+      onCancel:()=>setConfirmCancelar(false)
+    })
   );
 }
 
@@ -4236,11 +4258,26 @@ function RondaPanelPage({user}){
   const [data,setData]       = useState([]);
   const [semana,setSemana]   = useState(null);
   const [loading,setLoading] = useState(true);
+  const [alert,setAlert]     = useState(null);
+  const [confirmCancelar,setConfirmCancelar] = useState(null); // {id, nombre}
 
   const load = useCallback(()=>{
     api.get('/rondas/panel').then(r=>setData(Array.isArray(r)?r:[])).catch(()=>{}).finally(()=>setLoading(false));
   },[]);
   useEffect(()=>{ load(); const t=setInterval(load,30000); return ()=>clearInterval(t); },[load]);
+
+  const handleCancelarAdmin = async()=>{
+    if(!confirmCancelar) return;
+    try{
+      await api.post(`/rondas/ciclo/${confirmCancelar.id}/cancelar-admin`,{});
+      setAlert({type:'ok',msg:'Ronda cancelada'});
+      setConfirmCancelar(null);
+      load();
+    }catch(e){
+      let msg=e.message; try{msg=JSON.parse(msg).detail||msg;}catch{}
+      setAlert({type:'err',msg});
+    }
+  };
 
   useEffect(()=>{
     if(vista!=='semana') return;
@@ -4266,6 +4303,7 @@ function RondaPanelPage({user}){
       h('button',{onClick:()=>setVista('semana'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:vista==='semana'?'var(--navy)':'transparent',color:vista==='semana'?'#fff':'var(--slate)',borderColor:vista==='semana'?'var(--navy)':'var(--border)',marginBottom:8}},'Semana')
     ),
     h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
       loading?h(LoadingDots):
       vista==='hoy'?(
         data.length===0?h('div',{className:'empty'},h(Ico,{n:'clock',s:44}),h('p',null,'No hay recorredores externos activos')):
@@ -4279,7 +4317,13 @@ function RondaPanelPage({user}){
             h('span',{style:{fontSize:12,color:'var(--slate)'}},'Rondas hoy'),
             h('span',{style:{fontSize:13,fontWeight:700}},`${d.rondas_completadas} / ${d.rondas_completadas + d.rondas_pendientes}`)
           ),
-          d.ronda_en_curso&&h('div',{style:{fontSize:11,color:'#1d4ed8',marginBottom:4}},`Ronda ${d.ronda_en_curso.numero_ronda} en curso`),
+          d.ronda_en_curso&&h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:6,marginBottom:4}},
+            h('span',{style:{fontSize:11,color:'#1d4ed8'}},`Ronda ${d.ronda_en_curso.numero_ronda} en curso desde ${fmtDate(d.ronda_en_curso.fecha)}`),
+            h('button',{
+              onClick:()=>setConfirmCancelar({id:d.ronda_en_curso.id,nombre:d.recorredor_nombre}),
+              style:{background:'none',border:'1px solid #fca5a5',color:'#dc2626',borderRadius:6,padding:'2px 8px',fontSize:10,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0}
+            },'Cancelar')
+          ),
           d.ronda_en_pausa&&h('div',{style:{fontSize:11,color:'#92400e',marginBottom:4,fontWeight:700}},
             `En pausa: ${d.ronda_en_pausa.motivo} (${d.ronda_en_pausa.minutos} min)`),
           d.apoyo_en_curso&&h('div',{style:{fontSize:11,color:'#0f766e',marginBottom:4}},`En apoyo: ${d.apoyo_en_curso.motivo}`),
@@ -4325,7 +4369,12 @@ function RondaPanelPage({user}){
           ))
         ]
       )
-    )
+    ),
+    confirmCancelar&&h(ConfirmSheet,{
+      msg:`Se cancelará la ronda atascada de ${confirmCancelar.nombre}. No contará como completada, pero ya podrá iniciar una ronda nueva.`,
+      onOk:handleCancelarAdmin,
+      onCancel:()=>setConfirmCancelar(null)
+    })
   );
 }
 
