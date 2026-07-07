@@ -214,20 +214,24 @@ def _debug_cerrar_dias_anteriores(
     hoy = hoy_d.isoformat()
     hora_actual = datetime.now(_BOG).strftime("%H:%M:%S")
 
-    rows = db.execute(text("""
-        UPDATE control_acceso
-        SET hora_salida = :hora,
-            fecha_salida = :hoy,
-            observaciones = TRIM(BOTH ' ' FROM
-                COALESCE(observaciones || ' ', '') ||
-                '[Cierre administrativo ' || :hoy || ' - sin salida registrada, ' ||
-                (:hoy_d::date - fecha)::text || ' dias abierto]'
-            )
-        WHERE fecha != :hoy AND hora_salida IS NULL AND (:hoy_d::date - fecha) >= :dias
-        RETURNING id
-    """), {"hora": hora_actual, "hoy": hoy, "hoy_d": hoy_d, "dias": dias}).fetchall()
-    ids = [r[0] for r in rows]
-    db.commit()
+    try:
+        rows = db.execute(text("""
+            UPDATE control_acceso
+            SET hora_salida = :hora,
+                fecha_salida = :hoy,
+                observaciones = TRIM(BOTH ' ' FROM
+                    COALESCE(observaciones || ' ', '') ||
+                    '[Cierre administrativo ' || :hoy || ' - sin salida registrada, ' ||
+                    (:hoy_d::date - fecha)::text || ' dias abierto]'
+                )
+            WHERE fecha != :hoy AND hora_salida IS NULL AND (:hoy_d::date - fecha) >= :dias
+            RETURNING id
+        """), {"hora": hora_actual, "hoy": hoy, "hoy_d": hoy_d, "dias": dias}).fetchall()
+        ids = [r[0] for r in rows]
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e)}
     return {"cerrados": len(ids), "ids": [str(i) for i in ids]}
 
 
