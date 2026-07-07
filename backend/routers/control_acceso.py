@@ -222,11 +222,11 @@ def _debug_cerrar_dias_anteriores(
                 observaciones = TRIM(BOTH ' ' FROM
                     COALESCE(observaciones || ' ', '') ||
                     '[Cierre administrativo ' || :hoy || ' - sin salida registrada, ' ||
-                    (:hoy_d::date - fecha)::text || ' dias abierto]'
+                    (:hoy::date - fecha)::text || ' dias abierto]'
                 )
-            WHERE fecha != :hoy AND hora_salida IS NULL AND (:hoy_d::date - fecha) >= :dias
+            WHERE fecha != :hoy AND hora_salida IS NULL AND (:hoy::date - fecha) >= :dias
             RETURNING id
-        """), {"hora": hora_actual, "hoy": hoy, "hoy_d": hoy_d, "dias": dias}).fetchall()
+        """), {"hora": hora_actual, "hoy": hoy, "dias": dias}).fetchall()
         ids = [r[0] for r in rows]
         db.commit()
     except Exception as e:
