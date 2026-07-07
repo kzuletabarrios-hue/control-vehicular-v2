@@ -672,46 +672,6 @@ def ronda_hoy(
     return [dict(r._mapping) for r in rows]
 
 
-@router.get("/_debug_fecha_mismatch")
-def _debug_fecha_mismatch(
-    db: Session = Depends(get_db),
-    user: dict = Depends(_require_roles(*ROLES_GESTION)),
-):
-    # TEMPORAL: diagnostico de registros de `rondas` cuya fecha quedo desincronizada
-    # de la fecha de su ciclo (bug de zona horaria, CURRENT_DATE/datetime.now() sin
-    # _BOG). Quitar despues de revisar/corregir.
-    rows = db.execute(text("""
-        SELECT r.id, r.fecha AS fecha_ronda, rc.fecha AS fecha_ciclo,
-               r.hora_marcacion, r.created_at, p.nombre AS punto_nombre
-        FROM rondas r
-        JOIN rondas_ciclos rc ON rc.id = r.ciclo_id
-        JOIN puntos_ronda p ON p.id = r.punto_id
-        WHERE r.fecha <> rc.fecha
-        ORDER BY r.created_at DESC
-    """)).fetchall()
-    return {"count": len(rows), "rows": [dict(r._mapping) for r in rows]}
-
-
-@router.post("/_debug_fix_fecha_mismatch_simple")
-def _debug_fix_fecha_mismatch_simple(
-    db: Session = Depends(get_db),
-    user: dict = Depends(_require_roles(*ROLES_GESTION)),
-):
-    # TEMPORAL: corrige SOLO los casos simples de 1 dia de diferencia (el bug de
-    # zona horaria en si), dejando intactos los de 2-3 dias (ciclos que quedaron
-    # atascados dias abiertos -- caso distinto, revisado aparte). Quitar endpoint
-    # despues de confirmar.
-    result = db.execute(text("""
-        UPDATE rondas r SET fecha = rc.fecha
-        FROM rondas_ciclos rc
-        WHERE r.ciclo_id = rc.id AND r.fecha = rc.fecha + INTERVAL '1 day'
-        RETURNING r.id
-    """))
-    ids = [row[0] for row in result.fetchall()]
-    db.commit()
-    return {"corregidos": len(ids), "ids": [str(i) for i in ids]}
-
-
 @router.get("/historial")
 def historial(
     fecha: str = None,
