@@ -4608,6 +4608,7 @@ function ProveedorAutorregistroPage({token}){
   const enviar = async()=>{
     setErrorMsg('');
     if(!vehiculo.placa_vehiculo.trim()) return setErrorMsg('La placa es obligatoria');
+    if(!/^[A-Z]+[0-9]+$/.test(vehiculo.placa_vehiculo)) return setErrorMsg('La placa debe escribirse solo con letras seguidas de números, sin espacios ni caracteres especiales (ejemplo: ABC123)');
     if(!vehiculo.nombre_conductor.trim()) return setErrorMsg('El nombre del conductor es obligatorio');
     if(!vehiculo.tipo_documento) return setErrorMsg('Selecciona el tipo de documento');
     if(!vehiculo.cedula_conductor.trim()) return setErrorMsg('El número de documento es obligatorio');
@@ -4664,7 +4665,7 @@ function ProveedorAutorregistroPage({token}){
     h('div',{className:'fcard'},
       h('p',{className:'sec-ttl'},h(Ico,{n:'truck',s:12}),' Datos del vehículo y conductor'),
       h('div',{className:'fg'},h('label',null,'Placa',h('span',{className:'req'},'*')),
-        h('input',{type:'text',value:vehiculo.placa_vehiculo,onChange:e=>setVehiculo(p=>({...p,placa_vehiculo:e.target.value.toUpperCase()})),placeholder:'ABC-123'})
+        h('input',{type:'text',value:vehiculo.placa_vehiculo,onChange:e=>setVehiculo(p=>({...p,placa_vehiculo:e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'')})),placeholder:'ABC123 (letras y luego números, sin espacios ni guiones)'})
       ),
       h('div',{className:'fg'},h('label',null,'Nombre conductor',h('span',{className:'req'},'*')),h('input',{type:'text',value:vehiculo.nombre_conductor,onChange:e=>setVehiculo(p=>({...p,nombre_conductor:e.target.value})),onBlur:()=>setVehiculo(p=>({...p,nombre_conductor:capitalizarNombre(p.nombre_conductor)})),placeholder:'Nombre completo'})),
       h('div',{className:'fgrid2'},

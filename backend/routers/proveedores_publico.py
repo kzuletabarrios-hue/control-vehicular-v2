@@ -1,6 +1,7 @@
 # backend/routers/proveedores_publico.py
 # Endpoints PUBLICOS (sin autenticacion) para que el conductor de un
 # proveedor se autorregistre al llegar, escaneando el QR de la porteria.
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -28,6 +29,8 @@ CAMPOS_VEHICULO_PUBLICOS = [
 ]
 # Nota: muelle_descargue NO lo llena el conductor — el guarda lo asigna al
 # confirmar el ingreso (ver PUT /api/proveedores/{id}).
+
+_PLACA_RE = re.compile(r"^[A-Z]+[0-9]+$")
 
 TIPOS_DOCUMENTO = ("CC", "NIT", "Otro")
 TIPOS_CARGA     = ("Seca", "Refrigerada", "Mixta")
@@ -98,6 +101,8 @@ def autorregistro(
 
     if not placa:
         raise HTTPException(400, "La placa es obligatoria")
+    if not _PLACA_RE.match(placa):
+        raise HTTPException(400, "La placa debe escribirse solo con letras seguidas de números, sin espacios ni caracteres especiales (ejemplo: ABC123)")
     if not conductor:
         raise HTTPException(400, "El nombre del conductor es obligatorio")
     if tipo_doc not in TIPOS_DOCUMENTO:
