@@ -28,11 +28,19 @@ def listar(
         where.append("(nombre ILIKE :q OR empresa ILIKE :q OR cedula ILIKE :q)")
         params["q"] = f"%{q}%"
 
+    where_sql = ' AND '.join(where)
     rows = db.execute(text(f"""
-        SELECT * FROM visitantes
-        WHERE {' AND '.join(where)}
+        WITH base AS (
+            SELECT * FROM visitantes WHERE {where_sql}
+        )
+        SELECT * FROM base WHERE hora_salida IS NULL
+        UNION ALL
+        SELECT * FROM (
+            SELECT * FROM base WHERE hora_salida IS NOT NULL
+            ORDER BY fecha DESC, hora_ingreso DESC
+            LIMIT :limit OFFSET :offset
+        ) cerrados
         ORDER BY fecha DESC, hora_ingreso DESC
-        LIMIT :limit OFFSET :offset
     """), params).fetchall()
 
     total = db.execute(text(f"""

@@ -27,13 +27,22 @@ def listar(
         where.append("f.placa ILIKE :placa")
         params["placa"] = f"%{placa}%"
 
+    where_sql = ' AND '.join(where)
     rows = db.execute(text(f"""
-        SELECT f.*, c.conductor AS nombre_conductor_bd
-        FROM flota_propia f
-        LEFT JOIN conductores c ON f.codigo_conductor = c.codigo
-        WHERE {' AND '.join(where)}
-        ORDER BY f.fecha DESC, f.created_at DESC
-        LIMIT :limit OFFSET :offset
+        WITH base AS (
+            SELECT f.*, c.conductor AS nombre_conductor_bd
+            FROM flota_propia f
+            LEFT JOIN conductores c ON f.codigo_conductor = c.codigo
+            WHERE {where_sql}
+        )
+        SELECT * FROM base WHERE hora_llegada IS NULL
+        UNION ALL
+        SELECT * FROM (
+            SELECT * FROM base WHERE hora_llegada IS NOT NULL
+            ORDER BY fecha DESC, created_at DESC
+            LIMIT :limit OFFSET :offset
+        ) cerrados
+        ORDER BY fecha DESC, created_at DESC
     """), params).fetchall()
 
     total = db.execute(text(f"""

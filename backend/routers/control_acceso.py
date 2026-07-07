@@ -172,13 +172,22 @@ def listar(
         where.append("(ca.nombre ILIKE :q OR ca.contratista ILIKE :q OR CAST(ca.cedula AS TEXT) ILIKE :q)")
         params["q"] = f"%{q}%"
 
+    where_sql = ' AND '.join(where)
     rows = db.execute(text(f"""
-        SELECT ca.*, b.estado AS estado_bd
-        FROM control_acceso ca
-        LEFT JOIN bd_control_acceso b ON ca.cedula = b.cedula
-        WHERE {' AND '.join(where)}
-        ORDER BY ca.fecha DESC, ca.hora_ingreso DESC
-        LIMIT :limit OFFSET :offset
+        WITH base AS (
+            SELECT ca.*, b.estado AS estado_bd
+            FROM control_acceso ca
+            LEFT JOIN bd_control_acceso b ON ca.cedula = b.cedula
+            WHERE {where_sql}
+        )
+        SELECT * FROM base WHERE hora_salida IS NULL
+        UNION ALL
+        SELECT * FROM (
+            SELECT * FROM base WHERE hora_salida IS NOT NULL
+            ORDER BY fecha DESC, hora_ingreso DESC
+            LIMIT :limit OFFSET :offset
+        ) cerrados
+        ORDER BY fecha DESC, hora_ingreso DESC
     """), params).fetchall()
 
     total = db.execute(text(f"""

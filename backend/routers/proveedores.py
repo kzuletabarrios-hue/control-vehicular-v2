@@ -130,10 +130,18 @@ def listar(
     cond = " AND ".join(where)
     rows = db.execute(
         text(f"""
-            SELECT p.* FROM proveedores p
-            WHERE {cond}
-            ORDER BY p.fecha DESC, p.created_at DESC
-            LIMIT :limit OFFSET :offset
+            WITH base AS (
+                SELECT p.* FROM proveedores p
+                WHERE {cond}
+            )
+            SELECT * FROM base WHERE hora_salida IS NULL
+            UNION ALL
+            SELECT * FROM (
+                SELECT * FROM base WHERE hora_salida IS NOT NULL
+                ORDER BY fecha DESC, created_at DESC
+                LIMIT :limit OFFSET :offset
+            ) cerrados
+            ORDER BY fecha DESC, created_at DESC
         """),
         params,
     ).fetchall()
