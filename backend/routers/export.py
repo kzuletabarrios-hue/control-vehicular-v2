@@ -219,7 +219,8 @@ def export_visitantes(
     rows = db.execute(text(f"""
         SELECT nombre, cedula, empresa,
                fecha, hora_ingreso,
-               fecha_salida, hora_salida, observaciones
+               fecha_salida, hora_salida,
+               actividad_a_desarrollar, dependencia_autoriza, observaciones
         FROM visitantes
         WHERE {' AND '.join(where)}
         ORDER BY fecha DESC
@@ -229,7 +230,7 @@ def export_visitantes(
     ws = wb.active
     ws.title = "Visitantes"
 
-    headers = ["Nombre", "Cédula", "Empresa", "Fecha Ingreso", "H. Ingreso", "Fecha Salida", "H. Salida", "Observaciones"]
+    headers = ["Nombre", "Cédula", "Empresa", "Fecha Ingreso", "H. Ingreso", "Fecha Salida", "H. Salida", "Actividad", "Autoriza", "Observaciones"]
     _header_style(ws, headers)
     for row in rows:
         ws.append(list(row))

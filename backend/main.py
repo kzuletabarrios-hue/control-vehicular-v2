@@ -40,6 +40,22 @@ app.include_router(busqueda.router,       prefix="/api/busqueda",      tags=["BÃ
 app.include_router(visita_vehicular.router,prefix="/api/visita-vehicular",tags=["Visita Vehicular"])
 app.include_router(uploads.router,          prefix="/api",               tags=["Uploads"])
 
+@app.on_event("startup")
+def _migracion_temporal_visitantes_campos():
+    # TEMPORAL: aplica backend/migrations_manual/2026-07-07_visitantes_campos.sql
+    # porque ni el MCP de Supabase ni la conexion directa por psycopg2 estaban
+    # disponibles al momento de implementar esta feature. Idempotente (IF NOT EXISTS).
+    # Quitar este hook despues de confirmar que corrio bien en produccion.
+    from sqlalchemy import text as _text
+    from database import engine as _engine
+    with _engine.begin() as conn:
+        conn.execute(_text("""
+            ALTER TABLE visitantes
+              ADD COLUMN IF NOT EXISTS actividad_a_desarrollar TEXT,
+              ADD COLUMN IF NOT EXISTS dependencia_autoriza    TEXT
+        """))
+
+
 @app.get("/health", tags=["Sistema"])
 def health():
     return {"status": "ok", "version": "2.1.0"}

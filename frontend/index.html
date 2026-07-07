@@ -2106,7 +2106,7 @@ function VisitantesPage({user,online,addOffline}){
   const [fechaSalidaVis,setFechaSalidaVis] = useState('');
   const [obsVisita,setObsVisita]   = useState('');
   const [fotoVisita,setFotoVisita] = useState(null);
-  const emptyF = {fecha:today(),cedula:'',nombre:'',empresa:'',hora_ingreso:ahoraHora(),hora_salida:'',observaciones:'',foto_url:null};
+  const emptyF = {fecha:today(),cedula:'',nombre:'',empresa:'',actividad_a_desarrollar:'',dependencia_autoriza:'',hora_ingreso:ahoraHora(),hora_salida:'',observaciones:'',foto_url:null};
   const [form,setForm] = useState(emptyF);
   const [filtro,setFiltro] = useState('pendientes');
   const [busqueda,setBusqueda] = useState('');
@@ -2149,7 +2149,9 @@ function VisitantesPage({user,online,addOffline}){
           h('div',{className:'fg'},h('label',null,'Cédula'),h('input',{type:'text',value:form.cedula,onChange:e=>setForm(p=>({...p,cedula:e.target.value})),placeholder:'Número'}))
         ),
         h('div',{className:'fg'},h('label',null,'Nombre',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.nombre,onChange:e=>setForm(p=>({...p,nombre:e.target.value})),placeholder:'Nombre completo'})),
-        h('div',{className:'fg'},h('label',null,'Empresa / Visita a'),h('input',{type:'text',value:form.empresa,onChange:e=>setForm(p=>({...p,empresa:e.target.value})),placeholder:'Empresa o dependencia'}))
+        h('div',{className:'fg'},h('label',null,'Empresa / Visita a'),h('input',{type:'text',value:form.empresa,onChange:e=>setForm(p=>({...p,empresa:e.target.value})),placeholder:'Empresa o dependencia'})),
+        h('div',{className:'fg'},h('label',null,'Actividad a desarrollar'),h('textarea',{value:form.actividad_a_desarrollar||'',onChange:e=>setForm(p=>({...p,actividad_a_desarrollar:e.target.value})),rows:2,placeholder:'Motivo de la visita'})),
+        h('div',{className:'fg'},h('label',null,'Quién autoriza'),h('input',{type:'text',value:form.dependencia_autoriza||'',onChange:e=>setForm(p=>({...p,dependencia_autoriza:e.target.value})),placeholder:'Nombre o dependencia que autoriza'}))
       ),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'check',s:12}),' Horarios'),
@@ -2203,6 +2205,9 @@ function VisitantesPage({user,online,addOffline}){
         h('div',{className:'li-body',onClick:()=>{setForm({...emptyF,...r,hora_ingreso:r.hora_ingreso||'',hora_salida:r.hora_salida||''});setSelected(r);setView('form');}},
           h('div',{className:'li-title'},r.nombre),
           h('div',{className:'li-sub'},r.empresa||'Sin empresa'),
+          (r.actividad_a_desarrollar||r.dependencia_autoriza)&&h('div',{className:'li-sub'},
+            [r.actividad_a_desarrollar,r.dependencia_autoriza&&('Autoriza: '+r.dependencia_autoriza)].filter(Boolean).join(' · ')
+          ),
           r.hora_ingreso&&h('div',{className:'li-sub'},'Ingreso: ',r.hora_ingreso,r.hora_salida&&(' · Salida: '+r.hora_salida))
         ),
         h('div',{className:'li-right'},
@@ -2766,6 +2771,10 @@ function ProveedoresPage({user,online,addOffline}){
           h('div',{className:'fg'},h('label',null,'Hora de ingreso'),h('input',{type:'time',value:form.hora_ingreso_confirmado||'',readOnly:true,placeholder:'Sin confirmar',style:{background:'#f8fafc',cursor:'default'}}))
         ),
         h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida||'',readOnly:true,placeholder:'Usa el botón "Salida"',style:{background:'#f8fafc',cursor:'default'}})),
+        !esBodega&&!esCoordinador&&selected&&selected.estado_confirmacion!=='pendiente'&&!form.hora_salida&&h('button',{
+          onClick:()=>{setSalida(selected);setHoraSalida(ahoraHora());setFechaSalidaP(today());setView('list');},
+          style:{marginBottom:10,background:'#d97706',border:'none',color:'#fff',borderRadius:8,padding:'8px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:12,fontWeight:700,fontFamily:'inherit'}
+        },h(Ico,{n:'checkCircle',s:14}),'Registrar salida'),
         h('div',{className:'fg'},h('label',null,'Fecha pago ARL'),h('input',{type:'date',min:'2000-01-01',max:'2100-12-31',value:form.fecha_pago_arl,onChange:e=>{if(fechaValida(e.target.value))setForm(p=>({...p,fecha_pago_arl:e.target.value}));}})),
         h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:2,placeholder:'—'}))
       ),
