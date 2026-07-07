@@ -455,6 +455,18 @@ const api = {
 /* ── UTILS ── */
 const _bogSnap  = () => {const b=new Date(Date.now()-18000000);const p=n=>String(n).padStart(2,'0');return {fecha:`${b.getUTCFullYear()}-${p(b.getUTCMonth()+1)}-${p(b.getUTCDate())}`,hora:`${p(b.getUTCHours())}:${p(b.getUTCMinutes())}`};};
 const _tsBog    = async () => { try{return await api.get('/tiempo');}catch(_){return _bogSnap();} };
+// Lectura puntual de GPS (una sola posición, no rastreo continuo). Nunca
+// rechaza la promesa: si el navegador no da permiso, falla o se demora más
+// de 6s, resuelve null y quien la use sigue adelante sin bloquear la acción.
+const obtenerUbicacion = () => new Promise(resolve=>{
+  if(!navigator.geolocation){ resolve(null); return; }
+  const listo = setTimeout(()=>resolve(null), 6000);
+  navigator.geolocation.getCurrentPosition(
+    pos=>{ clearTimeout(listo); resolve({lat:pos.coords.latitude, lng:pos.coords.longitude}); },
+    ()=>{ clearTimeout(listo); resolve(null); },
+    {enableHighAccuracy:true, timeout:5500, maximumAge:0}
+  );
+});
 const today     = () => _bogSnap().fecha;
 const ahoraHora = () => _bogSnap().hora;
 const fmtDate   = d  => d?new Date(d+'T12:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short'}):'—';
@@ -4009,9 +4021,11 @@ function RondaPage({user}){
     if(!selPunto||!ciclo?.ciclo) return;
     setSaving(true); setAlert(null);
     try{
+      const ubicacion = await obtenerUbicacion();
       const r = await api.put('/rondas/marcar',{
         ciclo_id:ciclo.ciclo.id, punto_id:selPunto.id, codigo_escaneado:codEscaneado,
         estado:conf.estado,observacion:conf.observacion||null,fotografia:conf.fotografia||null,
+        lat:ubicacion?.lat??null, lng:ubicacion?.lng??null,
       });
       setAlert({type:'ok',msg:r.message||'Punto marcado correctamente'});
       setView('list'); setSelPunto(null); setCodEscaneado(''); setConf(emptyConf);
@@ -4392,6 +4406,15 @@ function RondaPanelPage({user}){
             h('summary',{style:{fontSize:11,color:'var(--slate)',cursor:'pointer'}},`Historial de apoyos (${d.historial_apoyos.length})`),
             d.historial_apoyos.map(a=>h('div',{key:a.id,style:{fontSize:11,padding:'4px 0',borderTop:'1px solid var(--border)'}},
               `${a.motivo} · ${(a.hora_llegada||'').slice(11,16)} – ${a.hora_salida?a.hora_salida.slice(11,16):'en curso'}`
+            ))
+          ),
+          (d.rondas_hoy||[]).length>0&&h('details',{style:{marginTop:8}},
+            h('summary',{style:{fontSize:11,color:'var(--slate)',cursor:'pointer'}},`Rondas de hoy (${d.rondas_hoy.length})`),
+            d.rondas_hoy.map(rh=>h('div',{key:rh.ciclo_id,style:{fontSize:11,padding:'4px 0',borderTop:'1px solid var(--border)',display:'flex',justifyContent:'space-between',gap:6}},
+              h('span',null,`Ronda ${rh.numero_ronda} (${rh.turno}) · ${(rh.hora_inicio||'').slice(11,16)}${rh.hora_fin?' – '+rh.hora_fin.slice(11,16):' – en curso'}`),
+              h('span',{style:{fontWeight:700,color:rh.distancia_m!=null?'var(--navy)':'var(--slate)',flexShrink:0}},
+                rh.distancia_m!=null?(rh.distancia_m>=1000?(rh.distancia_m/1000).toFixed(2)+' km':rh.distancia_m+' m'):'Sin GPS'
+              )
             ))
           )
         ))

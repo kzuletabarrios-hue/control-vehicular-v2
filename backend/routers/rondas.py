@@ -2,6 +2,7 @@
 import uuid
 import io
 from datetime import datetime, time as dtime, timedelta, timezone
+from math import radians, sin, cos, sqrt, atan2
 
 _BOG = timezone(timedelta(hours=-5))
 def _hoy_bog(): return datetime.now(_BOG).date().isoformat()
@@ -52,6 +53,43 @@ def _to_min(t: dtime) -> int:
 def _fmt(min_abs: int) -> str:
     min_abs = min_abs % 1440
     return f"{min_abs // 60:02d}:{min_abs % 60:02d}"
+
+
+def _haversine_m(lat1, lng1, lat2, lng2):
+    """Distancia en línea recta entre dos coordenadas, en metros."""
+    if lat1 is None or lng1 is None or lat2 is None or lng2 is None:
+        return None
+    R = 6371000
+    phi1, phi2 = radians(lat1), radians(lat2)
+    dphi = radians(lat2 - lat1)
+    dlambda = radians(lng2 - lng1)
+    a = sin(dphi / 2) ** 2 + cos(phi1) * cos(phi2) * sin(dlambda / 2) ** 2
+    return 2 * R * atan2(sqrt(a), sqrt(1 - a))
+
+
+def _distancia_ciclo(db, ciclo_id):
+    """Suma la distancia en línea recta entre los puntos consecutivos de un
+    ciclo que sí tengan GPS. Puntos sin GPS (permiso denegado, fallo de
+    lectura) simplemente no participan del cálculo."""
+    puntos = db.execute(text("""
+        SELECT lat, lng FROM rondas WHERE ciclo_id = :cid ORDER BY created_at ASC
+    """), {"cid": ciclo_id}).fetchall()
+    total = 0.0
+    con_gps = 0
+    prev = None
+    for p in puntos:
+        if p.lat is not None and p.lng is not None:
+            con_gps += 1
+            if prev is not None:
+                d = _haversine_m(prev[0], prev[1], p.lat, p.lng)
+                if d is not None:
+                    total += d
+            prev = (p.lat, p.lng)
+    return {
+        "distancia_m": round(total) if con_gps >= 2 else None,
+        "puntos_con_gps": con_gps,
+        "puntos_total": len(puntos),
+    }
 
 
 def turno_actual(ahora: dtime = None) -> str:
@@ -569,6 +607,8 @@ def marcar_punto(
     estado           = body.get("estado", "ok")
     observacion      = body.get("observacion") or None
     fotografia       = body.get("fotografia") or None
+    lat              = body.get("lat")
+    lng              = body.get("lng")
 
     if not ciclo_id:
         raise HTTPException(400, "ciclo_id es requerido")
@@ -620,14 +660,15 @@ def marcar_punto(
     db.execute(text("""
         INSERT INTO rondas
             (id, recorredor_id, punto_id, ciclo_id, fecha, hora_marcacion,
-             codigo_escaneado, estado, observacion, fotografia)
+             codigo_escaneado, estado, observacion, fotografia, lat, lng)
         VALUES
             (:id, :recorredor_id, :punto_id, :ciclo_id, :fecha, :hora,
-             :codigo_escaneado, :estado, :observacion, :fotografia)
+             :codigo_escaneado, :estado, :observacion, :fotografia, :lat, :lng)
     """), {
         "id": rid, "recorredor_id": user["id"], "punto_id": punto_id, "ciclo_id": ciclo_id,
         "fecha": _hoy_bog(), "hora": hora, "codigo_escaneado": codigo_escaneado,
         "estado": estado, "observacion": observacion, "fotografia": fotografia,
+        "lat": lat, "lng": lng,
     })
 
     cerrada = False
@@ -642,6 +683,64 @@ def marcar_punto(
         "id": rid,
         "message": "Ronda completada — regresaste a Tanques" if cerrada else "Punto marcado correctamente",
         "ciclo_cerrado": cerrada,
+    }
+
+
+@router.get("/ciclo/{ciclo_id}/recorrido")
+def ciclo_recorrido(
+    ciclo_id: str,
+    db: Session = Depends(get_db),
+    user: dict = Depends(_require_roles(*ROLES_RONDA)),
+):
+    ciclo = db.execute(text("""
+        SELECT rc.*, u.nombre AS recorredor_nombre
+        FROM rondas_ciclos rc JOIN usuarios u ON u.id = rc.recorredor_id
+        WHERE rc.id = :cid
+    """), {"cid": ciclo_id}).fetchone()
+    if not ciclo:
+        raise HTTPException(404, "Ronda no encontrada")
+    if user["rol"] not in ROLES_GESTION and str(ciclo.recorredor_id) != user["id"]:
+        raise HTTPException(403, "Sin permiso para ver esta ronda")
+
+    puntos = db.execute(text("""
+        SELECT p.orden, p.nombre AS punto_nombre, p.es_base,
+               r.hora_marcacion, r.lat, r.lng, r.estado, r.observacion
+        FROM rondas r JOIN puntos_ronda p ON p.id = r.punto_id
+        WHERE r.ciclo_id = :cid
+        ORDER BY r.created_at ASC
+    """), {"cid": ciclo_id}).fetchall()
+
+    items = []
+    total_m = 0.0
+    con_gps = 0
+    prev = None
+    for p in puntos:
+        seg_m = None
+        if p.lat is not None and p.lng is not None:
+            con_gps += 1
+            if prev is not None:
+                seg_m = _haversine_m(prev[0], prev[1], p.lat, p.lng)
+                if seg_m is not None:
+                    total_m += seg_m
+            prev = (p.lat, p.lng)
+        items.append({
+            "punto_nombre": p.punto_nombre, "orden": p.orden, "es_base": p.es_base,
+            "hora_marcacion": p.hora_marcacion.isoformat() if p.hora_marcacion else None,
+            "lat": p.lat, "lng": p.lng, "estado": p.estado, "observacion": p.observacion,
+            "distancia_desde_anterior_m": round(seg_m) if seg_m is not None else None,
+        })
+
+    return {
+        "ciclo_id": str(ciclo.id),
+        "recorredor_nombre": ciclo.recorredor_nombre,
+        "numero_ronda": ciclo.numero_ronda,
+        "turno": ciclo.turno,
+        "fecha": ciclo.fecha.isoformat() if hasattr(ciclo.fecha, "isoformat") else ciclo.fecha,
+        "estado": ciclo.estado,
+        "puntos": items,
+        "distancia_total_m": round(total_m) if con_gps >= 2 else None,
+        "puntos_con_gps": con_gps,
+        "puntos_total": len(puntos),
     }
 
 
@@ -792,6 +891,21 @@ def panel(
         en_curso    = next((c for c in ciclos if c.estado == 'en_curso'), None)
         pausada     = next((c for c in ciclos if c.estado == 'pausada'), None)
 
+        rondas_hoy = []
+        for c in sorted(ciclos, key=lambda c: c.numero_ronda):
+            dist_info = _distancia_ciclo(db, c.id) if c.estado == 'completa' else {
+                "distancia_m": None, "puntos_con_gps": 0, "puntos_total": 0,
+            }
+            rondas_hoy.append({
+                "ciclo_id": str(c.id),
+                "numero_ronda": c.numero_ronda,
+                "turno": c.turno,
+                "estado": c.estado,
+                "hora_inicio": c.hora_inicio.isoformat() if c.hora_inicio else None,
+                "hora_fin": c.hora_fin.isoformat() if c.hora_fin else None,
+                **dist_info,
+            })
+
         apoyos = db.execute(text("""
             SELECT * FROM apoyos_operativos WHERE recorredor_id = :uid AND fecha = :hoy
             ORDER BY hora_llegada DESC
@@ -845,6 +959,7 @@ def panel(
             "alerta_atraso": alerta,
             "apoyo_en_curso": dict(apoyo_en_curso._mapping) if apoyo_en_curso else None,
             "historial_apoyos": [dict(a._mapping) for a in apoyos],
+            "rondas_hoy": rondas_hoy,
         })
 
     return resultado
