@@ -198,6 +198,39 @@ def listar(
     return {"total": total, "items": [dict(r._mapping) for r in rows]}
 
 
+@router.post("/_debug_cerrar_dias_anteriores")
+def _debug_cerrar_dias_anteriores(
+    dias: int = 3,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("control_acceso", "delete")),
+):
+    # TEMPORAL: cierre administrativo en bloque de registros que llevan
+    # `dias` o mas dias abiertos (sin salida), a pedido del usuario. Conserva
+    # el registro de ingreso (no se borra la fila), solo marca la salida con
+    # nota. Quitar este endpoint despues de usarlo.
+    from datetime import datetime, timezone, timedelta
+    _BOG = timezone(timedelta(hours=-5))
+    hoy_d = datetime.now(_BOG).date()
+    hoy = hoy_d.isoformat()
+    hora_actual = datetime.now(_BOG).strftime("%H:%M:%S")
+
+    rows = db.execute(text("""
+        UPDATE control_acceso
+        SET hora_salida = :hora,
+            fecha_salida = :hoy,
+            observaciones = TRIM(BOTH ' ' FROM
+                COALESCE(observaciones || ' ', '') ||
+                '[Cierre administrativo ' || :hoy || ' - sin salida registrada, ' ||
+                (:hoy_d::date - fecha) || ' dias abierto]'
+            )
+        WHERE fecha != :hoy AND hora_salida IS NULL AND (:hoy_d::date - fecha) >= :dias
+        RETURNING id
+    """), {"hora": hora_actual, "hoy": hoy, "hoy_d": hoy_d, "dias": dias}).fetchall()
+    ids = [r[0] for r in rows]
+    db.commit()
+    return {"cerrados": len(ids), "ids": [str(i) for i in ids]}
+
+
 @router.get("/{id}")
 def obtener(
     id: str,
