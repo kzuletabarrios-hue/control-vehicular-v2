@@ -459,6 +459,10 @@ const today     = () => _bogSnap().fecha;
 const ahoraHora = () => _bogSnap().hora;
 const fmtDate   = d  => d?new Date(d+'T12:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short'}):'—';
 const initials  = n  => (n||'U').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+// Normaliza nombres propios a "Primera Letra Mayúscula" (evita que queden en
+// MAYÚSCULA SOSTENIDA o en minúscula por como los digite quien los registra).
+const capitalizarNombre = s => (s||'').replace(/\s+/g,' ').trim()
+  .split(' ').map(w=>w?w.charAt(0).toLocaleUpperCase('es')+w.slice(1).toLocaleLowerCase('es'):w).join(' ');
 // Valida que un valor de <input type="date"> sea una fecha real con año de 4 dígitos
 // razonable. Los navegadores no siempre lo garantizan (ver bug de "20226-06-11").
 const fechaValida = v => {
@@ -1804,7 +1808,7 @@ function ItemAccesoPage({tipo,user}){
           h('label',null,'Descripción',h('span',{className:'req'},'*')),
           h('input',{type:'text',value:form.descripcion,onChange:e=>setForm(p=>({...p,descripcion:e.target.value})),placeholder:tipo==='sustancias'?'Ej: Thinner, pintura...':'Ej: Taladro, llave inglesa...'})
         ),
-        h('div',{className:'fg'},h('label',null,'Responsable / Persona asociada'),h('input',{type:'text',value:form.responsable,onChange:e=>setForm(p=>({...p,responsable:e.target.value})),placeholder:'Nombre'})),
+        h('div',{className:'fg'},h('label',null,'Responsable / Persona asociada'),h('input',{type:'text',value:form.responsable,onChange:e=>setForm(p=>({...p,responsable:e.target.value})),onBlur:()=>setForm(p=>({...p,responsable:capitalizarNombre(p.responsable)})),placeholder:'Nombre'})),
         h('div',{className:'fg'},h('label',null,'¿Es consumible?'),
           h('select',{value:form.es_consumible?'si':'no',onChange:e=>setForm(p=>({...p,es_consumible:e.target.value==='si'}))},
             h('option',{value:'no'},'No — debe salir'),h('option',{value:'si'},'Sí — se queda/se gasta')
@@ -1997,7 +2001,7 @@ function AccesoPage({user,online,addOffline}){
             )
           )
         ),
-        h('div',{className:'fg'},h('label',null,'Nombre',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.nombre,onChange:e=>setForm(p=>({...p,nombre:e.target.value})),placeholder:'Nombre completo'})),
+        h('div',{className:'fg'},h('label',null,'Nombre',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.nombre,onChange:e=>setForm(p=>({...p,nombre:e.target.value})),onBlur:()=>setForm(p=>({...p,nombre:capitalizarNombre(p.nombre)})),placeholder:'Nombre completo'})),
         h('div',{className:'fg'},
           h('label',null,'Contratista',h('span',{className:'req'},'*')),
           h('select',{value:form.contratista,onChange:e=>setForm(p=>({...p,contratista:e.target.value}))},
@@ -2172,7 +2176,7 @@ function VisitantesPage({user,online,addOffline}){
           h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg'},h('label',null,'Cédula'),h('input',{type:'text',value:form.cedula,onChange:e=>setForm(p=>({...p,cedula:e.target.value})),placeholder:'Número'}))
         ),
-        h('div',{className:'fg'},h('label',null,'Nombre',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.nombre,onChange:e=>setForm(p=>({...p,nombre:e.target.value})),placeholder:'Nombre completo'})),
+        h('div',{className:'fg'},h('label',null,'Nombre',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.nombre,onChange:e=>setForm(p=>({...p,nombre:e.target.value})),onBlur:()=>setForm(p=>({...p,nombre:capitalizarNombre(p.nombre)})),placeholder:'Nombre completo'})),
         h('div',{className:'fg'},h('label',null,'Empresa a la que pertenece'),h('input',{type:'text',value:form.empresa_pertenece||'',onChange:e=>setForm(p=>({...p,empresa_pertenece:e.target.value})),placeholder:'Empresa del visitante'})),
         h('div',{className:'fg'},h('label',null,'A quién visita / dependencia'),h('input',{type:'text',value:form.empresa,onChange:e=>setForm(p=>({...p,empresa:e.target.value})),placeholder:'Persona o dependencia a visitar'})),
         h('div',{className:'fg'},h('label',null,'Actividad a desarrollar'),h('textarea',{value:form.actividad_a_desarrollar||'',onChange:e=>setForm(p=>({...p,actividad_a_desarrollar:e.target.value})),rows:2,placeholder:'Motivo de la visita'})),
@@ -2351,7 +2355,7 @@ function VisitaVehicularPage({user,online,addOffline}){
           h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg'},h('label',null,'Placa',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.placa,onChange:e=>setForm(p=>({...p,placa:e.target.value.toUpperCase()})),placeholder:'ABC123'}))
         ),
-        h('div',{className:'fg'},h('label',null,'Conductor',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.conductor,onChange:e=>setForm(p=>({...p,conductor:e.target.value})),placeholder:'Nombre completo'})),
+        h('div',{className:'fg'},h('label',null,'Conductor',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.conductor,onChange:e=>setForm(p=>({...p,conductor:e.target.value})),onBlur:()=>setForm(p=>({...p,conductor:capitalizarNombre(p.conductor)})),placeholder:'Nombre completo'})),
         h('div',{className:'fg'},h('label',null,'Empresa a la que pertenece'),h('input',{type:'text',value:form.empresa_pertenece||'',onChange:e=>setForm(p=>({...p,empresa_pertenece:e.target.value})),placeholder:'Empresa del conductor'})),
         h('div',{className:'fg'},h('label',null,'Motivo de la visita'),h('input',{type:'text',value:form.motivo_visita,onChange:e=>setForm(p=>({...p,motivo_visita:e.target.value})),placeholder:'Ej: visita a empleado, entidad de gobierno...'})),
         h('div',{className:'fg'},h('label',null,'Quién autoriza'),h('input',{type:'text',value:form.dependencia_autoriza||'',onChange:e=>setForm(p=>({...p,dependencia_autoriza:e.target.value})),placeholder:'Nombre o dependencia que autoriza'}))
@@ -2750,7 +2754,7 @@ function ProveedoresPage({user,online,addOffline}){
           ),
           h('div',{className:'fg'},h('label',null,'N° documento conductor'),h('input',{type:'text',value:form.cedula_conductor||'',onChange:e=>setForm(p=>({...p,cedula_conductor:e.target.value})),placeholder:'Número'}))
         ),
-        h('div',{className:'fg'},h('label',null,'Nombre conductor'),h('input',{type:'text',value:form.nombre_conductor,onChange:e=>setForm(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Nombre completo'})),
+        h('div',{className:'fg'},h('label',null,'Nombre conductor'),h('input',{type:'text',value:form.nombre_conductor,onChange:e=>setForm(p=>({...p,nombre_conductor:e.target.value})),onBlur:()=>setForm(p=>({...p,nombre_conductor:capitalizarNombre(p.nombre_conductor)})),placeholder:'Nombre completo'})),
         h('div',{className:'fg'},h('label',null,'Teléfono conductor'),h('input',{type:'tel',value:form.telefono_conductor||'',onChange:e=>setForm(p=>({...p,telefono_conductor:e.target.value})),placeholder:'Número de contacto (opcional)'})),
         h('div',{className:'fg'},h('label',null,'Tipo vehículo'),
           h('select',{value:form.tipo_vehiculo,onChange:e=>setForm(p=>({...p,tipo_vehiculo:e.target.value}))},
@@ -2897,7 +2901,7 @@ function ProveedoresPage({user,online,addOffline}){
           )
         ),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Nombre conductor'),h('input',{type:'text',value:vehiculoForm.nombre_conductor,onChange:e=>setVehiculoForm(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Se autocompleta o ingresa manual'})),
+          h('div',{className:'fg'},h('label',null,'Nombre conductor'),h('input',{type:'text',value:vehiculoForm.nombre_conductor,onChange:e=>setVehiculoForm(p=>({...p,nombre_conductor:e.target.value})),onBlur:()=>setVehiculoForm(p=>({...p,nombre_conductor:capitalizarNombre(p.nombre_conductor)})),placeholder:'Se autocompleta o ingresa manual'})),
           h('div',{className:'fg'},h('label',null,'Teléfono conductor'),h('input',{type:'tel',value:vehiculoForm.telefono_conductor||'',onChange:e=>setVehiculoForm(p=>({...p,telefono_conductor:e.target.value})),placeholder:'Número de contacto (opcional)'}))
         ),
         h('div',{className:'fg'},h('label',null,'Tipo vehículo'),
@@ -3139,7 +3143,7 @@ function ProveedoresPage({user,online,addOffline}){
         h('p',{style:{fontSize:12,color:'var(--slate)',marginBottom:12}},'Guarda los datos para agilizar futuros ingresos de este conductor.'),
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},h('label',null,'Cédula'),h('input',{type:'text',value:frDraft.cedula,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
-          h('div',{className:'fg'},h('label',null,'Nombre'),h('input',{type:'text',value:frDraft.nombre_conductor,onChange:e=>setFrDraft(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Nombre conductor'}))
+          h('div',{className:'fg'},h('label',null,'Nombre'),h('input',{type:'text',value:frDraft.nombre_conductor,onChange:e=>setFrDraft(p=>({...p,nombre_conductor:e.target.value})),onBlur:()=>setFrDraft(p=>({...p,nombre_conductor:capitalizarNombre(p.nombre_conductor)})),placeholder:'Nombre conductor'}))
         ),
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},h('label',null,'Empresa principal'),h('input',{type:'text',value:frDraft.empresa_principal,onChange:e=>setFrDraft(p=>({...p,empresa_principal:e.target.value})),placeholder:'Empresa habitual'})),
@@ -3209,7 +3213,7 @@ function BdPersonasTab(){
             )
           )
         ),
-        h('div',{className:'fg'},h('label',null,'Nombre',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.nombre,onChange:e=>setForm(p=>({...p,nombre:e.target.value})),placeholder:'Nombre completo'})),
+        h('div',{className:'fg'},h('label',null,'Nombre',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.nombre,onChange:e=>setForm(p=>({...p,nombre:e.target.value})),onBlur:()=>setForm(p=>({...p,nombre:capitalizarNombre(p.nombre)})),placeholder:'Nombre completo'})),
         h('div',{className:'fg'},h('label',null,'Contratista / Empresa'),h('input',{type:'text',value:form.contratista,onChange:e=>setForm(p=>({...p,contratista:e.target.value})),placeholder:'Empresa'}))
       )
     ),
@@ -3285,7 +3289,7 @@ function BdProveedoresTab(){
         h('div',{className:'fg'},h('label',null,'Nombre / Razón social',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.nombre,onChange:e=>setForm(p=>({...p,nombre:e.target.value})),placeholder:'Nombre'})),
         h('div',{className:'fg'},h('label',null,'NIT'),h('input',{type:'text',value:form.nit,onChange:e=>setForm(p=>({...p,nit:e.target.value})),placeholder:'900123456-7'})),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Contacto'),h('input',{type:'text',value:form.contacto,onChange:e=>setForm(p=>({...p,contacto:e.target.value})),placeholder:'Nombre'})),
+          h('div',{className:'fg'},h('label',null,'Contacto'),h('input',{type:'text',value:form.contacto,onChange:e=>setForm(p=>({...p,contacto:e.target.value})),onBlur:()=>setForm(p=>({...p,contacto:capitalizarNombre(p.contacto)})),placeholder:'Nombre'})),
           h('div',{className:'fg'},h('label',null,'Celular'),h('input',{type:'tel',value:form.celular,onChange:e=>setForm(p=>({...p,celular:e.target.value})),placeholder:'300 000 0000'}))
         )
       )
@@ -3441,7 +3445,7 @@ function BdConductoresTab(){
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'truck',s:12}),' Datos del conductor'),
         h('div',{className:'fg'},h('label',null,'Nombre',h('span',{className:'req'},'*')),
-          h('input',{type:'text',value:form.conductor,onChange:e=>setForm(p=>({...p,conductor:e.target.value})),placeholder:'Nombre completo'})
+          h('input',{type:'text',value:form.conductor,onChange:e=>setForm(p=>({...p,conductor:e.target.value})),onBlur:()=>setForm(p=>({...p,conductor:capitalizarNombre(p.conductor)})),placeholder:'Nombre completo'})
         ),
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},h('label',null,'Código'),
@@ -3558,7 +3562,7 @@ function BdUsuariosTab(){
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'user',s:12}),selected?' Editar usuario':' Nuevo usuario'),
         h('div',{className:'fg'},h('label',null,'Nombre',h('span',{className:'req'},'*')),
-          h('input',{type:'text',value:form.nombre,onChange:e=>setForm(p=>({...p,nombre:e.target.value})),placeholder:'Nombre completo'})
+          h('input',{type:'text',value:form.nombre,onChange:e=>setForm(p=>({...p,nombre:e.target.value})),onBlur:()=>setForm(p=>({...p,nombre:capitalizarNombre(p.nombre)})),placeholder:'Nombre completo'})
         ),
         h('div',{className:'fg'},h('label',null,'Email',h('span',{className:'req'},'*')),
           h('input',{type:'email',value:form.email,onChange:e=>setForm(p=>({...p,email:e.target.value})),placeholder:'correo@empresa.com'})
@@ -3662,7 +3666,7 @@ function BdConductoresFrecuentesTab(){
           ),
           h('div',{className:'fg'},
             h('label',null,'Nombre conductor',h('span',{className:'req'},'*')),
-            h('input',{type:'text',value:form.nombre_conductor,onChange:e=>setForm(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Nombre completo'})
+            h('input',{type:'text',value:form.nombre_conductor,onChange:e=>setForm(p=>({...p,nombre_conductor:e.target.value})),onBlur:()=>setForm(p=>({...p,nombre_conductor:capitalizarNombre(p.nombre_conductor)})),placeholder:'Nombre completo'})
           )
         ),
         h('div',{className:'fgrid2'},
@@ -4647,7 +4651,7 @@ function ProveedorAutorregistroPage({token}){
       h('div',{className:'fg'},h('label',null,'Placa',h('span',{className:'req'},'*')),
         h('input',{type:'text',value:vehiculo.placa_vehiculo,onChange:e=>setVehiculo(p=>({...p,placa_vehiculo:e.target.value.toUpperCase()})),placeholder:'ABC-123'})
       ),
-      h('div',{className:'fg'},h('label',null,'Nombre conductor',h('span',{className:'req'},'*')),h('input',{type:'text',value:vehiculo.nombre_conductor,onChange:e=>setVehiculo(p=>({...p,nombre_conductor:e.target.value})),placeholder:'Nombre completo'})),
+      h('div',{className:'fg'},h('label',null,'Nombre conductor',h('span',{className:'req'},'*')),h('input',{type:'text',value:vehiculo.nombre_conductor,onChange:e=>setVehiculo(p=>({...p,nombre_conductor:e.target.value})),onBlur:()=>setVehiculo(p=>({...p,nombre_conductor:capitalizarNombre(p.nombre_conductor)})),placeholder:'Nombre completo'})),
       h('div',{className:'fgrid2'},
         h('div',{className:'fg'},h('label',null,'Tipo de documento',h('span',{className:'req'},'*')),
           h('select',{value:vehiculo.tipo_documento,onChange:e=>setVehiculo(p=>({...p,tipo_documento:e.target.value}))},
