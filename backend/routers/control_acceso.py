@@ -215,16 +215,17 @@ def _debug_cerrar_dias_anteriores(
     hora_actual = datetime.now(_BOG).strftime("%H:%M:%S")
 
     try:
-        rows = db.execute(text("""
+        hoy_cast = "CAST(:hoy AS date)"
+        rows = db.execute(text(f"""
             UPDATE control_acceso
             SET hora_salida = :hora,
                 fecha_salida = :hoy,
                 observaciones = TRIM(BOTH ' ' FROM
                     COALESCE(observaciones || ' ', '') ||
                     '[Cierre administrativo ' || :hoy || ' - sin salida registrada, ' ||
-                    (:hoy::date - fecha)::text || ' dias abierto]'
+                    ({hoy_cast} - fecha)::text || ' dias abierto]'
                 )
-            WHERE fecha != :hoy AND hora_salida IS NULL AND (:hoy::date - fecha) >= :dias
+            WHERE fecha != :hoy AND hora_salida IS NULL AND ({hoy_cast} - fecha) >= :dias
             RETURNING id
         """), {"hora": hora_actual, "hoy": hoy, "dias": dias}).fetchall()
         ids = [r[0] for r in rows]
