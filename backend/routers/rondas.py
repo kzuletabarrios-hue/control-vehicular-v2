@@ -672,6 +672,25 @@ def ronda_hoy(
     return [dict(r._mapping) for r in rows]
 
 
+@router.post("/_debug_fix_fecha_mismatch_resto")
+def _debug_fix_fecha_mismatch_resto(
+    db: Session = Depends(get_db),
+    user: dict = Depends(_require_roles(*ROLES_GESTION)),
+):
+    # TEMPORAL: alinea el resto de registros de `rondas` cuya fecha no coincide
+    # con la de su ciclo (los 5 ciclos que quedaron atascados dias abiertos).
+    # Quitar endpoint despues de confirmar.
+    result = db.execute(text("""
+        UPDATE rondas r SET fecha = rc.fecha
+        FROM rondas_ciclos rc
+        WHERE r.ciclo_id = rc.id AND r.fecha <> rc.fecha
+        RETURNING r.id
+    """))
+    ids = [row[0] for row in result.fetchall()]
+    db.commit()
+    return {"corregidos": len(ids), "ids": [str(i) for i in ids]}
+
+
 @router.get("/historial")
 def historial(
     fecha: str = None,
