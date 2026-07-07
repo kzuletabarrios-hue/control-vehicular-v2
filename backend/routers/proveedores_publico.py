@@ -44,6 +44,34 @@ def token_info(token: str):
     return {"valido": True, "token_sesion": crear_token_sesion_registro()}
 
 
+@router.get("/conductor-frecuente")
+def conductor_frecuente(
+    cedula: str,
+    token: str,
+    db: Session = Depends(get_db),
+):
+    # Requiere el token de sesion (ya escaneo un QR real) para no dejar este
+    # lookup completamente abierto a cualquiera -- solo devuelve datos si
+    # coincide exactamente con una cedula ya registrada antes.
+    validar_token_sesion_registro(token)
+    cedula = (cedula or "").strip()
+    if not cedula:
+        return {"encontrado": False}
+    row = db.execute(text("""
+        SELECT nombre_conductor, telefono, tipo_vehiculo, empresa_principal
+        FROM conductores_frecuentes WHERE cedula = :c AND activo = TRUE
+    """), {"c": cedula}).fetchone()
+    if not row:
+        return {"encontrado": False}
+    return {
+        "encontrado": True,
+        "nombre_conductor": row.nombre_conductor,
+        "telefono": row.telefono,
+        "tipo_vehiculo": row.tipo_vehiculo,
+        "empresa_principal": row.empresa_principal,
+    }
+
+
 @router.post("/autorregistro", status_code=201)
 def autorregistro(
     body: dict,
@@ -124,4 +152,27 @@ def autorregistro(
     except (IntegrityError, DataError):
         db.rollback()
         raise HTTPException(400, "Datos inválidos: revisa los campos e intenta de nuevo.")
+
+    # Guarda/actualiza el catálogo de conductores frecuentes para que la próxima
+    # vez que este conductor escanee el QR, el formulario se le autocomplete solo.
+    try:
+        db.execute(text("""
+            INSERT INTO conductores_frecuentes
+                (id, cedula, nombre_conductor, telefono, tipo_vehiculo, activo, ultima_visita)
+            VALUES (:id, :cedula, :nombre, :telefono, :tipo, TRUE, :fecha)
+            ON CONFLICT (cedula) DO UPDATE SET
+                nombre_conductor = EXCLUDED.nombre_conductor,
+                telefono         = COALESCE(EXCLUDED.telefono, conductores_frecuentes.telefono),
+                tipo_vehiculo    = COALESCE(EXCLUDED.tipo_vehiculo, conductores_frecuentes.tipo_vehiculo),
+                activo           = TRUE,
+                ultima_visita    = EXCLUDED.ultima_visita,
+                updated_at       = NOW()
+        """), {
+            "id": str(uuid.uuid4()), "cedula": cedula, "nombre": conductor,
+            "telefono": telefono, "tipo": tipo_veh, "fecha": ahora.date().isoformat(),
+        })
+        db.commit()
+    except Exception:
+        db.rollback()  # no dejar que un problema aca invalide el registro ya guardado
+
     return {"id": rid, "message": "Registro enviado. El guarda confirmará tu ingreso en un momento."}

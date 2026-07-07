@@ -4549,6 +4549,26 @@ function ProveedorAutorregistroPage({token}){
   const [vehiculo,setVehiculo] = useState(emptyVeh);
   const [ordenes,setOrdenes]   = useState([]);
   const [ordenDraft,setOrdenDraft] = useState(emptyOrd);
+  const [frecuente,setFrecuente] = useState(null); // true|false|null (null = aun no se busco)
+
+  const buscarFrecuente = async(cedula)=>{
+    setFrecuente(null);
+    if(!cedula||cedula.trim().length<5||!tokenSesion) return;
+    try{
+      const r = await api.get(`/proveedores-publico/conductor-frecuente?cedula=${encodeURIComponent(cedula.trim())}&token=${encodeURIComponent(tokenSesion)}`);
+      if(r.encontrado){
+        setVehiculo(p=>({
+          ...p,
+          nombre_conductor: p.nombre_conductor||r.nombre_conductor||'',
+          telefono_conductor: p.telefono_conductor||r.telefono||'',
+          tipo_vehiculo: p.tipo_vehiculo||r.tipo_vehiculo||'',
+        }));
+        setFrecuente(true);
+      } else {
+        setFrecuente(false);
+      }
+    }catch(_){ setFrecuente(false); }
+  };
 
   useEffect(()=>{
     if(!token){ setEstado('invalido'); setErrorMsg('Falta el código del QR. Escanéalo de nuevo desde la portería.'); return; }
@@ -4634,7 +4654,14 @@ function ProveedorAutorregistroPage({token}){
             ...tiposDocumento.map(t=>h('option',{key:t,value:t},t))
           )
         ),
-        h('div',{className:'fg'},h('label',null,'N° de documento',h('span',{className:'req'},'*')),h('input',{type:'text',value:vehiculo.cedula_conductor,onChange:e=>setVehiculo(p=>({...p,cedula_conductor:e.target.value})),placeholder:'Número'}))
+        h('div',{className:'fg'},h('label',null,'N° de documento',h('span',{className:'req'},'*')),
+          h('input',{type:'text',value:vehiculo.cedula_conductor,
+            onChange:e=>{setVehiculo(p=>({...p,cedula_conductor:e.target.value}));setFrecuente(null);},
+            onBlur:e=>buscarFrecuente(e.target.value),
+            placeholder:'Número'}),
+          frecuente===true&&h('div',{style:{marginTop:5,padding:'5px 9px',borderRadius:7,fontSize:11,fontWeight:700,display:'flex',alignItems:'center',gap:5,background:'#d1fae5',color:'#065f46',border:'1px solid #6ee7b7'}},
+            h(Ico,{n:'check',s:12}),'Te reconocimos — completa los datos que falten')
+        )
       ),
       h('div',{className:'fgrid2'},
         h('div',{className:'fg'},h('label',null,'Teléfono',h('span',{className:'req'},'*')),h('input',{type:'tel',value:vehiculo.telefono_conductor,onChange:e=>setVehiculo(p=>({...p,telefono_conductor:e.target.value})),placeholder:'Número de contacto'})),
