@@ -11,7 +11,8 @@ from sqlalchemy import text
 from database import get_db
 from routers.proveedores import (
     CAMPOS_VEHICULO, CAMPOS_ORDEN, _clean, _insert_ordenes,
-    validar_token_ingreso_qr, fecha_valida,
+    validar_token_ingreso_qr, crear_token_sesion_registro, validar_token_sesion_registro,
+    fecha_valida,
 )
 from sqlalchemy.exc import IntegrityError, DataError
 
@@ -37,7 +38,10 @@ MANEJOS_CARGA   = ("Conductor con certificado de montacargas", "Reciservicios", 
 @router.get("/token-info")
 def token_info(token: str):
     validar_token_ingreso_qr(token)
-    return {"valido": True}
+    # El QR ya cumplió su propósito (probar que se escaneó a tiempo); a partir de
+    # aquí se usa un token de sesión de más duración para no caducar mientras el
+    # conductor llena el formulario.
+    return {"valido": True, "token_sesion": crear_token_sesion_registro()}
 
 
 @router.post("/autorregistro", status_code=201)
@@ -46,7 +50,7 @@ def autorregistro(
     db: Session = Depends(get_db),
 ):
     token = body.get("token")
-    validar_token_ingreso_qr(token)
+    validar_token_sesion_registro(token)
 
     vehiculo = body.get("vehiculo") or {}
     ordenes  = body.get("ordenes") or []

@@ -4502,6 +4502,7 @@ function PlaceholderPage({label,setPage}){
 /* ── AUTORREGISTRO PÚBLICO DE PROVEEDORES (sin login) ── */
 function ProveedorAutorregistroPage({token}){
   const [estado,setEstado]   = useState('validando'); // validando | valido | invalido | enviado
+  const [tokenSesion,setTokenSesion] = useState(null);
   const [errorMsg,setErrorMsg] = useState('');
   const [saving,setSaving]   = useState(false);
   const tiposVehiculo = ['Camión','Camioneta','Moto','Furgón','Tractomula','Otro'];
@@ -4519,7 +4520,7 @@ function ProveedorAutorregistroPage({token}){
   useEffect(()=>{
     if(!token){ setEstado('invalido'); setErrorMsg('Falta el código del QR. Escanéalo de nuevo desde la portería.'); return; }
     api.get(`/proveedores-publico/token-info?token=${encodeURIComponent(token)}`)
-      .then(()=>setEstado('valido'))
+      .then(r=>{ setTokenSesion(r.token_sesion); setEstado('valido'); })
       .catch(e=>{ setEstado('invalido'); let msg=e.message; try{msg=JSON.parse(msg).detail||msg;}catch{} setErrorMsg(msg); });
   },[token]);
 
@@ -4550,7 +4551,7 @@ function ProveedorAutorregistroPage({token}){
     setSaving(true);
     try{
       await api.post('/proveedores-publico/autorregistro',{
-        token, vehiculo:{...vehiculo,placa_vehiculo:vehiculo.placa_vehiculo.toUpperCase(),epp_cumple:vehiculo.epp_cumple==='si'}, ordenes,
+        token:tokenSesion, vehiculo:{...vehiculo,placa_vehiculo:vehiculo.placa_vehiculo.toUpperCase(),epp_cumple:vehiculo.epp_cumple==='si'}, ordenes,
       });
       setEstado('enviado');
     }catch(e){

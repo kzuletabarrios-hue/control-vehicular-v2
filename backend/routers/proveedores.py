@@ -34,8 +34,17 @@ CAMPOS_ORDEN = [
 ]
 
 # ── QR de autorregistro de proveedores ────────────────────────────
-QR_INGRESO_TIPO   = "ingreso_proveedor_qr"
-QR_INGRESO_TTL_SEG = 300  # 5 min: tiempo para que el conductor llene el formulario antes de que expire
+# Dos tokens con propósitos distintos:
+# 1) QR_INGRESO: el que se ve/escanea en pantalla, caduca rápido (evita que una foto
+#    guardada del QR sirva para autorregistrarse más tarde).
+# 2) SESION_REGISTRO: se emite al validar el QR con éxito (GET /token-info) y es el
+#    que realmente se usa para el POST /autorregistro -- dura mucho más, para que el
+#    conductor tenga tiempo de llenar el formulario sin que le caduque a mitad.
+QR_INGRESO_TIPO    = "ingreso_proveedor_qr"
+QR_INGRESO_TTL_SEG = 300  # 5 min: tiempo para escanear el QR y que la pagina valide
+
+SESION_REGISTRO_TIPO    = "ingreso_proveedor_sesion"
+SESION_REGISTRO_TTL_SEG = 1800  # 30 min: tiempo para llenar el formulario una vez escaneado
 
 
 def crear_token_ingreso_qr() -> str:
@@ -54,6 +63,24 @@ def validar_token_ingreso_qr(token: str) -> None:
         raise HTTPException(400, "Código QR inválido.")
     if payload.get("tipo") != QR_INGRESO_TIPO:
         raise HTTPException(400, "Código QR inválido.")
+
+
+def crear_token_sesion_registro() -> str:
+    exp = datetime.now(timezone.utc) + timedelta(seconds=SESION_REGISTRO_TTL_SEG)
+    return jwt.encode({"tipo": SESION_REGISTRO_TIPO, "exp": exp}, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def validar_token_sesion_registro(token: str) -> None:
+    if not token:
+        raise HTTPException(400, "Tu sesión de registro no es válida. Escanea el QR nuevamente.")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(400, "Tu sesión de registro expiró por inactividad. Pide al guarda que muestre el QR y escanéalo de nuevo.")
+    except jwt.InvalidTokenError:
+        raise HTTPException(400, "Tu sesión de registro no es válida.")
+    if payload.get("tipo") != SESION_REGISTRO_TIPO:
+        raise HTTPException(400, "Tu sesión de registro no es válida.")
 
 
 def _attach_ordenes(db, items: list[dict]) -> list[dict]:
