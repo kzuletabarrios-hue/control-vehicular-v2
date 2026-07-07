@@ -2462,7 +2462,7 @@ function ProveedoresPage({user,online,addOffline}){
   const [salida,setSalida]     = useState(null);
   const [horaSalida,setHoraSalida]     = useState('');
   const [fechaSalidaP,setFechaSalidaP] = useState('');
-  const [filtro,setFiltro]     = useState('pendientes');
+  const [filtro,setFiltro]     = useState('confirmar'); // confirmar | dentro | todos
   const [busqueda,setBusqueda] = useState('');
   const esBodega    = user?.rol==='guarda_bodega';
   const esVehicular = user?.rol==='guarda_vehicular';
@@ -2971,9 +2971,14 @@ function ProveedoresPage({user,online,addOffline}){
     )
   );
 
-  const nPend = records.filter(r=>!r.hora_salida).length;
+  const nPorConfirmar = records.filter(r=>r.estado_confirmacion==='pendiente').length;
+  const nDentro = records.filter(r=>r.estado_confirmacion!=='pendiente'&&!r.hora_salida).length;
   const visibles = records
-    .filter(r=>filtro==='pendientes'?!r.hora_salida:true)
+    .filter(r=>{
+      if(filtro==='confirmar') return r.estado_confirmacion==='pendiente';
+      if(filtro==='dentro') return r.estado_confirmacion!=='pendiente'&&!r.hora_salida;
+      return true;
+    })
     .filter(r=>{
       if(!busqueda.trim()) return true;
       const q=busqueda.trim().toLowerCase();
@@ -2990,8 +2995,9 @@ function ProveedoresPage({user,online,addOffline}){
         !esBodega&&!esCoordinador&&h('button',{onClick:()=>api.exportar('proveedores'),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
           h(Ico,{n:'download',s:14}),' Excel'
         ),
-        !esBodega&&h('div',{style:{marginLeft:'auto',display:'flex',gap:6,alignItems:'center',flexShrink:0}},
-          h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
+        !esBodega&&h('div',{style:{marginLeft:'auto',display:'flex',gap:6,alignItems:'center',flexShrink:0,flexWrap:'wrap',justifyContent:'flex-end'}},
+          h('button',{onClick:()=>setFiltro('confirmar'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='confirmar'?'#d97706':(nPorConfirmar>0?'#fef3c7':'transparent'),color:filtro==='confirmar'?'#fff':(nPorConfirmar>0?'#92400e':'var(--slate)'),borderColor:filtro==='confirmar'?'#d97706':(nPorConfirmar>0?'#fcd34d':'var(--border)')}},`🔔 Por confirmar (${nPorConfirmar})`),
+          h('button',{onClick:()=>setFiltro('dentro'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='dentro'?'var(--navy)':'transparent',color:filtro==='dentro'?'#fff':'var(--slate)',borderColor:filtro==='dentro'?'var(--navy)':'var(--border)'}},`Dentro (${nDentro})`),
           h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
         ),
         !esBodega&&!esCoordinador&&h('button',{onClick:()=>{setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);setFrecuenteInfo(null);setView('batch');},style:{background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
@@ -3011,7 +3017,7 @@ function ProveedoresPage({user,online,addOffline}){
     h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
       loading?h(LoadingDots):
-      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'package',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='pendientes'?'Sin proveedores activos':'Sin proveedores')):
+      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'package',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='confirmar'?'Nadie por confirmar en este momento':filtro==='dentro'?'Nadie dentro en este momento':'Sin proveedores')):
       visibles.map(r=>{
         const ords=r.ordenes||[];
         const emps=ords.map(o=>o.empresa).filter(Boolean);
