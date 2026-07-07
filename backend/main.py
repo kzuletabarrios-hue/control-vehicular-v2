@@ -40,6 +40,19 @@ app.include_router(busqueda.router,       prefix="/api/busqueda",      tags=["BÃ
 app.include_router(visita_vehicular.router,prefix="/api/visita-vehicular",tags=["Visita Vehicular"])
 app.include_router(uploads.router,          prefix="/api",               tags=["Uploads"])
 
+@app.on_event("startup")
+def _migracion_temporal_visitantes_empresa_pertenece():
+    # TEMPORAL: aplica backend/migrations_manual/2026-07-07_visitantes_empresa_pertenece.sql
+    # (conexion directa por psycopg2 y MCP de Supabase seguian sin disponibilidad).
+    # Idempotente (IF NOT EXISTS). Quitar despues de confirmar en produccion.
+    from sqlalchemy import text as _text
+    from database import engine as _engine
+    with _engine.begin() as conn:
+        conn.execute(_text("""
+            ALTER TABLE visitantes ADD COLUMN IF NOT EXISTS empresa_pertenece TEXT
+        """))
+
+
 @app.get("/health", tags=["Sistema"])
 def health():
     return {"status": "ok", "version": "2.1.0"}
