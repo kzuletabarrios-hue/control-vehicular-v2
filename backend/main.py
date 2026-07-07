@@ -40,6 +40,21 @@ app.include_router(busqueda.router,       prefix="/api/busqueda",      tags=["BÃ
 app.include_router(visita_vehicular.router,prefix="/api/visita-vehicular",tags=["Visita Vehicular"])
 app.include_router(uploads.router,          prefix="/api",               tags=["Uploads"])
 
+@app.on_event("startup")
+def _migracion_temporal_guarda_vehicular_visitantes():
+    # TEMPORAL: da permiso read/write de visitantes a guarda_vehicular (a pedido
+    # del usuario, ese guarda tambien debe ver la tarjeta de Visitantes con los
+    # campos nuevos de empresa/actividad/autoriza). MCP de Supabase y conexion
+    # directa psycopg2 seguian sin disponibilidad. Quitar despues de confirmar.
+    from sqlalchemy import text as _text
+    from database import engine as _engine
+    with _engine.begin() as conn:
+        conn.execute(_text("""
+            UPDATE roles SET permisos = permisos || '{"visitantes":["read","write"]}'::jsonb
+            WHERE nombre = 'guarda_vehicular'
+        """))
+
+
 @app.get("/health", tags=["Sistema"])
 def health():
     return {"status": "ok", "version": "2.1.0"}
