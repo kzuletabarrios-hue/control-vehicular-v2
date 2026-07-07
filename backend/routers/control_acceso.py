@@ -221,7 +221,7 @@ def _debug_cerrar_dias_anteriores(
             observaciones = TRIM(BOTH ' ' FROM
                 COALESCE(observaciones || ' ', '') ||
                 '[Cierre administrativo ' || :hoy || ' - sin salida registrada, ' ||
-                (:hoy_d::date - fecha) || ' dias abierto]'
+                (:hoy_d::date - fecha)::text || ' dias abierto]'
             )
         WHERE fecha != :hoy AND hora_salida IS NULL AND (:hoy_d::date - fecha) >= :dias
         RETURNING id
