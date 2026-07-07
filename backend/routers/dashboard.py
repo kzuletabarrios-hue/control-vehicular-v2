@@ -43,7 +43,8 @@ def resumen(
         ca_stats AS (
             SELECT
                 COUNT(*) FILTER (WHERE fecha = :hoy)                              AS c_hoy,
-                COUNT(*) FILTER (WHERE fecha = :hoy AND hora_salida IS NULL)      AS c_activos
+                COUNT(*) FILTER (WHERE fecha = :hoy AND hora_salida IS NULL)      AS c_activos,
+                COUNT(*) FILTER (WHERE fecha != :hoy AND hora_salida IS NULL)     AS c_dias_anteriores
             FROM control_acceso
         ),
         vis_stats AS (
@@ -55,7 +56,7 @@ def resumen(
         SELECT
             f.f_hoy, f.f_semana, f.f_mes, f.f_en_ruta,
             p.p_hoy, p.p_semana, p.p_en_muelle,
-            c.c_hoy, c.c_activos,
+            c.c_hoy, c.c_activos, c.c_dias_anteriores,
             v.v_hoy,
             vv.vv_hoy
         FROM flota_stats f, prov_stats p, ca_stats c, vis_stats v, vvh_stats vv
@@ -168,6 +169,24 @@ def resumen(
         for r in visitantes_hoy_rows
     ][:30]
 
+    # Detalle de accesos sin salida de dias anteriores (para seguimiento --
+    # antes se perdian del limite de 100 del listado principal)
+    acceso_dias_anteriores_rows = db.execute(text("""
+        SELECT ca.nombre, ca.cedula, ca.contratista, ca.fecha, ca.hora_ingreso
+        FROM control_acceso ca
+        WHERE ca.fecha != :hoy AND ca.hora_salida IS NULL
+        ORDER BY ca.fecha ASC, ca.hora_ingreso ASC
+    """), {"hoy": hoy}).fetchall()
+    acceso_dias_anteriores_detalle = [
+        {
+            "nombre": r.nombre, "cedula": r.cedula, "contratista": r.contratista,
+            "fecha": r.fecha.isoformat() if hasattr(r.fecha, "isoformat") else r.fecha,
+            "hora_ingreso": r.hora_ingreso.isoformat() if r.hora_ingreso else None,
+            "dias": (hoy_d - r.fecha).days,
+        }
+        for r in acceso_dias_anteriores_rows
+    ]
+
     # Pendientes vehículos sin llegada + personas sin salida en 1 query
     pendientes = db.execute(text("""
         SELECT 'flota' AS tipo, placa, conductor,
@@ -209,9 +228,11 @@ def resumen(
             "hoy_detalle":       prov_hoy_detalle,
         },
         "control_acceso": {
-            "hoy":                stats["c_hoy"],
-            "activos_sin_salida": stats["c_activos"],
-            "hoy_detalle":        acceso_hoy_detalle,
+            "hoy":                        stats["c_hoy"],
+            "activos_sin_salida":         stats["c_activos"],
+            "hoy_detalle":                acceso_hoy_detalle,
+            "dias_anteriores_pendientes": stats["c_dias_anteriores"],
+            "dias_anteriores_detalle":    acceso_dias_anteriores_detalle,
         },
         "visitantes": {
             "hoy":         stats["v_hoy"],

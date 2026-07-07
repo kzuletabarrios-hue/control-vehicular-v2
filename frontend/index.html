@@ -865,6 +865,7 @@ function HomePage({setPage,user}){
   const [showSinSalida,setShowSinSalida] = useState(false);
   const [showProvHoy,setShowProvHoy] = useState(false);
   const [showVisitantesHoy,setShowVisitantesHoy] = useState(false);
+  const [showAccesoDiasAnt,setShowAccesoDiasAnt] = useState(false);
   const fechaHoy = new Intl.DateTimeFormat('es-CO',{timeZone:'America/Bogota',weekday:'long',day:'numeric',month:'long'}).format(new Date());
   const rol = user?.rol||'';
   const isAdmin = ['admin','supervisor','operador'].includes(rol);
@@ -928,6 +929,7 @@ function HomePage({setPage,user}){
           showFlotaStats&&h(StatCard,{label:'En ruta',          value:resumen.flota.en_ruta,      color:'#f59e0b',icon:'truck',active:showEnRuta,onClick:()=>setShowEnRuta(v=>!v)}),
           showAccesoStats&&h(StatCard,{label:'Acceso hoy',     value:resumen.control_acceso.hoy, color:'#7c3aed',icon:'userCheck',active:showAccesoHoy,onClick:()=>setShowAccesoHoy(v=>!v)}),
           showAccesoStats&&h(StatCard,{label:'Sin salida',     value:accesoPend,                  color:'#e11d48',icon:'userCheck',active:showSinSalida,onClick:()=>setShowSinSalida(v=>!v)}),
+          showAccesoStats&&h(StatCard,{label:'Pend. días anteriores', value:resumen.control_acceso.dias_anteriores_pendientes, color:'#b91c1c',icon:'alert',active:showAccesoDiasAnt,onClick:()=>setShowAccesoDiasAnt(v=>!v)}),
           showProvStats&&h(StatCard,{label:'Proveedores hoy',          value:resumen.proveedores.hoy,    color:'#d97706',icon:'package',active:showProvHoy,onClick:()=>setShowProvHoy(v=>!v)}),
           showProvStats&&h(StatCard,{label:'En muelle',        value:resumen.proveedores.en_muelle, color:'#0891b2',icon:'package',active:showMuelle,onClick:()=>setShowMuelle(v=>!v)}),
           !isCoordinador&&showProvStats&&h(StatCard,{label:'Visitantes hoy',   value:resumen.visitantes.hoy,     color:'#059669',icon:'users',active:showVisitantesHoy,onClick:()=>setShowVisitantesHoy(v=>!v)})
@@ -943,6 +945,10 @@ function HomePage({setPage,user}){
         ]}),
         showSinSalida&&h(DetalleLista,{items:pendAcceso,emptyMsg:'Nadie dentro sin salida ahora',render:v=>[
           h('strong',{key:'p'},v.nombre),' · ',v.contratista||'—',' · Ingresó: ',v.hora_ingreso||'—',' (',v.fecha,')'
+        ]}),
+        showAccesoDiasAnt&&h(DetalleLista,{items:resumen.control_acceso.dias_anteriores_detalle||[],emptyMsg:'Sin pendientes de días anteriores',render:v=>[
+          h('span',{key:'d',className:'pill',style:{background:v.dias>=5?'#fee2e2':'#fef3c7',color:v.dias>=5?'#991b1b':'#92400e',marginRight:6}},v.dias+(v.dias===1?' día':' días')),
+          h('strong',{key:'p'},v.nombre),' · ',v.contratista||'—',' · ',fmtDate(v.fecha),' ',v.hora_ingreso?v.hora_ingreso.slice(0,5):''
         ]}),
         showProvHoy&&h(DetalleLista,{items:resumen.proveedores.hoy_detalle||[],emptyMsg:'Sin registros de proveedores hoy',render:v=>[
           h('strong',{key:'p'},v.placa||'Sin placa'),' · ',v.conductor||'—',' · Ingresó: ',v.hora_ingreso?v.hora_ingreso.slice(0,5):'—',' · ',v.estado,
