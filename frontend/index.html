@@ -1285,18 +1285,16 @@ function FlotaPage({user,online,addOffline}){
             h('input',{type:'time',value:horaLlegada,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})
           )
         ),
-        tiendasRutaLleg.length>=2
-          ? h('div',{className:'fg'},
-              h('label',null,'Última tienda visitada (opcional)'),
-              h('select',{value:ultimaTiendaLleg,onChange:e=>setUltimaTiendaLleg(e.target.value)},
-                h('option',{value:''},'Seleccionar...'),
-                tiendasRutaLleg.map(tid=>{
-                  const t=tiendas.find(x=>x.id===tid);
-                  return h('option',{key:tid,value:tid},t?(t.codigo?`${t.codigo} - ${t.name}`:t.name):'—');
-                })
-              )
-            )
-          : h(TiendaPicker,{label:'Última tienda visitada (opcional)',tiendas,value:ultimaTiendaLleg,onChange:setUltimaTiendaLleg}),
+        h('div',{className:'fg'},
+          h('label',null,'Última tienda visitada (opcional)'),
+          h('select',{value:ultimaTiendaLleg,onChange:e=>setUltimaTiendaLleg(e.target.value)},
+            h('option',{value:''},'Seleccionar...'),
+            tiendasRutaLleg.map(tid=>{
+              const t=tiendas.find(x=>x.id===tid);
+              return h('option',{key:tid,value:tid},t?(t.codigo?`${t.codigo} - ${t.name}`:t.name):'—');
+            })
+          )
+        ),
         h('div',{className:'fg'},
           h('label',null,'N° Sello de regreso',h('span',{className:'req'},'*')),
           h('input',{type:'text',value:selloLleg,onChange:e=>setSelloLleg(e.target.value),placeholder:'Ej: 123456',style:selloLleg?{background:'#f0fdf4',borderColor:'#86efac'}:{}})
@@ -1506,19 +1504,15 @@ function FlotaPage({user,online,addOffline}){
           h('label',null,'Observaciones (opcional)'),
           h('textarea',{value:obsSalida,onChange:e=>setObsSalida(e.target.value),rows:2,placeholder:'—'})
         ),
-        detalleVeh.hora_salida_cedi&&!detalleVeh.hora_llegada&&(
-          tiendasRutaDetalle.length>=2
-            ? h('div',{className:'fg',style:{marginTop:10}},
-                h('label',null,'Última tienda visitada (opcional)'),
-                h('select',{value:ultimaTiendaLleg,onChange:e=>setUltimaTiendaLleg(e.target.value)},
-                  h('option',{value:''},'Seleccionar...'),
-                  tiendasRutaDetalle.map(tid=>{
-                    const t=tiendas.find(x=>x.id===tid);
-                    return h('option',{key:tid,value:tid},t?(t.codigo?`${t.codigo} - ${t.name}`:t.name):'—');
-                  })
-                )
-              )
-            : h('div',{style:{marginTop:10}},h(TiendaPicker,{label:'Última tienda visitada (opcional)',tiendas,value:ultimaTiendaLleg,onChange:setUltimaTiendaLleg}))
+        detalleVeh.hora_salida_cedi&&!detalleVeh.hora_llegada&&h('div',{className:'fg',style:{marginTop:10}},
+          h('label',null,'Última tienda visitada (opcional)'),
+          h('select',{value:ultimaTiendaLleg,onChange:e=>setUltimaTiendaLleg(e.target.value)},
+            h('option',{value:''},'Seleccionar...'),
+            tiendasRutaDetalle.map(tid=>{
+              const t=tiendas.find(x=>x.id===tid);
+              return h('option',{key:tid,value:tid},t?(t.codigo?`${t.codigo} - ${t.name}`:t.name):'—');
+            })
+          )
         ),
         detalleVeh.hora_salida_cedi&&!detalleVeh.hora_llegada&&h('div',{className:'fg',style:{marginTop:10}},
           h('label',null,'Observaciones llegada (opcional)'),
