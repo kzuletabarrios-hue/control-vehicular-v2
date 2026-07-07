@@ -2033,15 +2033,23 @@ function AccesoPage({user,online,addOffline}){
     )
   );
 
+  const hoyStr = today();
   const nPend = records.filter(r=>!r.hora_salida).length;
+  const nDiasAnteriores = records.filter(r=>!r.hora_salida && r.fecha!==hoyStr).length;
+  const diasAbiertos = f => Math.round((new Date(hoyStr+'T00:00:00') - new Date(f+'T00:00:00'))/86400000);
   const visibles = records
-    .filter(r=>filtro==='pendientes'?!r.hora_salida:true)
+    .filter(r=>{
+      if(filtro==='dias_anteriores') return !r.hora_salida && r.fecha!==hoyStr;
+      if(filtro==='pendientes') return !r.hora_salida;
+      return true;
+    })
     .filter(r=>{if(!busqueda.trim())return true;const q=busqueda.trim().toLowerCase();return (r.nombre&&r.nombre.toLowerCase().includes(q))||(r.cedula&&String(r.cedula).includes(q));});
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
-      h('div',{style:{display:'flex',gap:8,padding:'8px 14px 6px'}},
-        h('div',{style:{display:'flex',gap:6,alignItems:'center'}},
+      h('div',{style:{display:'flex',gap:8,padding:'8px 14px 6px',flexWrap:'wrap'}},
+        h('div',{style:{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}},
           h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
+          nDiasAnteriores>0&&h('button',{onClick:()=>setFiltro('dias_anteriores'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='dias_anteriores'?'#b91c1c':'#fee2e2',color:filtro==='dias_anteriores'?'#fff':'#991b1b',borderColor:filtro==='dias_anteriores'?'#b91c1c':'#fecaca'}},`⚠ Días anteriores (${nDiasAnteriores})`),
           h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
         ),
         h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
@@ -2056,12 +2064,13 @@ function AccesoPage({user,online,addOffline}){
     h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
       loading?h(LoadingDots):
-      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'userCheck',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='pendientes'?'Sin personas activas':'Sin registros hoy')):
+      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'userCheck',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='dias_anteriores'?'Sin pendientes de días anteriores':filtro==='pendientes'?'Sin personas activas':'Sin registros hoy')):
       visibles.map(r=>h('div',{key:r.id,className:'list-item'},
         h('div',{className:'li-icon',style:{background: r.hora_salida?'#dcfce7':'#dbeafe'}},
           h(Ico,{n:'userCheck',s:18,style:{color: r.hora_salida?'#16a34a':'#1d4ed8'}})
         ),
         h('div',{className:'li-body',onClick:()=>{setForm({...emptyF,...r,cedula:r.cedula?String(r.cedula):'',hora_ingreso:r.hora_ingreso||'',hora_salida:r.hora_salida||''});setSelected(r);setView('form');}},
+          !r.hora_salida&&r.fecha!==hoyStr&&h('span',{className:'pill',style:{background:diasAbiertos(r.fecha)>=5?'#fee2e2':'#fef3c7',color:diasAbiertos(r.fecha)>=5?'#991b1b':'#92400e',marginBottom:3,display:'inline-block'}},diasAbiertos(r.fecha)+(diasAbiertos(r.fecha)===1?' día':' días')+' · '+fmtDate(r.fecha)),
           h('div',{className:'li-title'},r.nombre),
           h('div',{className:'li-sub'},r.contratista||'Sin empresa'),
           r.hora_ingreso&&h('div',{className:'li-sub'},'Ingreso: ',r.hora_ingreso,r.hora_salida&&(' · Salida: '+r.hora_salida))
