@@ -55,7 +55,7 @@ def _fmt(min_abs: int) -> str:
 
 
 def turno_actual(ahora: dtime = None) -> str:
-    ahora = ahora or datetime.now().time()
+    ahora = ahora or datetime.now(_BOG).time()
     inicio_dia = _to_min(TURNOS['dia'])
     rel = (_to_min(ahora) - inicio_dia) % 1440
     return 'dia' if rel < TURNO_DURACION_MIN else 'noche'
@@ -436,7 +436,7 @@ def ciclo_iniciar(
     if apoyo_abierto:
         raise HTTPException(409, "Tienes un apoyo operativo en curso. Finalízalo antes de iniciar una ronda.")
 
-    ahora = datetime.now().time()
+    ahora = datetime.now(_BOG).time()
     for ini, fin, motivo in APOYOS_FIJOS:
         if ini <= ahora < fin:
             raise HTTPException(409, f"Horario de apoyo obligatorio ({motivo}). No se puede iniciar ronda ahora.")
@@ -568,17 +568,17 @@ def marcar_punto(
             raise HTTPException(400, f"Aún faltan {len(faltan)} puntos por recorrer antes de regresar a Tanques")
 
     rid  = str(uuid.uuid4())
-    hora = datetime.now().strftime("%H:%M:%S")
+    hora = datetime.now(_BOG).strftime("%H:%M:%S")
     db.execute(text("""
         INSERT INTO rondas
             (id, recorredor_id, punto_id, ciclo_id, fecha, hora_marcacion,
              codigo_escaneado, estado, observacion, fotografia)
         VALUES
-            (:id, :recorredor_id, :punto_id, :ciclo_id, CURRENT_DATE, :hora,
+            (:id, :recorredor_id, :punto_id, :ciclo_id, :fecha, :hora,
              :codigo_escaneado, :estado, :observacion, :fotografia)
     """), {
         "id": rid, "recorredor_id": user["id"], "punto_id": punto_id, "ciclo_id": ciclo_id,
-        "hora": hora, "codigo_escaneado": codigo_escaneado,
+        "fecha": _hoy_bog(), "hora": hora, "codigo_escaneado": codigo_escaneado,
         "estado": estado, "observacion": observacion, "fotografia": fotografia,
     })
 
@@ -622,6 +622,26 @@ def ronda_hoy(
             ORDER BY r.created_at DESC
         """), {"uid": user["id"], "hoy": hoy}).fetchall()
     return [dict(r._mapping) for r in rows]
+
+
+@router.get("/_debug_fecha_mismatch")
+def _debug_fecha_mismatch(
+    db: Session = Depends(get_db),
+    user: dict = Depends(_require_roles(*ROLES_GESTION)),
+):
+    # TEMPORAL: diagnostico de registros de `rondas` cuya fecha quedo desincronizada
+    # de la fecha de su ciclo (bug de zona horaria, CURRENT_DATE/datetime.now() sin
+    # _BOG). Quitar despues de revisar/corregir.
+    rows = db.execute(text("""
+        SELECT r.id, r.fecha AS fecha_ronda, rc.fecha AS fecha_ciclo,
+               r.hora_marcacion, r.created_at, p.nombre AS punto_nombre
+        FROM rondas r
+        JOIN rondas_ciclos rc ON rc.id = r.ciclo_id
+        JOIN puntos_ronda p ON p.id = r.punto_id
+        WHERE r.fecha <> rc.fecha
+        ORDER BY r.created_at DESC
+    """)).fetchall()
+    return {"count": len(rows), "rows": [dict(r._mapping) for r in rows]}
 
 
 @router.get("/historial")
@@ -688,7 +708,7 @@ def apoyo_marcar(
     if ciclo_activo_row:
         raise HTTPException(409, "Tienes una ronda en curso. Termínala o márcala con novedad antes de iniciar un apoyo.")
 
-    ahora = datetime.now().time()
+    ahora = datetime.now(_BOG).time()
     motivo_auto = None
     for ini, fin, motivo in APOYOS_FIJOS:
         if ini <= ahora < fin:
