@@ -2285,7 +2285,7 @@ function VisitaVehicularPage({user,online,addOffline}){
   const [fechaSalidaVV,setFechaSalidaVV] = useState('');
   const [obsSalida,setObsSalida]   = useState('');
   const [fotoSalida,setFotoSalida] = useState(null);
-  const emptyF = {fecha:today(),placa:'',conductor:'',motivo_visita:'',hora_ingreso:ahoraHora(),hora_salida:'',observaciones:'',foto_url:null};
+  const emptyF = {fecha:today(),placa:'',conductor:'',empresa_pertenece:'',motivo_visita:'',dependencia_autoriza:'',hora_ingreso:ahoraHora(),hora_salida:'',observaciones:'',foto_url:null};
   const [form,setForm] = useState(emptyF);
   const [filtro,setFiltro] = useState('pendientes');
   const [busqueda,setBusqueda] = useState('');
@@ -2328,7 +2328,9 @@ function VisitaVehicularPage({user,online,addOffline}){
           h('div',{className:'fg'},h('label',null,'Placa',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.placa,onChange:e=>setForm(p=>({...p,placa:e.target.value.toUpperCase()})),placeholder:'ABC123'}))
         ),
         h('div',{className:'fg'},h('label',null,'Conductor',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.conductor,onChange:e=>setForm(p=>({...p,conductor:e.target.value})),placeholder:'Nombre completo'})),
-        h('div',{className:'fg'},h('label',null,'Motivo de la visita'),h('input',{type:'text',value:form.motivo_visita,onChange:e=>setForm(p=>({...p,motivo_visita:e.target.value})),placeholder:'Ej: visita a empleado, entidad de gobierno...'}))
+        h('div',{className:'fg'},h('label',null,'Empresa a la que pertenece'),h('input',{type:'text',value:form.empresa_pertenece||'',onChange:e=>setForm(p=>({...p,empresa_pertenece:e.target.value})),placeholder:'Empresa del conductor'})),
+        h('div',{className:'fg'},h('label',null,'Motivo de la visita'),h('input',{type:'text',value:form.motivo_visita,onChange:e=>setForm(p=>({...p,motivo_visita:e.target.value})),placeholder:'Ej: visita a empleado, entidad de gobierno...'})),
+        h('div',{className:'fg'},h('label',null,'Quién autoriza'),h('input',{type:'text',value:form.dependencia_autoriza||'',onChange:e=>setForm(p=>({...p,dependencia_autoriza:e.target.value})),placeholder:'Nombre o dependencia que autoriza'}))
       ),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'check',s:12}),' Horarios'),
@@ -2384,7 +2386,8 @@ function VisitaVehicularPage({user,online,addOffline}){
         ),
         h('div',{className:'li-body',onClick:()=>{setForm({...emptyF,...r,hora_ingreso:r.hora_ingreso||'',hora_salida:r.hora_salida||''});setSelected(r);setView('form');}},
           h('div',{className:'li-title'},r.placa),
-          h('div',{className:'li-sub'},r.conductor),
+          h('div',{className:'li-sub'},r.conductor,r.empresa_pertenece&&(' · '+r.empresa_pertenece)),
+          r.dependencia_autoriza&&h('div',{className:'li-sub'},'Autoriza: '+r.dependencia_autoriza),
           r.hora_ingreso&&h('div',{className:'li-sub'},'Ingreso: ',r.hora_ingreso,r.hora_salida&&(' · Salida: '+r.hora_salida))
         ),
         h('div',{className:'li-right'},

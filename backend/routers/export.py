@@ -370,7 +370,7 @@ def export_visita_vehicular(
         params["hasta"] = fecha_hasta
 
     rows = db.execute(text(f"""
-        SELECT placa, conductor, motivo_visita,
+        SELECT placa, conductor, empresa_pertenece, motivo_visita, dependencia_autoriza,
                fecha, hora_ingreso,
                fecha_salida, hora_salida, observaciones
         FROM visita_vehicular
@@ -382,7 +382,7 @@ def export_visita_vehicular(
     ws = wb.active
     ws.title = "Visita Vehicular"
 
-    headers = ["Placa", "Conductor", "Motivo Visita",
+    headers = ["Placa", "Conductor", "Empresa a la que pertenece", "Motivo Visita", "Autoriza",
                "Fecha Ingreso", "H. Ingreso",
                "Fecha Salida", "H. Salida", "Observaciones"]
     _header_style(ws, headers)
