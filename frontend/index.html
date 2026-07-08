@@ -4410,10 +4410,15 @@ function RondaPanelPage({user}){
           ),
           (d.rondas_hoy||[]).length>0&&h('details',{style:{marginTop:8}},
             h('summary',{style:{fontSize:11,color:'var(--slate)',cursor:'pointer'}},`Rondas de hoy (${d.rondas_hoy.length})`),
-            d.rondas_hoy.map(rh=>h('div',{key:rh.ciclo_id,style:{fontSize:11,padding:'4px 0',borderTop:'1px solid var(--border)',display:'flex',justifyContent:'space-between',gap:6}},
-              h('span',null,`Ronda ${rh.numero_ronda} (${rh.turno}) · ${(rh.hora_inicio||'').slice(11,16)}${rh.hora_fin?' – '+rh.hora_fin.slice(11,16):' – en curso'}`),
-              h('span',{style:{fontWeight:700,color:rh.distancia_m!=null?'var(--navy)':'var(--slate)',flexShrink:0}},
-                rh.distancia_m!=null?(rh.distancia_m>=1000?(rh.distancia_m/1000).toFixed(2)+' km':rh.distancia_m+' m'):'Sin GPS'
+            d.rondas_hoy.map(rh=>h('div',{key:rh.ciclo_id,style:{padding:'4px 0',borderTop:'1px solid var(--border)'}},
+              h('div',{style:{fontSize:11,display:'flex',justifyContent:'space-between',gap:6}},
+                h('span',null,`Ronda ${rh.numero_ronda} (${rh.turno}) · ${(rh.hora_inicio||'').slice(11,16)}${rh.hora_fin?' – '+rh.hora_fin.slice(11,16):' – en curso'}`),
+                h('span',{style:{fontWeight:700,color:rh.distancia_m!=null?'var(--navy)':'var(--slate)',flexShrink:0}},
+                  rh.distancia_m!=null?(rh.distancia_m>=1000?(rh.distancia_m/1000).toFixed(2)+' km':rh.distancia_m+' m'):'Sin GPS'
+                )
+              ),
+              rh.sospechosa&&h('div',{title:rh.motivo_sospecha||'',style:{marginTop:3,fontSize:10,fontWeight:700,color:'#991b1b',background:'#fee2e2',borderRadius:6,padding:'2px 6px',display:'inline-block'}},
+                `⚠ Sospechosa · ${rh.motivo_sospecha||''}`
               )
             ))
           )
@@ -4433,6 +4438,10 @@ function RondaPanelPage({user}){
             h('div',{style:{display:'flex',justifyContent:'space-between'}},
               h('span',{style:{fontSize:12,color:'var(--slate)'}},'Novedades reportadas'),
               h('span',{style:{fontSize:12,fontWeight:700,color:d.novedades>0?'#dc2626':'var(--text2)'}},d.novedades)
+            ),
+            h('div',{style:{display:'flex',justifyContent:'space-between',marginTop:6}},
+              h('span',{style:{fontSize:12,color:'var(--slate)'}},'Rondas sospechosas'),
+              h('span',{style:{fontSize:12,fontWeight:700,color:d.rondas_sospechosas>0?'#991b1b':'var(--text2)'}},d.rondas_sospechosas)
             ),
             d.dias.length>0&&h('details',{style:{marginTop:8}},
               h('summary',{style:{fontSize:11,color:'var(--slate)',cursor:'pointer'}},`Detalle por turno (${d.dias.length})`),

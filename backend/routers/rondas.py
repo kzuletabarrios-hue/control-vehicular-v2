@@ -24,6 +24,9 @@ RONDA_CAMINATA_MIN = 30   # min. estimados para recorrer los puntos de una ronda
 PERMANENCIA_MIN_MIN = 15  # min. mínimos de permanencia en Tanques entre rondas
 ALERTA_ATRASO_MIN  = 45   # min. sin movimiento para marcar alerta en el panel
 
+SOSPECHA_DURACION_MIN_MIN = 10   # ronda completa en menos de esto = sospechosa
+SOSPECHA_GAP_MIN_SEG      = 30   # dos puntos marcados con menos de esto entre sí = sospechosa
+
 TURNOS = {'dia': dtime(6, 0), 'noche': dtime(18, 0)}
 TURNO_DURACION_MIN = 720  # 12h
 
@@ -67,13 +70,17 @@ def _haversine_m(lat1, lng1, lat2, lng2):
     return 2 * R * atan2(sqrt(a), sqrt(1 - a))
 
 
-def _distancia_ciclo(db, ciclo_id):
-    """Suma la distancia en línea recta entre los puntos consecutivos de un
-    ciclo que sí tengan GPS. Puntos sin GPS (permiso denegado, fallo de
-    lectura) simplemente no participan del cálculo."""
+def _analizar_ciclo(db, ciclo_id):
+    """Distancia recorrida (línea recta entre puntos con GPS) y señales de que
+    la ronda no se caminó de verdad: se completó demasiado rápido o dos puntos
+    quedaron marcados casi al mismo tiempo (indicio de escaneo en bloque desde
+    un solo lugar). Usa created_at (timestamp completo) para la duración y los
+    intervalos, no hora_marcacion (solo hora), para no romperse en rondas que
+    cruzan la medianoche."""
     puntos = db.execute(text("""
-        SELECT lat, lng FROM rondas WHERE ciclo_id = :cid ORDER BY created_at ASC
+        SELECT lat, lng, created_at FROM rondas WHERE ciclo_id = :cid ORDER BY created_at ASC
     """), {"cid": ciclo_id}).fetchall()
+
     total = 0.0
     con_gps = 0
     prev = None
@@ -85,10 +92,30 @@ def _distancia_ciclo(db, ciclo_id):
                 if d is not None:
                     total += d
             prev = (p.lat, p.lng)
+
+    tiempos = [p.created_at for p in puntos if p.created_at is not None]
+    duracion_seg = (tiempos[-1] - tiempos[0]).total_seconds() if len(tiempos) >= 2 else None
+    min_gap_seg = min(
+        (tiempos[i + 1] - tiempos[i]).total_seconds() for i in range(len(tiempos) - 1)
+    ) if len(tiempos) >= 2 else None
+
+    sospechosa = False
+    motivo = None
+    if duracion_seg is not None and duracion_seg < SOSPECHA_DURACION_MIN_MIN * 60:
+        m, s = divmod(int(duracion_seg), 60)
+        sospechosa = True
+        motivo = f"Ronda completada en {m} min {s}s (muy rápido para {len(puntos)} puntos)"
+    elif min_gap_seg is not None and min_gap_seg < SOSPECHA_GAP_MIN_SEG:
+        sospechosa = True
+        motivo = f"Dos puntos marcados con solo {int(min_gap_seg)}s de diferencia"
+
     return {
         "distancia_m": round(total) if con_gps >= 2 else None,
         "puntos_con_gps": con_gps,
         "puntos_total": len(puntos),
+        "duracion_seg": int(duracion_seg) if duracion_seg is not None else None,
+        "sospechosa": sospechosa,
+        "motivo_sospecha": motivo,
     }
 
 
@@ -704,7 +731,7 @@ def ciclo_recorrido(
 
     puntos = db.execute(text("""
         SELECT p.orden, p.nombre AS punto_nombre, p.es_base,
-               r.hora_marcacion, r.lat, r.lng, r.estado, r.observacion
+               r.hora_marcacion, r.lat, r.lng, r.estado, r.observacion, r.created_at
         FROM rondas r JOIN puntos_ronda p ON p.id = r.punto_id
         WHERE r.ciclo_id = :cid
         ORDER BY r.created_at ASC
@@ -714,8 +741,10 @@ def ciclo_recorrido(
     total_m = 0.0
     con_gps = 0
     prev = None
+    prev_ts = None
     for p in puntos:
         seg_m = None
+        seg_seg = None
         if p.lat is not None and p.lng is not None:
             con_gps += 1
             if prev is not None:
@@ -723,12 +752,18 @@ def ciclo_recorrido(
                 if seg_m is not None:
                     total_m += seg_m
             prev = (p.lat, p.lng)
+        if prev_ts is not None and p.created_at is not None:
+            seg_seg = (p.created_at - prev_ts).total_seconds()
+        prev_ts = p.created_at
         items.append({
             "punto_nombre": p.punto_nombre, "orden": p.orden, "es_base": p.es_base,
             "hora_marcacion": p.hora_marcacion.isoformat() if p.hora_marcacion else None,
             "lat": p.lat, "lng": p.lng, "estado": p.estado, "observacion": p.observacion,
             "distancia_desde_anterior_m": round(seg_m) if seg_m is not None else None,
+            "segundos_desde_anterior": int(seg_seg) if seg_seg is not None else None,
         })
+
+    analisis = _analizar_ciclo(db, ciclo_id)
 
     return {
         "ciclo_id": str(ciclo.id),
@@ -741,6 +776,9 @@ def ciclo_recorrido(
         "distancia_total_m": round(total_m) if con_gps >= 2 else None,
         "puntos_con_gps": con_gps,
         "puntos_total": len(puntos),
+        "duracion_seg": analisis["duracion_seg"],
+        "sospechosa": analisis["sospechosa"],
+        "motivo_sospecha": analisis["motivo_sospecha"],
     }
 
 
@@ -893,8 +931,9 @@ def panel(
 
         rondas_hoy = []
         for c in sorted(ciclos, key=lambda c: c.numero_ronda):
-            dist_info = _distancia_ciclo(db, c.id) if c.estado == 'completa' else {
+            dist_info = _analizar_ciclo(db, c.id) if c.estado == 'completa' else {
                 "distancia_m": None, "puntos_con_gps": 0, "puntos_total": 0,
+                "duracion_seg": None, "sospechosa": False, "motivo_sospecha": None,
             }
             rondas_hoy.append({
                 "ciclo_id": str(c.id),
@@ -995,6 +1034,30 @@ def reporte_semanal(
             WHERE recorredor_id = :uid AND fecha BETWEEN :desde AND :hoy AND estado = 'novedad'
         """), {"uid": u.id, "desde": desde, "hoy": hoy}).fetchone().n
 
+        sospechosas = db.execute(text("""
+            WITH gaps AS (
+                SELECT ciclo_id,
+                       created_at - LAG(created_at) OVER (PARTITION BY ciclo_id ORDER BY created_at) AS gap
+                FROM rondas
+                WHERE recorredor_id = :uid AND fecha BETWEEN :desde AND :hoy
+            ),
+            gaps_min AS (
+                SELECT ciclo_id, MIN(gap) AS min_gap FROM gaps GROUP BY ciclo_id
+            )
+            SELECT COUNT(*) AS n
+            FROM rondas_ciclos rc
+            LEFT JOIN gaps_min g ON g.ciclo_id = rc.id
+            WHERE rc.recorredor_id = :uid AND rc.fecha BETWEEN :desde AND :hoy
+              AND rc.estado = 'completa' AND rc.hora_fin IS NOT NULL
+              AND (
+                  (rc.hora_fin - rc.hora_inicio) < (CAST(:dur_min AS text) || ' minutes')::interval
+                  OR g.min_gap < (CAST(:gap_seg AS text) || ' seconds')::interval
+              )
+        """), {
+            "uid": u.id, "desde": desde, "hoy": hoy,
+            "dur_min": SOSPECHA_DURACION_MIN_MIN, "gap_seg": SOSPECHA_GAP_MIN_SEG,
+        }).fetchone().n
+
         dias = [{
             "fecha": t.fecha.isoformat() if hasattr(t.fecha, "isoformat") else t.fecha,
             "turno": t.turno,
@@ -1014,6 +1077,7 @@ def reporte_semanal(
             "total_esperadas": total_esperadas,
             "porcentaje": porcentaje,
             "novedades": novedades,
+            "rondas_sospechosas": sospechosas,
         })
 
     return {"desde": desde, "hasta": hoy, "recorredores": resultado}
