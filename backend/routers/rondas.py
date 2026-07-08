@@ -25,7 +25,10 @@ PERMANENCIA_MIN_MIN = 15  # min. mínimos de permanencia en Tanques entre rondas
 ALERTA_ATRASO_MIN  = 45   # min. sin movimiento para marcar alerta en el panel
 
 SOSPECHA_DURACION_MIN_MIN = 10   # ronda completa en menos de esto = sospechosa
-SOSPECHA_GAP_MIN_SEG      = 30   # dos puntos marcados con menos de esto entre sí = sospechosa
+SOSPECHA_GAP_MIN_SEG      = 30   # umbral para considerar un intervalo "corto"
+SOSPECHA_GAPS_CORTOS_MIN  = 3    # nº de intervalos cortos seguidos para sospechar
+# (un solo intervalo corto es normal cuando dos puntos están físicamente
+# pegados, ej. junto a la base; varios seguidos indican escaneo en bloque)
 
 TURNOS = {'dia': dtime(6, 0), 'noche': dtime(18, 0)}
 TURNO_DURACION_MIN = 720  # 12h
@@ -95,9 +98,8 @@ def _analizar_ciclo(db, ciclo_id):
 
     tiempos = [p.created_at for p in puntos if p.created_at is not None]
     duracion_seg = (tiempos[-1] - tiempos[0]).total_seconds() if len(tiempos) >= 2 else None
-    min_gap_seg = min(
-        (tiempos[i + 1] - tiempos[i]).total_seconds() for i in range(len(tiempos) - 1)
-    ) if len(tiempos) >= 2 else None
+    gaps = [(tiempos[i + 1] - tiempos[i]).total_seconds() for i in range(len(tiempos) - 1)]
+    gaps_cortos = [g for g in gaps if g < SOSPECHA_GAP_MIN_SEG]
 
     sospechosa = False
     motivo = None
@@ -105,9 +107,9 @@ def _analizar_ciclo(db, ciclo_id):
         m, s = divmod(int(duracion_seg), 60)
         sospechosa = True
         motivo = f"Ronda completada en {m} min {s}s (muy rápido para {len(puntos)} puntos)"
-    elif min_gap_seg is not None and min_gap_seg < SOSPECHA_GAP_MIN_SEG:
+    elif len(gaps_cortos) >= SOSPECHA_GAPS_CORTOS_MIN:
         sospechosa = True
-        motivo = f"Dos puntos marcados con solo {int(min_gap_seg)}s de diferencia"
+        motivo = f"{len(gaps_cortos)} puntos marcados en menos de {SOSPECHA_GAP_MIN_SEG}s uno del otro (mínimo {int(min(gaps_cortos))}s)"
 
     return {
         "distancia_m": round(total) if con_gps >= 2 else None,
@@ -1041,21 +1043,25 @@ def reporte_semanal(
                 FROM rondas
                 WHERE recorredor_id = :uid AND fecha BETWEEN :desde AND :hoy
             ),
-            gaps_min AS (
-                SELECT ciclo_id, MIN(gap) AS min_gap FROM gaps GROUP BY ciclo_id
+            gaps_cortos AS (
+                SELECT ciclo_id, COUNT(*) AS n_cortos
+                FROM gaps
+                WHERE gap < (CAST(:gap_seg AS text) || ' seconds')::interval
+                GROUP BY ciclo_id
             )
             SELECT COUNT(*) AS n
             FROM rondas_ciclos rc
-            LEFT JOIN gaps_min g ON g.ciclo_id = rc.id
+            LEFT JOIN gaps_cortos g ON g.ciclo_id = rc.id
             WHERE rc.recorredor_id = :uid AND rc.fecha BETWEEN :desde AND :hoy
               AND rc.estado = 'completa' AND rc.hora_fin IS NOT NULL
               AND (
                   (rc.hora_fin - rc.hora_inicio) < (CAST(:dur_min AS text) || ' minutes')::interval
-                  OR g.min_gap < (CAST(:gap_seg AS text) || ' seconds')::interval
+                  OR COALESCE(g.n_cortos, 0) >= :gaps_min
               )
         """), {
             "uid": u.id, "desde": desde, "hoy": hoy,
             "dur_min": SOSPECHA_DURACION_MIN_MIN, "gap_seg": SOSPECHA_GAP_MIN_SEG,
+            "gaps_min": SOSPECHA_GAPS_CORTOS_MIN,
         }).fetchone().n
 
         dias = [{
