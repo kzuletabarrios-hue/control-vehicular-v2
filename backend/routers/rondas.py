@@ -26,9 +26,11 @@ ALERTA_ATRASO_MIN  = 45   # min. sin movimiento para marcar alerta en el panel
 
 SOSPECHA_DURACION_MIN_MIN = 10   # ronda completa en menos de esto = sospechosa
 SOSPECHA_GAP_MIN_SEG      = 30   # umbral para considerar un intervalo "corto"
-SOSPECHA_GAPS_CORTOS_MIN  = 3    # nº de intervalos cortos seguidos para sospechar
-# (un solo intervalo corto es normal cuando dos puntos están físicamente
-# pegados, ej. junto a la base; varios seguidos indican escaneo en bloque)
+SOSPECHA_GAPS_CORTOS_FRAC = 0.6  # fracción de intervalos cortos para sospechar
+SOSPECHA_GAPS_MIN_N       = 4    # mínimo de intervalos para que la fracción sea confiable
+# (un par de puntos físicamente pegados, ej. junto a la base, es normal y
+# genera 1-2 intervalos cortos sueltos; que la MAYORÍA de los intervalos de
+# la ronda sean cortos sí indica escaneo en bloque desde un solo lugar)
 
 TURNOS = {'dia': dtime(6, 0), 'noche': dtime(18, 0)}
 TURNO_DURACION_MIN = 720  # 12h
@@ -100,6 +102,7 @@ def _analizar_ciclo(db, ciclo_id):
     duracion_seg = (tiempos[-1] - tiempos[0]).total_seconds() if len(tiempos) >= 2 else None
     gaps = [(tiempos[i + 1] - tiempos[i]).total_seconds() for i in range(len(tiempos) - 1)]
     gaps_cortos = [g for g in gaps if g < SOSPECHA_GAP_MIN_SEG]
+    frac_cortos = (len(gaps_cortos) / len(gaps)) if gaps else 0
 
     sospechosa = False
     motivo = None
@@ -107,9 +110,9 @@ def _analizar_ciclo(db, ciclo_id):
         m, s = divmod(int(duracion_seg), 60)
         sospechosa = True
         motivo = f"Ronda completada en {m} min {s}s (muy rápido para {len(puntos)} puntos)"
-    elif len(gaps_cortos) >= SOSPECHA_GAPS_CORTOS_MIN:
+    elif len(gaps) >= SOSPECHA_GAPS_MIN_N and frac_cortos >= SOSPECHA_GAPS_CORTOS_FRAC:
         sospechosa = True
-        motivo = f"{len(gaps_cortos)} puntos marcados en menos de {SOSPECHA_GAP_MIN_SEG}s uno del otro (mínimo {int(min(gaps_cortos))}s)"
+        motivo = f"{len(gaps_cortos)} de {len(gaps)} intervalos entre puntos fueron de menos de {SOSPECHA_GAP_MIN_SEG}s (mínimo {int(min(gaps_cortos))}s)"
 
     return {
         "distancia_m": round(total) if con_gps >= 2 else None,
@@ -1043,25 +1046,27 @@ def reporte_semanal(
                 FROM rondas
                 WHERE recorredor_id = :uid AND fecha BETWEEN :desde AND :hoy
             ),
-            gaps_cortos AS (
-                SELECT ciclo_id, COUNT(*) AS n_cortos
+            gaps_resumen AS (
+                SELECT ciclo_id,
+                       COUNT(*) AS n_total,
+                       COUNT(*) FILTER (WHERE gap < (CAST(:gap_seg AS text) || ' seconds')::interval) AS n_cortos
                 FROM gaps
-                WHERE gap < (CAST(:gap_seg AS text) || ' seconds')::interval
+                WHERE gap IS NOT NULL
                 GROUP BY ciclo_id
             )
             SELECT COUNT(*) AS n
             FROM rondas_ciclos rc
-            LEFT JOIN gaps_cortos g ON g.ciclo_id = rc.id
+            LEFT JOIN gaps_resumen g ON g.ciclo_id = rc.id
             WHERE rc.recorredor_id = :uid AND rc.fecha BETWEEN :desde AND :hoy
               AND rc.estado = 'completa' AND rc.hora_fin IS NOT NULL
               AND (
                   (rc.hora_fin - rc.hora_inicio) < (CAST(:dur_min AS text) || ' minutes')::interval
-                  OR COALESCE(g.n_cortos, 0) >= :gaps_min
+                  OR (g.n_total >= :gaps_min_n AND g.n_cortos::float / g.n_total >= :gaps_frac)
               )
         """), {
             "uid": u.id, "desde": desde, "hoy": hoy,
             "dur_min": SOSPECHA_DURACION_MIN_MIN, "gap_seg": SOSPECHA_GAP_MIN_SEG,
-            "gaps_min": SOSPECHA_GAPS_CORTOS_MIN,
+            "gaps_min_n": SOSPECHA_GAPS_MIN_N, "gaps_frac": SOSPECHA_GAPS_CORTOS_FRAC,
         }).fetchone().n
 
         dias = [{
