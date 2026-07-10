@@ -84,6 +84,26 @@ def validar_token_sesion_registro(token: str) -> None:
         raise HTTPException(400, "Tu sesión de registro no es válida.")
 
 
+def _attach_muelle(db, items: list[dict]) -> list[dict]:
+    if not items:
+        return items
+    ids = [r["id"] for r in items]
+    placeholders = ", ".join(f":id{i}" for i in range(len(ids)))
+    params = {f"id{i}": v for i, v in enumerate(ids)}
+    rows = db.execute(
+        text(f"""
+            SELECT e.proveedor_id, m.numero AS muelle_numero
+            FROM muelle_eventos e JOIN muelles m ON m.id = e.muelle_id
+            WHERE e.proveedor_id IN ({placeholders}) AND e.hora_liberado IS NULL
+        """),
+        params,
+    ).fetchall()
+    muelle_map = {str(r.proveedor_id): r.muelle_numero for r in rows}
+    for item in items:
+        item["muelle_actual"] = muelle_map.get(str(item["id"]))
+    return items
+
+
 def _attach_ordenes(db, items: list[dict]) -> list[dict]:
     if not items:
         return items
@@ -154,6 +174,7 @@ def listar(
 
     items = [dict(r._mapping) for r in rows]
     _attach_ordenes(db, items)
+    _attach_muelle(db, items)
     return {"total": total, "items": items}
 
 
@@ -200,6 +221,7 @@ def obtener(
         raise HTTPException(404, "Registro no encontrado")
     item = dict(row._mapping)
     _attach_ordenes(db, [item])
+    _attach_muelle(db, [item])
     return item
 
 
