@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<title>Manual de Usuario - Coordinador</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',sans-serif;color:#1e293b;background:#fff;font-size:14px;line-height:1.6}
+  .page{max-width:800px;margin:0 auto;padding:40px 48px}
+
+  .portada{background:linear-gradient(160deg,#0f2440,#1e4570);min-height:280px;border-radius:20px;padding:48px;margin-bottom:40px;color:#fff}
+  .portada-tag{background:rgba(6,182,212,0.2);border:1px solid #67e8f9;color:#67e8f9;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:5px 12px;border-radius:20px;display:inline-block;margin-bottom:20px}
+  .portada h1{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;margin-bottom:8px}
+  .portada p{color:rgba(255,255,255,0.7);font-size:15px}
+  .portada .meta{margin-top:32px;display:flex;gap:32px}
+  .portada .meta-item span{display:block;font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px}
+  .portada .meta-item strong{font-size:13px;color:#fff}
+
+  h2{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#0f2440;margin:36px 0 16px;padding-bottom:8px;border-bottom:2px solid #e2e8f0}
+  h3{font-size:15px;font-weight:700;color:#0e7490;margin:20px 0 10px}
+  p{margin-bottom:10px;color:#475569}
+
+  .rol-card{border-radius:12px;padding:20px;border:1px solid;background:#ecfeff;border-color:#a5f3fc;margin:16px 0}
+  .rol-card h4{font-size:14px;font-weight:700;margin-bottom:8px;color:#0e7490}
+  .rol-card ul{list-style:none;padding:0}
+  .rol-card ul li{font-size:13px;color:#475569;padding:3px 0;padding-left:16px;position:relative}
+  .rol-card ul li::before{content:'✓';position:absolute;left:0;font-weight:700;color:#0e7490}
+  .rol-card.no ul li::before{content:'✕';color:#b91c1c}
+
+  .pasos{margin:16px 0}
+  .paso{display:flex;gap:16px;margin-bottom:16px;align-items:flex-start}
+  .paso-num{background:#0f2440;color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0;margin-top:2px}
+  .paso-body h4{font-size:14px;font-weight:700;color:#0f2440;margin-bottom:4px}
+  .paso-body p{font-size:13px;color:#64748b;margin:0}
+
+  .flujo{display:flex;gap:0;margin:20px 0;align-items:stretch;flex-wrap:wrap}
+  .flujo-paso{flex:1;min-width:110px;text-align:center;padding:16px 10px;position:relative}
+  .flujo-paso:not(:last-child)::after{content:'→';position:absolute;right:-10px;top:50%;transform:translateY(-50%);font-size:18px;color:#94a3b8;z-index:1}
+  .flujo-paso .fp-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;margin:0 auto 8px}
+  .flujo-paso h4{font-size:11px;font-weight:700;margin-bottom:4px}
+  .flujo-paso p{font-size:10px;color:#64748b;margin:0}
+  .fp-cian{background:#cffafe;color:#0e7490}
+  .fp-verde{background:#d1fae5;color:#065f46}
+  .fp-amarillo{background:#fef3c7;color:#92400e}
+  .fp-morado{background:#ede9fe;color:#6d28d9}
+
+  .tip{background:#ecfeff;border:1px solid #67e8f9;border-radius:10px;padding:12px 16px;margin:12px 0;font-size:13px;color:#0e7490}
+  .tip::before{content:'💡 '}
+  .warn{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 16px;margin:12px 0;font-size:13px;color:#92400e}
+  .warn::before{content:'⚠️ '}
+  .danger{background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:12px 16px;margin:12px 0;font-size:13px;color:#991b1b}
+  .danger::before{content:'⛔ '}
+
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:#0f2440;color:#fff;padding:10px 12px;text-align:left;font-size:12px;font-weight:600}
+  td{padding:9px 12px;border-bottom:1px solid #e2e8f0;color:#475569}
+  tr:nth-child(even) td{background:#f8fafc}
+  td code, p code{background:#f1f5f9;padding:1px 6px;border-radius:4px;font-size:12px;color:#0e7490}
+
+  .badge{display:inline-block;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700}
+  .badge-cian{background:#cffafe;color:#0e7490}
+  .badge-yellow{background:#fef3c7;color:#92400e}
+  .badge-green{background:#d1fae5;color:#065f46}
+  .badge-red{background:#fee2e2;color:#991b1b}
+
+  .kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}
+  .kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px}
+  .kpi span{display:block;font-size:11px;color:#64748b}
+  .kpi strong{font-size:13px;color:#0f2440}
+
+  @media print{ .page{padding:20px 24px} h2{page-break-before:auto} }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="portada">
+    <div class="portada-tag">Manual de Usuario</div>
+    <h1>📋 Coordinador</h1>
+    <p>Guía de uso individual — CEDI R10</p>
+    <div class="meta">
+      <div class="meta-item"><span>Versión</span><strong>1.0</strong></div>
+      <div class="meta-item"><span>Fecha</span><strong>Julio 2026</strong></div>
+      <div class="meta-item"><span>Clasificación</span><strong>Interno</strong></div>
+    </div>
+  </div>
+
+  <h2>1. Cómo ingresar al sistema</h2>
+  <div class="pasos">
+    <div class="paso"><div class="paso-num">1</div><div class="paso-body"><h4>Abrir la aplicación</h4><p>Escanea el código QR con la cámara de tu celular/computador o escribe la dirección en el navegador.</p></div></div>
+    <div class="paso"><div class="paso-num">2</div><div class="paso-body"><h4>Iniciar sesión</h4><p>Ingresa tu correo electrónico y contraseña personal asignados por el administrador.</p></div></div>
+    <div class="paso"><div class="paso-num">3</div><div class="paso-body"><h4>Acceder a tus módulos</h4><p>El sistema te muestra Inicio (dashboard), Flota, Proveedores, Citas y Muelles.</p></div></div>
+  </div>
+  <div class="tip">Si olvidaste tu contraseña, comunícate con el administrador del sistema.</div>
+
+  <h2>2. Tu rol</h2>
+  <div class="rol-card">
+    <h4>📋 Coordinador</h4>
+    <ul>
+      <li>Sube el archivo diario de citas de logística (Excel de Basis)</li>
+      <li>Confirma el ingreso de proveedores cuya orden ya fue validada por el sistema</li>
+      <li>Asigna muelle a los vehículos confirmados</li>
+      <li>Consulta el tablero de muelles y las alertas de citas por vencer/vencidas</li>
+      <li>Ve el dashboard ejecutivo (citas, muelles, KPIs del día)</li>
+    </ul>
+  </div>
+  <div class="rol-card no">
+    <h4 style="color:#991b1b">No hace parte de tu rol</h4>
+    <ul>
+      <li>Liberar un muelle ("Salida del muelle") — eso lo hace el guarda de bodega, cuando el vehículo termina de descargar</li>
+      <li>Crear vehículos de Proveedores manualmente ni exportar reportes</li>
+      <li>Cambiar la tolerancia de horario ni administrar el catálogo de muelles — eso lo hace el administrador</li>
+    </ul>
+  </div>
+
+  <h2>3. Tu día en 3 momentos</h2>
+  <div class="flujo">
+    <div class="flujo-paso"><div class="fp-icon fp-cian">🌙</div><h4 style="color:#0e7490">Madrugada</h4><p>Subes el archivo de citas del día</p></div>
+    <div class="flujo-paso"><div class="fp-icon fp-verde">🚚</div><h4 style="color:#065f46">Durante el día</h4><p>El conductor se autorregistra por QR; tú confirmas y asignas muelle</p></div>
+    <div class="flujo-paso"><div class="fp-icon fp-amarillo">🔔</div><h4 style="color:#92400e">Todo el día</h4><p>Vigilas las alertas del tablero de Muelles</p></div>
+    <div class="flujo-paso"><div class="fp-icon fp-morado">📊</div><h4 style="color:#6d28d9">Cierre</h4><p>Revisas el dashboard para ver cómo estuvo el día</p></div>
+  </div>
+
+  <h2>4. Cargar el archivo de citas del día</h2>
+  <p>Es lo primero que haces en tu turno. El archivo que te envía logística (formato Basis) reemplaza por completo la programación de las fechas que traiga — súbelo tal como llega, sin editar columnas.</p>
+  <div class="pasos">
+    <div class="paso"><div class="paso-num">1</div><div class="paso-body"><h4>Ir a Citas (dentro de Carga Masiva)</h4><p>En el menú inferior toca <strong>Citas</strong>, o desde Inicio → Módulos → Carga Masiva → pestaña "Citas de Proveedores".</p></div></div>
+    <div class="paso"><div class="paso-num">2</div><div class="paso-body"><h4>Sube el archivo Excel</h4><p>Toca la zona de carga y selecciona el archivo (.xlsx). No hace falta descargar plantilla ni renombrar columnas — el sistema reconoce los encabezados reales de Basis (Doc.compr., Proveedor, Misma FeEn, inicio cita, fin cita, etc).</p></div></div>
+    <div class="paso"><div class="paso-num">3</div><div class="paso-body"><h4>Revisa la vista previa</h4><p>El sistema te muestra cuántas filas leyó antes de importar.</p></div></div>
+    <div class="paso"><div class="paso-num">4</div><div class="paso-body"><h4>Toca "Importar"</h4><p>Verás el resultado: cuántas citas se guardaron y cuántas filas tuvieron error (con el motivo exacto de cada una).</p></div></div>
+  </div>
+  <div class="warn">Si vuelves a subir un archivo el mismo día, <strong>reemplaza por completo</strong> las citas de las fechas que traiga — no se duplican ni se suman a las anteriores.</div>
+  <div class="tip">Cada orden de compra debe empezar en <code>4</code> y tener exactamente 10 dígitos (ej. <code>4001234567</code>). Las filas que no cumplan el formato, o con hora vacía/inválida, quedan reportadas como error y no se importan — el resto del archivo sí se guarda.</div>
+
+  <h2>5. Cómo se valida el ingreso (para que sepas explicarlo)</h2>
+  <p>El conductor <strong>no habla contigo primero</strong> — llega a portería, escanea el mismo QR de siempre y llena su propio formulario en el celular. Ahí mismo, al escribir el número de orden, el sistema lo valida contra el archivo que subiste y le muestra la empresa y la franja horaria, o el motivo si lo rechaza.</p>
+  <table>
+    <tr><th>El sistema rechaza si...</th><th>Mensaje que ve el conductor</th></tr>
+    <tr><td>La orden no tiene el formato correcto</td><td>"El número de orden debe empezar en 4 y tener 10 dígitos"</td></tr>
+    <tr><td>La orden no está en el archivo del día</td><td>"Orden no encontrada. Verifica que logística haya cargado el archivo de hoy."</td></tr>
+    <tr><td>La orden es de otra fecha</td><td>"Esta orden no es de hoy"</td></tr>
+    <tr><td>Ya pasó la franja horaria (+ tolerancia)</td><td>"Fuera del horario permitido"</td></tr>
+    <tr><td>La orden ya se usó para otro ingreso</td><td>"Esta orden ya fue utilizada"</td></tr>
+    <tr><td>La orden fue cancelada</td><td>"Esta orden fue cancelada"</td></tr>
+  </table>
+  <div class="tip">Si un conductor dice "no me deja entrar", casi siempre es una de estas seis razones. Puedes buscar su orden manualmente en Proveedores para confirmar el motivo exacto — es la misma validación, como respaldo.</div>
+
+  <h2>6. Confirmar ingreso y asignar muelle</h2>
+  <p>Cuando la orden del conductor pasó la validación, su registro entra a tu lista de Proveedores con el badge <span class="badge badge-yellow">🔔 Llegó — Por confirmar</span>.</p>
+  <div class="pasos">
+    <div class="paso"><div class="paso-num">1</div><div class="paso-body"><h4>Revisa la documentación física</h4><p>Verifica al conductor y sus papeles antes de confirmar.</p></div></div>
+    <div class="paso"><div class="paso-num">2</div><div class="paso-body"><h4>Toca "Confirmar"</h4><p>El badge cambia a <span class="badge badge-green">Ingreso autorizado</span> y la orden queda marcada como usada.</p></div></div>
+    <div class="paso"><div class="paso-num">3</div><div class="paso-body"><h4>Toca "Muelle"</h4><p>Se abre la lista de muelles libres en ese momento. Elige uno.</p></div></div>
+    <div class="paso"><div class="paso-num">4</div><div class="paso-body"><h4>Listo</h4><p>El vehículo aparece ocupando ese muelle en el tablero. El guarda de bodega lo libera cuando termine de descargar.</p></div></div>
+  </div>
+  <div class="danger">Si intentas asignar un muelle que ya está ocupado, el sistema lo bloquea y te dice qué vehículo lo está usando — elige otro de la lista.</div>
+
+  <h2>7. Tablero de Muelles</h2>
+  <p>Desde el menú, entra a <strong>Muelles</strong> para ver el estado en vivo (se actualiza solo cada 20 segundos):</p>
+  <table>
+    <tr><th>Verás</th><th>Significa</th></tr>
+    <tr><td><span class="badge badge-green">Libre</span></td><td>Disponible para asignar</td></tr>
+    <tr><td><span class="badge badge-red">Ocupado</span></td><td>Tiene un vehículo descargando — muestra placa, empresa y tiempo</td></tr>
+    <tr><td>Borde naranja + "⏱"</td><td>Lleva más de 90 minutos ocupado — vale la pena revisar qué está pasando</td></tr>
+  </table>
+  <p>Arriba del tablero también ves, si aplica:</p>
+  <ul style="margin-left:18px;margin-bottom:10px;color:#475569;font-size:13px">
+    <li style="margin-bottom:4px">⚠️ Aviso si aún no has cargado el archivo de hoy</li>
+    <li style="margin-bottom:4px">🔴 Lista de citas <strong>vencidas</strong> sin usar (nadie llegó dentro de su franja)</li>
+    <li>🟡 Lista de citas <strong>por vencer</strong> (faltan 10 minutos o menos)</li>
+  </ul>
+
+  <h2>8. Dashboard (Inicio)</h2>
+  <p>En la pestaña Dashboard de Inicio tienes un resumen del día:</p>
+  <div class="kpi-grid">
+    <div class="kpi"><span>Citas hoy</span><strong>Total programadas</strong></div>
+    <div class="kpi"><span>Usadas</span><strong>Ingresos ya registrados</strong></div>
+    <div class="kpi"><span>Pendientes</span><strong>Aún no llegan, dentro de horario</strong></div>
+    <div class="kpi"><span>Vencidas</span><strong>Nadie llegó a tiempo</strong></div>
+    <div class="kpi"><span>Rechazadas hoy</span><strong>Intentos de ingreso bloqueados</strong></div>
+    <div class="kpi"><span>Muelles ocupados/libres</span><strong>Estado actual</strong></div>
+    <div class="kpi"><span>Tiempo prom. muelle</span><strong>De hoy</strong></div>
+    <div class="kpi"><span>Esperando muelle</span><strong>Confirmados sin asignar</strong></div>
+  </div>
+
+  <h2>9. Consejos importantes</h2>
+  <table>
+    <tr><th>Situación</th><th>Qué hacer</th></tr>
+    <tr><td>Olvidé subir el archivo de la madrugada</td><td>Súbelo en cuanto lo notes — mientras tanto, ningún conductor con orden de hoy podrá autorregistrarse. El tablero de Muelles te avisa si falta.</td></tr>
+    <tr><td>Un conductor dice que su orden no sirve</td><td>Búscala manualmente en Proveedores para ver el motivo exacto (ver tabla de la sección 5).</td></tr>
+    <tr><td>No aparecen muelles para asignar</td><td>Pídele al administrador que los agregue en Muelles — el catálogo empieza vacío y él lo administra.</td></tr>
+    <tr><td>Necesito cambiar la tolerancia de horario</td><td>Solo el administrador puede hacerlo, desde la pestaña Citas de Carga Masiva.</td></tr>
+    <tr><td>Un muelle lleva mucho tiempo ocupado</td><td>Se resalta en naranja en el tablero — ve a verificar con el guarda de bodega qué está pasando.</td></tr>
+    <tr><td>No puedo iniciar sesión</td><td>Verifica el correo y contraseña. Si persiste, contacta al administrador.</td></tr>
+  </table>
+
+  <div style="margin-top:48px;text-align:center;color:#94a3b8;font-size:11px;border-top:1px solid #e2e8f0;padding-top:20px">
+    Manual de Usuario · Coordinador · CEDI R10 · Versión 1.0 · Julio 2026 · Confidencial — Solo para uso interno
+  </div>
+
+</div>
+</body>
+</html>
