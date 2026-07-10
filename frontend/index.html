@@ -3266,10 +3266,13 @@ function MuellesPage({user}){
   const [saving,setSaving]     = useState(false);
   const esAdmin = user?.rol==='admin';
   const puedeLiberar = user?.rol==='guarda_bodega'||esAdmin;
+  const puedeVerCitas = user?.rol==='coordinador'||esAdmin;
+  const [alertasCitas,setAlertasCitas] = useState(null);
 
   const load = useCallback(()=>{
     api.get('/muelles').then(setMuelles).catch(()=>setAlert({type:'err',msg:'Error cargando muelles'})).finally(()=>setLoading(false));
-  },[]);
+    if(puedeVerCitas) api.get('/citas/alertas').then(setAlertasCitas).catch(()=>{});
+  },[puedeVerCitas]);
   useEffect(()=>{ load(); const t=setInterval(load,20000); return ()=>clearInterval(t); },[load]);
 
   const agregarMuelle = async()=>{
@@ -3295,9 +3298,8 @@ function MuellesPage({user}){
     }finally{ setSaving(false); }
   };
 
-  const tiempoOcupado = (horaAsignado)=>{
-    if(!horaAsignado) return '';
-    const mins = Math.max(0, Math.round((Date.now()-new Date(horaAsignado).getTime())/60000));
+  const tiempoOcupado = (mins)=>{
+    if(mins==null) return '';
     if(mins<60) return mins+' min';
     return Math.floor(mins/60)+'h '+(mins%60)+'min';
   };
@@ -3305,6 +3307,21 @@ function MuellesPage({user}){
   return h('div',{className:'scroll-body'},
     h('div',{className:'pad'},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      puedeVerCitas&&alertasCitas&&!alertasCitas.archivo_hoy&&h('div',{style:{background:'#fef3c7',border:'1px solid #fcd34d',borderRadius:10,padding:'10px 12px',marginBottom:10,display:'flex',alignItems:'center',gap:8,fontSize:12,fontWeight:600,color:'#92400e'}},
+        h(Ico,{n:'alert',s:14}),'Aún no se ha cargado el archivo de citas de hoy.'
+      ),
+      puedeVerCitas&&alertasCitas&&alertasCitas.vencidas.length>0&&h('div',{style:{background:'#fee2e2',border:'1px solid #fca5a5',borderRadius:10,padding:'10px 12px',marginBottom:10}},
+        h('p',{style:{fontSize:12,fontWeight:700,color:'#991b1b',margin:'0 0 6px',display:'flex',alignItems:'center',gap:6}},h(Ico,{n:'alert',s:13}),`Citas vencidas sin usar (${alertasCitas.vencidas.length})`),
+        alertasCitas.vencidas.map(c=>h('div',{key:c.numero_orden_compra,style:{fontSize:11,color:'#7f1d1d',padding:'2px 0'}},
+          `${c.numero_orden_compra} · ${c.proveedor_nombre||'—'} · ${c.hora_cita_inicio}–${c.hora_cita_fin}`
+        ))
+      ),
+      puedeVerCitas&&alertasCitas&&alertasCitas.por_vencer.length>0&&h('div',{style:{background:'#fef3c7',border:'1px solid #fcd34d',borderRadius:10,padding:'10px 12px',marginBottom:10}},
+        h('p',{style:{fontSize:12,fontWeight:700,color:'#92400e',margin:'0 0 6px',display:'flex',alignItems:'center',gap:6}},h(Ico,{n:'clock',s:13}),`Por vencer en ≤10 min (${alertasCitas.por_vencer.length})`),
+        alertasCitas.por_vencer.map(c=>h('div',{key:c.numero_orden_compra,style:{fontSize:11,color:'#78350f',padding:'2px 0'}},
+          `${c.numero_orden_compra} · ${c.proveedor_nombre||'—'} · ${c.hora_cita_inicio}–${c.hora_cita_fin}`
+        ))
+      ),
       h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}},
         h('p',{className:'sec-ttl',style:{margin:0}},'Muelles'),
         esAdmin&&h('button',{className:'btn-outline',onClick:()=>setAddOpen(true)},h(Ico,{n:'plus',s:14}),' Agregar muelle')
@@ -3313,7 +3330,7 @@ function MuellesPage({user}){
       muelles.length===0?h('div',{className:'empty'},h(Ico,{n:'package',s:44}),h('p',null,esAdmin?'Aún no hay muelles configurados. Agrega el primero.':'Aún no hay muelles configurados.')):
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10}},
         muelles.map(m=>h('div',{key:m.id,style:{
-          border:'1.5px solid '+(m.estado==='ocupado'?'#fca5a5':'#86efac'),
+          border:'1.5px solid '+(m.alerta_tiempo?'#f97316':m.estado==='ocupado'?'#fca5a5':'#86efac'),
           background:m.estado==='ocupado'?'#fef2f2':'#f0fdf4',
           borderRadius:10,padding:'12px 14px'
         }},
@@ -3322,7 +3339,7 @@ function MuellesPage({user}){
           m.estado==='ocupado'&&h('div',{style:{fontSize:11,color:'var(--slate)',lineHeight:1.5}},
             h('div',null,h('strong',null,m.placa_vehiculo)),
             m.empresas&&h('div',null,m.empresas),
-            h('div',null,'Hace '+tiempoOcupado(m.hora_asignado))
+            h('div',{style:m.alerta_tiempo?{color:'#c2410c',fontWeight:700}:null},(m.alerta_tiempo?'⏱ ':'Hace ')+tiempoOcupado(m.minutos_ocupado))
           ),
           m.estado==='ocupado'&&puedeLiberar&&h('button',{
             onClick:()=>setConfirmLiberar(m),disabled:saving,

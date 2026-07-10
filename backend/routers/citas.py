@@ -4,6 +4,7 @@ import json
 import re
 import uuid
 from collections import Counter
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -14,6 +15,9 @@ from database import get_db
 from routers.auth import require_permiso
 
 router = APIRouter()
+
+_BOG = timezone(timedelta(hours=-5))
+ALERTA_VENCE_MIN = 10  # aviso cuando falten <=10 min para el fin de la franja (+tolerancia)
 
 _ORDEN_RE = re.compile(r"^4\d{9}$")
 _HORA_RE = re.compile(r"^(\d{1,2}):(\d{2})$")
@@ -168,3 +172,47 @@ def listar(
         text(f"SELECT * FROM citas_programadas {where} ORDER BY hora_cita_inicio ASC"), params
     ).fetchall()
     return [dict(r._mapping) for r in rows]
+
+
+@router.get("/alertas")
+def alertas(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("citas", "read")),
+):
+    """Calculado en vivo en cada consulta -- nunca se persiste 'vencida' en
+    citas_programadas.estado, así que esto nunca queda desincronizado de la
+    hora real (mismo criterio que "por vencer" en el tablero de muelles)."""
+    ahora_dt = datetime.now(_BOG)
+    hoy = ahora_dt.date()
+    ahora = ahora_dt.time()
+
+    archivo = db.execute(text("""
+        SELECT created_at FROM archivos_citas WHERE fecha = :hoy ORDER BY created_at DESC LIMIT 1
+    """), {"hoy": hoy.isoformat()}).fetchone()
+
+    rows = db.execute(text("""
+        SELECT numero_orden_compra, proveedor_nombre, hora_cita_inicio, hora_cita_fin, tolerancia_min
+        FROM citas_programadas WHERE fecha = :hoy AND estado = 'pendiente'
+        ORDER BY hora_cita_fin ASC
+    """), {"hoy": hoy.isoformat()}).fetchall()
+
+    por_vencer, vencidas = [], []
+    for r in rows:
+        fin_tolerado = (datetime.combine(hoy, r.hora_cita_fin) + timedelta(minutes=r.tolerancia_min or 0)).time()
+        item = {
+            "numero_orden_compra": r.numero_orden_compra,
+            "proveedor_nombre": r.proveedor_nombre,
+            "hora_cita_inicio": r.hora_cita_inicio.strftime("%H:%M"),
+            "hora_cita_fin": r.hora_cita_fin.strftime("%H:%M"),
+        }
+        if ahora > fin_tolerado:
+            vencidas.append(item)
+        elif (datetime.combine(hoy, fin_tolerado) - ahora_dt.replace(tzinfo=None)).total_seconds() <= ALERTA_VENCE_MIN * 60:
+            por_vencer.append(item)
+
+    return {
+        "archivo_hoy": archivo is not None,
+        "hora_carga": archivo.created_at.isoformat() if archivo else None,
+        "por_vencer": por_vencer,
+        "vencidas": vencidas,
+    }

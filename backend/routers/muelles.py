@@ -1,5 +1,6 @@
 # backend/routers/muelles.py
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -10,6 +11,9 @@ from database import get_db
 from routers.auth import require_permiso
 
 router = APIRouter()
+
+_BOG = timezone(timedelta(hours=-5))
+ALERTA_MUELLE_MIN = 90  # confirmado con el usuario -- ajustar aquí si hace falta
 
 
 @router.get("")
@@ -30,10 +34,15 @@ def tablero(
         ORDER BY m.numero
     """)).fetchall()
 
+    ahora = datetime.now(_BOG)
     items = []
     for r in rows:
         d = dict(r._mapping)
         d["estado"] = "ocupado" if d["evento_id"] else "libre"
+        if d["evento_id"]:
+            minutos = int((ahora - d["hora_asignado"]).total_seconds() // 60)
+            d["minutos_ocupado"] = minutos
+            d["alerta_tiempo"] = minutos >= ALERTA_MUELLE_MIN
         items.append(d)
     return items
 
