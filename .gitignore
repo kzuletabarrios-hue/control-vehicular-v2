@@ -18,10 +18,6 @@ backend/.env
 # Datos de migración
 csv_exports/
 
-# Archivos reales de proveedores/citas (datos de negocio, repo público)
-docs/Hoja de cálculo en Basis*.xlsx
-docs/~$*.xlsx
-
 # OS
 .DS_Store
 Thumbs.db

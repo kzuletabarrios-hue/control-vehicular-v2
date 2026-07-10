@@ -899,8 +899,7 @@ function HomePage({setPage,user}){
     {id:'sust',  label:'Sustancias',        desc:'Control de sustancias',  cls:'m-sust', icon:'alert',    roles:['admin','supervisor','operador','guarda_peatonal'],cnt:null},
     {id:'herr',  label:'Herramientas',     desc:'Control de herramientas',cls:'m-herr', icon:'key',      roles:['admin','supervisor','operador','guarda_peatonal'],cnt:null},
     {id:'bd',    label:'Base de Datos',    desc:'Catálogos maestros',     cls:'m-bd',   icon:'database', roles:['admin','supervisor'],cnt:null},
-    {id:'carga', label:'Carga Masiva',     desc:'Importar desde Excel',   cls:'m-carga',icon:'upload',   roles:['admin','coordinador'],cnt:null},
-    {id:'muelles',label:'Muelles',        desc:'Asignación y ocupación', cls:'m-muelles',icon:'package', roles:['admin','coordinador','guarda_bodega'],cnt:null},
+    {id:'carga', label:'Carga Masiva',     desc:'Importar desde Excel',   cls:'m-carga',icon:'upload',   roles:['admin'],cnt:null},
     {id:'reg',       label:'Reportes',    desc:'Historial y Excel',      cls:'m-reg',  icon:'fileText', roles:['admin','supervisor','consulta','operador'],cnt:null},
     {id:'ronda',     label:'Ronda',       desc:'Marcación de puntos',    cls:'m-ronda',icon:'mapPin',   roles:['admin','supervisor','recorredor_externo'],cnt:null},
     {id:'novedades', label:'Novedades',   desc:'Registro de incidencias',cls:'m-nov',  icon:'bell',     roles:['admin','supervisor','recorredor_externo','operador'],cnt:null},
@@ -916,10 +915,7 @@ function HomePage({setPage,user}){
   const showFlotaStats   = isAdmin||isGuardaBodega||isGuardaVehicular||isCoordinador;
   const showAccesoStats  = isAdmin||isGuardaPeatonal;
   const showProvStats    = isAdmin||isGuardaVehicular||isGuardaBodega||isCoordinador;
-  const showCitasStats   = isAdmin||isCoordinador;
-  const showMuellesStats = isAdmin||isCoordinador||isGuardaBodega;
   const showDashboard    = !isRecorredor;
-  const fmtMin = (m)=>m==null?'—':m<60?m+' min':Math.floor(m/60)+'h '+(m%60)+'m';
 
   const tabBtn = (id,label,icon)=>h('button',{
     onClick:()=>setTab(id),
@@ -978,20 +974,6 @@ function HomePage({setPage,user}){
         showVisitantesHoy&&h(DetalleLista,{items:resumen.visitantes.hoy_detalle||[],emptyMsg:'Sin registros de visitantes hoy',render:v=>[
           h('strong',{key:'p'},v.nombre),' · ',v.empresa||'—',' · Ingresó: ',v.hora_ingreso?v.hora_ingreso.slice(0,5):'—',v.activo?' · Activo':' · Salió'
         ]})
-      ),
-      resumen&&(showCitasStats||showMuellesStats)&&h('div',{className:'dash-section'},
-        h('p',{className:'sec-ttl'},h(Ico,{n:'package',s:12}),' Citas y muelles'),
-        h('div',{className:'sgrid'},
-          showCitasStats&&h(StatCard,{label:'Citas hoy',       value:resumen.citas.total,      color:'#1e4570',icon:'clipboard'}),
-          showCitasStats&&h(StatCard,{label:'Usadas',          value:resumen.citas.usadas,     color:'#15803d',icon:'checkCircle'}),
-          showCitasStats&&h(StatCard,{label:'Pendientes',      value:resumen.citas.pendientes, color:'#0891b2',icon:'clock'}),
-          showCitasStats&&h(StatCard,{label:'Vencidas',        value:resumen.citas.vencidas,   color:'#b91c1c',icon:'alert'}),
-          showCitasStats&&h(StatCard,{label:'Rechazadas hoy',  value:resumen.citas.rechazadas, color:'#92400e',icon:'alert'}),
-          showMuellesStats&&h(StatCard,{label:'Muelles ocupados', value:resumen.muelles.ocupados, color:'#b91c1c',icon:'package'}),
-          showMuellesStats&&h(StatCard,{label:'Muelles libres',   value:resumen.muelles.libres,   color:'#15803d',icon:'package'}),
-          showMuellesStats&&h(StatCard,{label:'Esperando muelle', value:resumen.muelles.esperando,color:'#d97706',icon:'clock'}),
-          showMuellesStats&&h(StatCard,{label:'Tiempo prom. muelle', value:fmtMin(resumen.muelles.tiempo_prom_min), color:'#0e7490',icon:'clock'})
-        )
       ),
       (()=>{
         const showFlotaPend  = !isGuardaPeatonal;
@@ -1589,47 +1571,39 @@ function FlotaPage({user,online,addOffline}){
 }
 
 /* ── CARGA MASIVA ── */
-function CargaMasivaPage({user}){
+function CargaMasivaPage(){
   const TABS = [
     {
-      id:'conductores', label:'Conductores', roles:['admin'],
+      id:'conductores', label:'Conductores',
       cols:['codigo','conductor','n_cedula','celular','tipo'],
       headers:['Código','Nombre','Cédula','Celular','Tipo (Propio/Tercero)'],
       endpoint:'/carga/conductores',
       required:['conductor'],
     },
     {
-      id:'vehiculos', label:'Vehículos', roles:['admin'],
+      id:'vehiculos', label:'Vehículos',
       cols:['placa','marca','modelo','color','anio','tipo','capacidad'],
       headers:['Placa','Marca','Modelo','Color','Año','Tipo','Capacidad'],
       endpoint:'/carga/vehiculos',
       required:['placa'],
     },
     {
-      id:'empleados', label:'Empleados', roles:['admin'],
+      id:'empleados', label:'Empleados',
       cols:['cedula','nombre','contratista','estado'],
       headers:['Cédula','Nombre','Contratista','Estado (ACTIVO/INACTIVO)'],
       endpoint:'/carga/empleados',
       required:['cedula','nombre'],
     },
     {
-      id:'tiendas', label:'Tiendas', roles:['admin'],
+      id:'tiendas', label:'Tiendas',
       cols:['codigo','nombre','direccion'],
       headers:['COD','Name','Dirección'],
       endpoint:'/carga/tiendas',
       required:['nombre'],
     },
-    {
-      id:'citas', label:'Citas de Proveedores', roles:['admin','coordinador'],
-      cols:['numero_orden_compra','proveedor_codigo','proveedor_nombre','flujo','descripcion_carga','fecha','fecha_documento_compra','cantidad_pallets','hora_cita_inicio','hora_cita_fin'],
-      headers:['Doc.compr.','Proveedor','Número de cuenta del proveedor','Flujo','Descripción','Misma FeEn','Fecha doc.','EKKO-YYPAL','inicio cita','fin cita'],
-      endpoint:'/citas/cargar',
-      required:['numero_orden_compra'],
-      nota:'Reemplaza por completo las citas de cada fecha que traiga el archivo. Sube el Excel tal como llega de logística — no hace falta editarlo.',
-    },
-  ].filter(t=>t.roles.includes(user?.rol));
+  ];
 
-  const [tab, setTab]       = useState(TABS[0]?.id);
+  const [tab, setTab]       = useState('conductores');
   const [rows, setRows]     = useState([]);
   const [fileName, setFile] = useState('');
   const [loading, setLoad]  = useState(false);
@@ -1637,31 +1611,8 @@ function CargaMasivaPage({user}){
   const [err, setErr]       = useState('');
 
   const tabDef = TABS.find(t=>t.id===tab);
-  const esAdmin = user?.rol==='admin';
 
   useEffect(()=>{ setRows([]); setFile(''); setResult(null); setErr(''); }, [tab]);
-
-  /* ── Config: tolerancia por defecto para citas nuevas (solo admin) ── */
-  const [tolerancia,setTolerancia]   = useState(null);
-  const [tolEditando,setTolEditando] = useState('');
-  const [tolSaving,setTolSaving]     = useState(false);
-  useEffect(()=>{
-    if(tab==='citas'&&esAdmin){
-      api.get('/citas/config').then(r=>{setTolerancia(r.tolerancia_min_default);setTolEditando(String(r.tolerancia_min_default));}).catch(()=>{});
-    }
-  },[tab,esAdmin]);
-  const guardarTolerancia = async()=>{
-    const n = parseInt(tolEditando,10);
-    if(isNaN(n)||n<0||n>240) return setErr('La tolerancia debe ser un número entre 0 y 240 minutos');
-    setTolSaving(true);
-    try{
-      const r = await api.put('/citas/config',{tolerancia_min_default:n});
-      setTolerancia(r.tolerancia_min_default);setErr('');
-    }catch(e){
-      let msg=e.message; try{msg=JSON.parse(msg).detail||msg;}catch{}
-      setErr(msg);
-    }finally{ setTolSaving(false); }
-  };
 
   const downloadTemplate = () => {
     if(!window.XLSX){ setErr('Librería Excel no cargada aún, intenta de nuevo'); return; }
@@ -1680,7 +1631,7 @@ function CargaMasivaPage({user}){
     const reader = new FileReader();
     reader.onload = ev => {
       try {
-        const wb = window.XLSX.read(ev.target.result, {type:'array', cellDates:true});
+        const wb = window.XLSX.read(ev.target.result, {type:'array'});
         const ws = wb.Sheets[wb.SheetNames[0]];
         const raw = window.XLSX.utils.sheet_to_json(ws, {defval:''});
         const normalized = raw.map(row=>{
@@ -1693,7 +1644,6 @@ function CargaMasivaPage({user}){
                 val = row[k]; break;
               }
             }
-            if(val instanceof Date) val = val.toISOString().slice(0,10);
             r[col] = val;
           });
           return r;
@@ -1710,7 +1660,7 @@ function CargaMasivaPage({user}){
     if(!rows.length) return setErr('No hay datos para importar');
     setLoad(true); setErr(''); setResult(null);
     try {
-      const res = await api.post(tabDef.endpoint, {filas:rows, nombre_archivo:fileName});
+      const res = await api.post(tabDef.endpoint, {filas:rows});
       setResult(res);
       setRows([]); setFile('');
     } catch(ex){
@@ -1725,16 +1675,6 @@ function CargaMasivaPage({user}){
         TABS.map(t=>h('button',{key:t.id,className:'tab-btn'+(tab===t.id?' act':''),onClick:()=>setTab(t.id)},t.label))
       ),
 
-      tab==='citas'&&esAdmin&&tolerancia!=null&&h('div',{className:'fcard',style:{marginBottom:12,border:'1.5px solid var(--navy)'}},
-        h('p',{className:'sec-ttl',style:{marginBottom:8}},'Tolerancia por defecto para citas nuevas'),
-        h('p',{style:{fontSize:11,color:'var(--slate)',marginBottom:8}},'Minutos que se aceptan antes/después de la franja de una cita. Se aplica a las citas que se importen de ahora en adelante — no cambia las ya cargadas.'),
-        h('div',{style:{display:'flex',gap:8,alignItems:'center'}},
-          h('input',{type:'number',min:0,max:240,value:tolEditando,onChange:e=>setTolEditando(e.target.value),style:{width:90}}),
-          h('span',{style:{fontSize:12,color:'var(--slate)'}},'minutos'),
-          h('button',{className:'btn-primary',onClick:guardarTolerancia,disabled:tolSaving||String(tolerancia)===tolEditando},tolSaving?'Guardando...':'Guardar')
-        )
-      ),
-
       h('div',{className:'fcard',style:{marginBottom:12}},
         h('p',{className:'sec-ttl',style:{marginBottom:8}},'1 · Descarga la plantilla'),
         h('button',{className:'btn-outline',onClick:downloadTemplate},
@@ -1742,8 +1682,7 @@ function CargaMasivaPage({user}){
         ),
         h('p',{style:{fontSize:10,color:'var(--slate)',marginTop:6}},
           `Columnas: ${tabDef.headers.join(' · ')}`
-        ),
-        tabDef.nota&&h('p',{style:{fontSize:11,color:'var(--amber)',marginTop:8,fontWeight:600}},tabDef.nota)
+        )
       ),
 
       h('div',{className:'fcard',style:{marginBottom:12}},
@@ -2624,29 +2563,6 @@ function ProveedoresPage({user,online,addOffline}){
     }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
   };
 
-  /* ── ASIGNAR MUELLE ── */
-  const puedeAsignarMuelle = user?.rol==='coordinador'||user?.rol==='admin';
-  const [asignarPara,setAsignarPara]   = useState(null); // registro de proveedores
-  const [muellesLibres,setMuellesLibres] = useState([]);
-  const [asignando,setAsignando]         = useState(false);
-  const abrirAsignar = async(r)=>{
-    setAsignarPara(r);
-    try{
-      const ms = await api.get('/muelles');
-      setMuellesLibres(ms.filter(m=>m.estado==='libre'));
-    }catch(e){ setAlert({type:'err',msg:'Error cargando muelles: '+e.message}); setAsignarPara(null); }
-  };
-  const asignarMuelle = async(muelleId)=>{
-    setAsignando(true);
-    try{
-      await api.post(`/muelles/${muelleId}/asignar`,{proveedor_id:asignarPara.id});
-      setAsignarPara(null);load();setAlert({type:'ok',msg:'Muelle asignado'});
-    }catch(e){
-      let msg=e.message; try{msg=JSON.parse(msg).detail||msg;}catch{}
-      setAlert({type:'err',msg});
-    }finally{ setAsignando(false); }
-  };
-
   /* ── QR de ingreso (kiosco de portería) ── */
   const [qrImgUrl,setQrImgUrl] = useState(null);
   const [qrError,setQrError]   = useState(null);
@@ -3177,7 +3093,7 @@ function ProveedoresPage({user,online,addOffline}){
             etapa&&h('span',{className:`pill ${etapa.cls}`,style:{marginBottom:3,display:'inline-block'}},etapa.txt),
             h('div',{className:'li-title'},r.nombre_conductor||r.placa_vehiculo||'Sin nombre'),
             h('div',{className:'li-sub'},
-              [r.cedula_conductor&&('CC '+r.cedula_conductor),r.placa_vehiculo&&h('strong',{key:'placa',style:{fontWeight:700,color:'var(--text,#0f172a)'}},r.placa_vehiculo),r.tipo_vehiculo,(r.muelle_actual&&('Muelle '+r.muelle_actual))||(r.muelle_descargue&&('Muelle '+r.muelle_descargue)),r.telefono_conductor&&('📞 '+r.telefono_conductor)]
+              [r.cedula_conductor&&('CC '+r.cedula_conductor),r.placa_vehiculo&&h('strong',{key:'placa',style:{fontWeight:700,color:'var(--text,#0f172a)'}},r.placa_vehiculo),r.tipo_vehiculo,r.muelle_descargue&&('Muelle '+r.muelle_descargue),r.telefono_conductor&&('📞 '+r.telefono_conductor)]
                 .filter(Boolean).reduce((acc,cur,i)=>i===0?[cur]:[...acc,' · ',cur],[])
             ),
             r.hora_ingreso&&h('div',{className:'li-sub'},'Ingreso '+r.hora_ingreso.slice(0,5)),
@@ -3199,11 +3115,6 @@ function ProveedoresPage({user,online,addOffline}){
                 onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(ahoraHora());setFechaSalidaP(today());},
                 style:{background:'#d97706',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
               },'Salida'),
-              puedeAsignarMuelle&&!pendConf&&!conSalida&&!r.muelle_actual&&h('button',{
-                title:'Asignar muelle',
-                onClick:(e)=>{e.stopPropagation();abrirAsignar(r);},
-                style:{background:'var(--navy)',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
-              },'Muelle'),
               (esBodega||esVehicular)&&(r.observaciones||r.foto_url)&&h('span',{style:{fontSize:10,background:'#fef3c7',color:'#92400e',borderRadius:4,padding:'2px 6px',fontWeight:600}},'Con observación'),
               !esBodega&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
             )
@@ -3280,133 +3191,7 @@ function ProveedoresPage({user,online,addOffline}){
           }},h(Ico,{n:'save',s:16}),' Guardar en catálogo')
         )
       )
-    ),
-    asignarPara&&h('div',{className:'overlay',onClick:()=>setAsignarPara(null)},
-      h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
-        h('div',{className:'sheet-header'},
-          h('span',{style:{fontWeight:700,fontSize:15}},'Asignar muelle'),
-          h('button',{className:'btn-icon',onClick:()=>setAsignarPara(null)},h(Ico,{n:'x',s:16}))
-        ),
-        h('p',{style:{fontSize:12,color:'var(--slate)',marginBottom:12}},
-          (asignarPara.nombre_conductor||asignarPara.placa_vehiculo)+' · '+(asignarPara.placa_vehiculo||'')
-        ),
-        muellesLibres.length===0
-          ? h('p',{style:{fontSize:13,color:'var(--slate)',textAlign:'center',padding:'12px 0'}},'No hay muelles libres en este momento.')
-          : h('div',{style:{display:'flex',flexWrap:'wrap',gap:8}},
-              muellesLibres.map(m=>h('button',{key:m.id,disabled:asignando,onClick:()=>asignarMuelle(m.id),
-                style:{padding:'10px 16px',borderRadius:8,border:'1.5px solid var(--navy)',background:'none',color:'var(--navy)',fontWeight:700,fontSize:13,cursor:asignando?'default':'pointer',fontFamily:'inherit'}},
-                'Muelle '+m.numero)
-              )
-            ),
-        h('button',{className:'btn-cancel',style:{width:'100%',marginTop:14},onClick:()=>setAsignarPara(null)},'Cancelar')
-      )
     )
-  );
-}
-
-/* ── MUELLES (tablero) ── */
-function MuellesPage({user}){
-  const [muelles,setMuelles]   = useState([]);
-  const [loading,setLoading]   = useState(true);
-  const [alert,setAlert]       = useState(null);
-  const [confirmLiberar,setConfirmLiberar] = useState(null);
-  const [addOpen,setAddOpen]   = useState(false);
-  const [numeroNuevo,setNumeroNuevo] = useState('');
-  const [zonaNueva,setZonaNueva]     = useState('');
-  const [saving,setSaving]     = useState(false);
-  const esAdmin = user?.rol==='admin';
-  const puedeLiberar = user?.rol==='guarda_bodega'||esAdmin;
-  const puedeVerCitas = user?.rol==='coordinador'||esAdmin;
-  const [alertasCitas,setAlertasCitas] = useState(null);
-
-  const load = useCallback(()=>{
-    api.get('/muelles').then(setMuelles).catch(()=>setAlert({type:'err',msg:'Error cargando muelles'})).finally(()=>setLoading(false));
-    if(puedeVerCitas) api.get('/citas/alertas').then(setAlertasCitas).catch(()=>{});
-  },[puedeVerCitas]);
-  useEffect(()=>{ load(); const t=setInterval(load,20000); return ()=>clearInterval(t); },[load]);
-
-  const agregarMuelle = async()=>{
-    if(!numeroNuevo.trim()) return setAlert({type:'err',msg:'El número de muelle es obligatorio'});
-    setSaving(true);
-    try{
-      await api.post('/muelles',{numero:numeroNuevo.trim(),zona:zonaNueva.trim()});
-      setNumeroNuevo('');setZonaNueva('');setAddOpen(false);load();setAlert({type:'ok',msg:'Muelle agregado'});
-    }catch(e){
-      let msg=e.message; try{msg=JSON.parse(msg).detail||msg;}catch{}
-      setAlert({type:'err',msg});
-    }finally{ setSaving(false); }
-  };
-
-  const liberar = async(m)=>{
-    setSaving(true);
-    try{
-      await api.post(`/muelles/${m.id}/liberar`,{});
-      setConfirmLiberar(null);load();setAlert({type:'ok',msg:'Muelle liberado'});
-    }catch(e){
-      let msg=e.message; try{msg=JSON.parse(msg).detail||msg;}catch{}
-      setAlert({type:'err',msg});
-    }finally{ setSaving(false); }
-  };
-
-  const tiempoOcupado = (mins)=>{
-    if(mins==null) return '';
-    if(mins<60) return mins+' min';
-    return Math.floor(mins/60)+'h '+(mins%60)+'min';
-  };
-
-  return h('div',{className:'scroll-body'},
-    h('div',{className:'pad'},
-      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
-      puedeVerCitas&&alertasCitas&&!alertasCitas.archivo_hoy&&h('div',{style:{background:'#fef3c7',border:'1px solid #fcd34d',borderRadius:10,padding:'10px 12px',marginBottom:10,display:'flex',alignItems:'center',gap:8,fontSize:12,fontWeight:600,color:'#92400e'}},
-        h(Ico,{n:'alert',s:14}),'Aún no se ha cargado el archivo de citas de hoy.'
-      ),
-      puedeVerCitas&&alertasCitas&&alertasCitas.vencidas.length>0&&h('div',{style:{background:'#fee2e2',border:'1px solid #fca5a5',borderRadius:10,padding:'10px 12px',marginBottom:10}},
-        h('p',{style:{fontSize:12,fontWeight:700,color:'#991b1b',margin:'0 0 6px',display:'flex',alignItems:'center',gap:6}},h(Ico,{n:'alert',s:13}),`Citas vencidas sin usar (${alertasCitas.vencidas.length})`),
-        alertasCitas.vencidas.map(c=>h('div',{key:c.numero_orden_compra,style:{fontSize:11,color:'#7f1d1d',padding:'2px 0'}},
-          `${c.numero_orden_compra} · ${c.proveedor_nombre||'—'} · ${c.hora_cita_inicio}–${c.hora_cita_fin}`
-        ))
-      ),
-      puedeVerCitas&&alertasCitas&&alertasCitas.por_vencer.length>0&&h('div',{style:{background:'#fef3c7',border:'1px solid #fcd34d',borderRadius:10,padding:'10px 12px',marginBottom:10}},
-        h('p',{style:{fontSize:12,fontWeight:700,color:'#92400e',margin:'0 0 6px',display:'flex',alignItems:'center',gap:6}},h(Ico,{n:'clock',s:13}),`Por vencer en ≤10 min (${alertasCitas.por_vencer.length})`),
-        alertasCitas.por_vencer.map(c=>h('div',{key:c.numero_orden_compra,style:{fontSize:11,color:'#78350f',padding:'2px 0'}},
-          `${c.numero_orden_compra} · ${c.proveedor_nombre||'—'} · ${c.hora_cita_inicio}–${c.hora_cita_fin}`
-        ))
-      ),
-      h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}},
-        h('p',{className:'sec-ttl',style:{margin:0}},'Muelles'),
-        esAdmin&&h('button',{className:'btn-outline',onClick:()=>setAddOpen(true)},h(Ico,{n:'plus',s:14}),' Agregar muelle')
-      ),
-      loading?h(LoadingDots):
-      muelles.length===0?h('div',{className:'empty'},h(Ico,{n:'package',s:44}),h('p',null,esAdmin?'Aún no hay muelles configurados. Agrega el primero.':'Aún no hay muelles configurados.')):
-      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10}},
-        muelles.map(m=>h('div',{key:m.id,style:{
-          border:'1.5px solid '+(m.alerta_tiempo?'#f97316':m.estado==='ocupado'?'#fca5a5':'#86efac'),
-          background:m.estado==='ocupado'?'#fef2f2':'#f0fdf4',
-          borderRadius:10,padding:'12px 14px'
-        }},
-          h('div',{style:{fontSize:11,fontWeight:700,color:'var(--slate)'}},'MUELLE '+m.numero+(m.zona?' · '+m.zona:'')),
-          h('div',{style:{fontSize:13,fontWeight:700,color:m.estado==='ocupado'?'#b91c1c':'#15803d',margin:'3px 0 6px'}},m.estado==='ocupado'?'Ocupado':'Libre'),
-          m.estado==='ocupado'&&h('div',{style:{fontSize:11,color:'var(--slate)',lineHeight:1.5}},
-            h('div',null,h('strong',null,m.placa_vehiculo)),
-            m.empresas&&h('div',null,m.empresas),
-            h('div',{style:m.alerta_tiempo?{color:'#c2410c',fontWeight:700}:null},(m.alerta_tiempo?'⏱ ':'Hace ')+tiempoOcupado(m.minutos_ocupado))
-          ),
-          m.estado==='ocupado'&&puedeLiberar&&h('button',{
-            onClick:()=>setConfirmLiberar(m),disabled:saving,
-            style:{marginTop:8,width:'100%',background:'#b91c1c',border:'none',color:'#fff',borderRadius:6,padding:'6px 10px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}
-          },'Salida del muelle')
-        ))
-      )
-    ),
-    addOpen&&h('div',{className:'overlay',onClick:()=>setAddOpen(false)},
-      h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
-        h('div',{className:'sheet-header'},h('span',{style:{fontWeight:700,fontSize:15}},'Agregar muelle'),h('button',{className:'btn-icon',onClick:()=>setAddOpen(false)},h(Ico,{n:'x',s:16}))),
-        h('div',{className:'fg'},h('label',null,'Número',h('span',{className:'req'},'*')),h('input',{type:'text',value:numeroNuevo,onChange:e=>setNumeroNuevo(e.target.value),placeholder:'Ej: 08'})),
-        h('div',{className:'fg'},h('label',null,'Zona (opcional)'),h('input',{type:'text',value:zonaNueva,onChange:e=>setZonaNueva(e.target.value),placeholder:'Ej: Bodega fría'})),
-        h('button',{className:'btn-primary',style:{width:'100%',marginTop:8},onClick:agregarMuelle,disabled:saving},saving?'Guardando...':'Agregar')
-      )
-    ),
-    confirmLiberar&&h(ConfirmSheet,{msg:`Se liberará el muelle ${confirmLiberar.numero} (${confirmLiberar.placa_vehiculo}).`,onOk:()=>liberar(confirmLiberar),onCancel:()=>setConfirmLiberar(null)})
   );
 }
 
@@ -4811,25 +4596,11 @@ function ProveedorAutorregistroPage({token}){
   const manejosCarga = ['Conductor con certificado de montacargas','Reciservicios','Ercol','Operador logístico externo'];
   const emptyVeh = {placa_vehiculo:'',nombre_conductor:'',tipo_documento:'CC',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',
     fecha_pago_arl:'',epp_cumple:'',tipo_carga:'',formato_carga:'',cantidad_pallets:'',manejo_carga:''};
-  const emptyOrd = {numero_orden_compra:''};
+  const emptyOrd = {empresa:'',numero_orden_compra:''};
   const [vehiculo,setVehiculo] = useState(emptyVeh);
   const [ordenes,setOrdenes]   = useState([]);
   const [ordenDraft,setOrdenDraft] = useState(emptyOrd);
-  const [ordenCheck,setOrdenCheck] = useState(null); // null | {valido:true,proveedor_nombre,hora_cita_inicio,hora_cita_fin,cita_id} | {valido:false,motivo}
-  const [ordenValidando,setOrdenValidando] = useState(false);
   const [frecuente,setFrecuente] = useState(null); // true|false|null (null = aun no se busco)
-
-  const validarOrdenDraft = async()=>{
-    const numero = ordenDraft.numero_orden_compra.trim();
-    if(!numero||!tokenSesion) return;
-    setOrdenValidando(true);
-    try{
-      const r = await api.get(`/proveedores-publico/validar-orden?numero=${encodeURIComponent(numero)}&token=${encodeURIComponent(tokenSesion)}`);
-      setOrdenCheck(r);
-    }catch(_){
-      setOrdenCheck({valido:false,motivo:'No se pudo validar la orden, intenta de nuevo.'});
-    }finally{ setOrdenValidando(false); }
-  };
 
   const buscarFrecuente = async(cedula)=>{
     setFrecuente(null);
@@ -4858,15 +4629,10 @@ function ProveedorAutorregistroPage({token}){
   },[token]);
 
   const agregarOrden = ()=>{
-    if(!ordenCheck||!ordenCheck.valido){ setErrorMsg('Escribe un número de orden válido antes de agregarlo a la lista'); return; }
-    setOrdenes(p=>[...p,{
-      numero_orden_compra: ordenDraft.numero_orden_compra.trim(),
-      empresa: ordenCheck.proveedor_nombre,
-      cita_id: ordenCheck.cita_id,
-      franja: `${ordenCheck.hora_cita_inicio}–${ordenCheck.hora_cita_fin}`,
-    }]);
+    if(!ordenDraft.empresa.trim()){ setErrorMsg('El proveedor es obligatorio'); return; }
+    if(!ordenDraft.numero_orden_compra.trim()){ setErrorMsg('El número de orden de compra es obligatorio'); return; }
+    setOrdenes(p=>[...p,{...ordenDraft}]);
     setOrdenDraft({...emptyOrd});
-    setOrdenCheck(null);
     setErrorMsg('');
   };
   const quitarOrden = (i)=>setOrdenes(p=>p.filter((_,idx)=>idx!==i));
@@ -5001,25 +4767,18 @@ function ProveedorAutorregistroPage({token}){
       ordenes.map((o,i)=>h('div',{key:i,style:{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'1px solid var(--border)'}},
         h('div',{style:{flex:1,minWidth:0}},
           h('div',{style:{fontWeight:700,fontSize:13}},o.empresa),
-          h('div',{style:{fontSize:11,color:'var(--slate)'}},'OC '+o.numero_orden_compra+(o.franja?' · cita '+o.franja:''))
+          h('div',{style:{fontSize:11,color:'var(--slate)'}},'OC '+o.numero_orden_compra)
         ),
         h('button',{onClick:()=>quitarOrden(i),style:{background:'#fee2e2',border:'none',cursor:'pointer',color:'#dc2626',padding:'4px 8px',borderRadius:6,fontSize:11}},h(Ico,{n:'trash',s:12}))
       )),
       h('div',{style:{marginTop:10,paddingTop:10,borderTop:'1px dashed var(--border)'}},
-        h('div',{className:'fg'},h('label',null,'N° orden de compra',h('span',{className:'req'},'*')),
-          h('input',{type:'text',inputMode:'numeric',value:ordenDraft.numero_orden_compra,
-            onChange:e=>{setOrdenDraft({numero_orden_compra:e.target.value.replace(/[^0-9]/g,'')});setOrdenCheck(null);},
-            onBlur:validarOrdenDraft,
-            placeholder:'10 dígitos, empieza en 4'}),
-          ordenValidando&&h('div',{style:{marginTop:5,fontSize:11,color:'var(--slate)'}},'Validando contra el archivo del día...'),
-          ordenCheck&&ordenCheck.valido&&h('div',{style:{marginTop:5,padding:'6px 9px',borderRadius:7,fontSize:11,fontWeight:600,display:'flex',alignItems:'center',gap:5,background:'#d1fae5',color:'#065f46',border:'1px solid #6ee7b7'}},
-            h(Ico,{n:'check',s:12}),ordenCheck.proveedor_nombre+' · cita '+ordenCheck.hora_cita_inicio+'–'+ordenCheck.hora_cita_fin
-          ),
-          ordenCheck&&!ordenCheck.valido&&h('div',{style:{marginTop:5,padding:'6px 9px',borderRadius:7,fontSize:11,fontWeight:600,display:'flex',alignItems:'center',gap:5,background:'#fee2e2',color:'#991b1b',border:'1px solid #fca5a5'}},
-            h(Ico,{n:'alert',s:12}),ordenCheck.motivo
-          )
+        h('div',{className:'fg'},h('label',null,'Proveedor',h('span',{className:'req'},'*')),
+          h('input',{type:'text',value:ordenDraft.empresa,onChange:e=>setOrdenDraft(p=>({...p,empresa:e.target.value})),placeholder:'Nombre del proveedor'})
         ),
-        h('button',{onClick:agregarOrden,disabled:!ordenCheck?.valido,style:{width:'100%',background:ordenCheck?.valido?'var(--navy)':'#cbd5e1',border:'none',color:'#fff',borderRadius:8,padding:'9px 14px',cursor:ordenCheck?.valido?'pointer':'not-allowed',display:'flex',alignItems:'center',justifyContent:'center',gap:6,fontSize:13,fontWeight:700,fontFamily:'inherit'}},
+        h('div',{className:'fg'},h('label',null,'N° orden de compra',h('span',{className:'req'},'*')),
+          h('input',{type:'text',value:ordenDraft.numero_orden_compra,onChange:e=>setOrdenDraft(p=>({...p,numero_orden_compra:e.target.value})),placeholder:'Número de orden'})
+        ),
+        h('button',{onClick:agregarOrden,style:{width:'100%',background:'var(--navy)',border:'none',color:'#fff',borderRadius:8,padding:'9px 14px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6,fontSize:13,fontWeight:700,fontFamily:'inherit'}},
           h(Ico,{n:'plus',s:14}),'Agregar a la lista')
       )
     ),
@@ -5081,11 +4840,11 @@ function App(){
 
   const rol = user?.rol||'';
   const navItems =
-    rol==='guarda_bodega'        ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'visitavh',label:'Visita Vh.',icon:'truck'},{id:'muelles',label:'Muelles',icon:'package'}]
+    rol==='guarda_bodega'        ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'visitavh',label:'Visita Vh.',icon:'truck'}]
     :rol==='guarda_peatonal'     ? [{id:'home',label:'Inicio',icon:'home'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'},{id:'sust',label:'Sust.',icon:'alert'},{id:'herr',label:'Herram.',icon:'key'}]
     :rol==='guarda_vehicular'    ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'visitavh',label:'Visita Vh.',icon:'truck'},{id:'visit',label:'Visitas',icon:'users'}]
     :rol==='recorredor_externo'  ? [{id:'home',label:'Inicio',icon:'home'},{id:'ronda',label:'Ronda',icon:'mapPin'},{id:'novedades',label:'Novedades',icon:'bell'}]
-    :rol==='coordinador'         ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'carga',label:'Citas',icon:'upload'},{id:'muelles',label:'Muelles',icon:'package'}]
+    :rol==='coordinador'         ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'}]
     :[
       {id:'home',  label:'Inicio',  icon:'home'},
       {id:'flota', label:'Flota',   icon:'truck'},
@@ -5104,8 +4863,7 @@ function App(){
     sust:   h(ItemAccesoPage,{tipo:'sustancias',user}),
     herr:   h(ItemAccesoPage,{tipo:'herramientas',user}),
     bd:        h(BaseDatosPage,{user}),
-    carga:     h(CargaMasivaPage,{user}),
-    muelles:   h(MuellesPage,{user}),
+    carga:     h(CargaMasivaPage,null),
     reg:       h(RegistrosPage,null),
     ronda:     h(RondaPage,{user}),
     novedades: h(NovedadesPage,{user}),

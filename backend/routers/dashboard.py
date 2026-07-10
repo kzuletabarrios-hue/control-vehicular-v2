@@ -52,52 +52,14 @@ def resumen(
         ),
         vvh_stats AS (
             SELECT COUNT(*) FILTER (WHERE fecha = :hoy) AS vv_hoy FROM visita_vehicular
-        ),
-        citas_stats AS (
-            SELECT
-                COUNT(*) FILTER (WHERE fecha = :hoy) AS ci_total,
-                COUNT(*) FILTER (WHERE fecha = :hoy AND estado = 'usada') AS ci_usadas,
-                COUNT(*) FILTER (WHERE fecha = :hoy AND estado = 'pendiente'
-                    AND (hora_cita_fin + (tolerancia_min || ' minutes')::interval) >= (NOW() AT TIME ZONE 'America/Bogota')::time) AS ci_pendientes,
-                COUNT(*) FILTER (WHERE fecha = :hoy AND estado = 'pendiente'
-                    AND (hora_cita_fin + (tolerancia_min || ' minutes')::interval) < (NOW() AT TIME ZONE 'America/Bogota')::time) AS ci_vencidas
-            FROM citas_programadas
-        ),
-        muelles_stats AS (
-            SELECT
-                COUNT(*) FILTER (WHERE e.id IS NOT NULL) AS mu_ocupados,
-                COUNT(*) FILTER (WHERE e.id IS NULL)     AS mu_libres
-            FROM muelles m
-            LEFT JOIN muelle_eventos e ON e.muelle_id = m.id AND e.hora_liberado IS NULL
-            WHERE m.activo = TRUE
-        ),
-        muelle_tiempo AS (
-            SELECT AVG(EXTRACT(EPOCH FROM (hora_liberado - hora_asignado)) / 60)::int AS mu_prom_min
-            FROM muelle_eventos
-            WHERE hora_liberado IS NOT NULL AND (hora_liberado AT TIME ZONE 'America/Bogota')::date = :hoy
-        ),
-        esperando AS (
-            SELECT COUNT(*) AS mu_esperando
-            FROM proveedores p
-            WHERE p.fecha = :hoy AND p.estado_confirmacion = 'confirmado' AND p.hora_salida IS NULL
-              AND NOT EXISTS (SELECT 1 FROM muelle_eventos e WHERE e.proveedor_id = p.id AND e.hora_liberado IS NULL)
-        ),
-        rechazos AS (
-            SELECT COUNT(*) AS ci_rechazadas
-            FROM audit_log
-            WHERE accion = 'VALIDACION_RECHAZADA' AND (created_at AT TIME ZONE 'America/Bogota')::date = :hoy
         )
         SELECT
             f.f_hoy, f.f_semana, f.f_mes, f.f_en_ruta,
             p.p_hoy, p.p_semana, p.p_en_muelle,
             c.c_hoy, c.c_activos, c.c_dias_anteriores,
             v.v_hoy,
-            vv.vv_hoy,
-            ci.ci_total, ci.ci_usadas, ci.ci_pendientes, ci.ci_vencidas,
-            mu.mu_ocupados, mu.mu_libres, mt.mu_prom_min, es.mu_esperando,
-            rz.ci_rechazadas
-        FROM flota_stats f, prov_stats p, ca_stats c, vis_stats v, vvh_stats vv,
-             citas_stats ci, muelles_stats mu, muelle_tiempo mt, esperando es, rechazos rz
+            vv.vv_hoy
+        FROM flota_stats f, prov_stats p, ca_stats c, vis_stats v, vvh_stats vv
     """), {"hoy": hoy, "hace7": hace7, "hace30": hace30}).mappings().one()
 
     # Últimas 5 placas flota
@@ -278,19 +240,6 @@ def resumen(
         },
         "visita_vehicular": {
             "hoy": stats["vv_hoy"],
-        },
-        "citas": {
-            "total":       stats["ci_total"],
-            "usadas":      stats["ci_usadas"],
-            "pendientes":  stats["ci_pendientes"],
-            "vencidas":    stats["ci_vencidas"],
-            "rechazadas":  stats["ci_rechazadas"],
-        },
-        "muelles": {
-            "ocupados":       stats["mu_ocupados"],
-            "libres":         stats["mu_libres"],
-            "tiempo_prom_min": stats["mu_prom_min"],
-            "esperando":      stats["mu_esperando"],
         },
         "ultimas_placas": [dict(r._mapping) for r in ultimas_placas],
         "top_empresas_proveedores": [dict(r._mapping) for r in empresas],
