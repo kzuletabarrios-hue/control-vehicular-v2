@@ -916,7 +916,10 @@ function HomePage({setPage,user}){
   const showFlotaStats   = isAdmin||isGuardaBodega||isGuardaVehicular||isCoordinador;
   const showAccesoStats  = isAdmin||isGuardaPeatonal;
   const showProvStats    = isAdmin||isGuardaVehicular||isGuardaBodega||isCoordinador;
+  const showCitasStats   = isAdmin||isCoordinador;
+  const showMuellesStats = isAdmin||isCoordinador||isGuardaBodega;
   const showDashboard    = !isRecorredor;
+  const fmtMin = (m)=>m==null?'—':m<60?m+' min':Math.floor(m/60)+'h '+(m%60)+'m';
 
   const tabBtn = (id,label,icon)=>h('button',{
     onClick:()=>setTab(id),
@@ -975,6 +978,20 @@ function HomePage({setPage,user}){
         showVisitantesHoy&&h(DetalleLista,{items:resumen.visitantes.hoy_detalle||[],emptyMsg:'Sin registros de visitantes hoy',render:v=>[
           h('strong',{key:'p'},v.nombre),' · ',v.empresa||'—',' · Ingresó: ',v.hora_ingreso?v.hora_ingreso.slice(0,5):'—',v.activo?' · Activo':' · Salió'
         ]})
+      ),
+      resumen&&(showCitasStats||showMuellesStats)&&h('div',{className:'dash-section'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'package',s:12}),' Citas y muelles'),
+        h('div',{className:'sgrid'},
+          showCitasStats&&h(StatCard,{label:'Citas hoy',       value:resumen.citas.total,      color:'#1e4570',icon:'clipboard'}),
+          showCitasStats&&h(StatCard,{label:'Usadas',          value:resumen.citas.usadas,     color:'#15803d',icon:'checkCircle'}),
+          showCitasStats&&h(StatCard,{label:'Pendientes',      value:resumen.citas.pendientes, color:'#0891b2',icon:'clock'}),
+          showCitasStats&&h(StatCard,{label:'Vencidas',        value:resumen.citas.vencidas,   color:'#b91c1c',icon:'alert'}),
+          showCitasStats&&h(StatCard,{label:'Rechazadas hoy',  value:resumen.citas.rechazadas, color:'#92400e',icon:'alert'}),
+          showMuellesStats&&h(StatCard,{label:'Muelles ocupados', value:resumen.muelles.ocupados, color:'#b91c1c',icon:'package'}),
+          showMuellesStats&&h(StatCard,{label:'Muelles libres',   value:resumen.muelles.libres,   color:'#15803d',icon:'package'}),
+          showMuellesStats&&h(StatCard,{label:'Esperando muelle', value:resumen.muelles.esperando,color:'#d97706',icon:'clock'}),
+          showMuellesStats&&h(StatCard,{label:'Tiempo prom. muelle', value:fmtMin(resumen.muelles.tiempo_prom_min), color:'#0e7490',icon:'clock'})
+        )
       ),
       (()=>{
         const showFlotaPend  = !isGuardaPeatonal;
@@ -1620,8 +1637,31 @@ function CargaMasivaPage({user}){
   const [err, setErr]       = useState('');
 
   const tabDef = TABS.find(t=>t.id===tab);
+  const esAdmin = user?.rol==='admin';
 
   useEffect(()=>{ setRows([]); setFile(''); setResult(null); setErr(''); }, [tab]);
+
+  /* ── Config: tolerancia por defecto para citas nuevas (solo admin) ── */
+  const [tolerancia,setTolerancia]   = useState(null);
+  const [tolEditando,setTolEditando] = useState('');
+  const [tolSaving,setTolSaving]     = useState(false);
+  useEffect(()=>{
+    if(tab==='citas'&&esAdmin){
+      api.get('/citas/config').then(r=>{setTolerancia(r.tolerancia_min_default);setTolEditando(String(r.tolerancia_min_default));}).catch(()=>{});
+    }
+  },[tab,esAdmin]);
+  const guardarTolerancia = async()=>{
+    const n = parseInt(tolEditando,10);
+    if(isNaN(n)||n<0||n>240) return setErr('La tolerancia debe ser un número entre 0 y 240 minutos');
+    setTolSaving(true);
+    try{
+      const r = await api.put('/citas/config',{tolerancia_min_default:n});
+      setTolerancia(r.tolerancia_min_default);setErr('');
+    }catch(e){
+      let msg=e.message; try{msg=JSON.parse(msg).detail||msg;}catch{}
+      setErr(msg);
+    }finally{ setTolSaving(false); }
+  };
 
   const downloadTemplate = () => {
     if(!window.XLSX){ setErr('Librería Excel no cargada aún, intenta de nuevo'); return; }
@@ -1683,6 +1723,16 @@ function CargaMasivaPage({user}){
     h('div',{className:'pad'},
       h('div',{className:'tab-bar',style:{marginBottom:16}},
         TABS.map(t=>h('button',{key:t.id,className:'tab-btn'+(tab===t.id?' act':''),onClick:()=>setTab(t.id)},t.label))
+      ),
+
+      tab==='citas'&&esAdmin&&tolerancia!=null&&h('div',{className:'fcard',style:{marginBottom:12,border:'1.5px solid var(--navy)'}},
+        h('p',{className:'sec-ttl',style:{marginBottom:8}},'Tolerancia por defecto para citas nuevas'),
+        h('p',{style:{fontSize:11,color:'var(--slate)',marginBottom:8}},'Minutos que se aceptan antes/después de la franja de una cita. Se aplica a las citas que se importen de ahora en adelante — no cambia las ya cargadas.'),
+        h('div',{style:{display:'flex',gap:8,alignItems:'center'}},
+          h('input',{type:'number',min:0,max:240,value:tolEditando,onChange:e=>setTolEditando(e.target.value),style:{width:90}}),
+          h('span',{style:{fontSize:12,color:'var(--slate)'}},'minutos'),
+          h('button',{className:'btn-primary',onClick:guardarTolerancia,disabled:tolSaving||String(tolerancia)===tolEditando},tolSaving?'Guardando...':'Guardar')
+        )
       ),
 
       h('div',{className:'fcard',style:{marginBottom:12}},

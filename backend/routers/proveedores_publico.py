@@ -1,6 +1,7 @@
 # backend/routers/proveedores_publico.py
 # Endpoints PUBLICOS (sin autenticacion) para que el conductor de un
 # proveedor se autorregistre al llegar, escaneando el QR de la porteria.
+import json
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -68,12 +69,28 @@ def _validar_orden(db: Session, numero: str) -> dict:
     }
 
 
+def _audit_publico(db, accion, rid, datos_despues):
+    # Sin usuario autenticado (endpoint público) -- usuario_id/email quedan
+    # NULL, pero igual queda registrado quién intentó qué orden y cuándo.
+    db.execute(text("""
+        INSERT INTO audit_log (accion, tabla, registro_id, datos_despues)
+        VALUES (:accion, 'citas_programadas', :rid, CAST(:despues AS jsonb))
+    """), {"accion": accion, "rid": rid, "despues": json.dumps(datos_despues, default=str)})
+
+
 @router.get("/validar-orden")
 def validar_orden_endpoint(numero: str, token: str, db: Session = Depends(get_db)):
     # Requiere el token de sesión (ya escaneó un QR real), mismo patrón que
     # /conductor-frecuente, para no dejar la consulta abierta a cualquiera.
     validar_token_sesion_registro(token)
-    return _validar_orden(db, numero)
+    resultado = _validar_orden(db, numero)
+    try:
+        accion = "VALIDACION_ACEPTADA" if resultado["valido"] else "VALIDACION_RECHAZADA"
+        _audit_publico(db, accion, numero, resultado)
+        db.commit()
+    except Exception:
+        db.rollback()
+    return resultado
 
 CAMPOS_VEHICULO_PUBLICOS = [
     "placa_vehiculo", "nombre_conductor", "tipo_documento", "cedula_conductor",

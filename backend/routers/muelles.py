@@ -1,4 +1,5 @@
 # backend/routers/muelles.py
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -14,6 +15,16 @@ router = APIRouter()
 
 _BOG = timezone(timedelta(hours=-5))
 ALERTA_MUELLE_MIN = 90  # confirmado con el usuario -- ajustar aquí si hace falta
+
+
+def _audit(db, user, accion, rid, datos_despues):
+    db.execute(text("""
+        INSERT INTO audit_log (usuario_id, usuario_email, accion, tabla, registro_id, datos_despues)
+        VALUES (:uid, :email, :accion, 'muelle_eventos', :rid, CAST(:despues AS jsonb))
+    """), {
+        "uid": user["id"], "email": user["email"], "accion": accion,
+        "rid": str(rid), "despues": json.dumps(datos_despues, default=str),
+    })
 
 
 @router.get("")
@@ -124,6 +135,10 @@ def asignar(
         INSERT INTO muelle_eventos (id, muelle_id, proveedor_id, asignado_por)
         VALUES (:id, :muelle_id, :proveedor_id, :asignado_por)
     """), {"id": eid, "muelle_id": id, "proveedor_id": proveedor_id, "asignado_por": current_user["id"]})
+    try:
+        _audit(db, current_user, "ASIGNAR_MUELLE", eid, {"muelle": muelle.numero, "proveedor_id": proveedor_id})
+    except Exception:
+        pass
     db.commit()
     return {"id": eid, "message": f"Muelle {muelle.numero} asignado"}
 
@@ -143,5 +158,9 @@ def liberar(
     db.execute(text("""
         UPDATE muelle_eventos SET liberado_por = :uid, hora_liberado = NOW() WHERE id = :eid
     """), {"uid": current_user["id"], "eid": evento.id})
+    try:
+        _audit(db, current_user, "LIBERAR_MUELLE", evento.id, {"muelle_id": id})
+    except Exception:
+        pass
     db.commit()
     return {"message": "Muelle liberado"}

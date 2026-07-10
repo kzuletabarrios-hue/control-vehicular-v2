@@ -52,6 +52,59 @@ def _parse_fecha(v) -> str | None:
     return m.group(1) if m else None
 
 
+def _audit(db, user, accion, tabla, rid, datos_despues):
+    db.execute(text("""
+        INSERT INTO audit_log (usuario_id, usuario_email, accion, tabla, registro_id, datos_despues)
+        VALUES (:uid, :email, :accion, :tabla, :rid, CAST(:despues AS jsonb))
+    """), {
+        "uid": user["id"] if user else None,
+        "email": user["email"] if user else None,
+        "accion": accion,
+        "tabla": tabla,
+        "rid": str(rid) if rid else None,
+        "despues": json.dumps(datos_despues, default=str),
+    })
+
+
+def _tolerancia_default(db) -> int:
+    row = db.execute(text("SELECT valor FROM configuracion WHERE clave = 'tolerancia_min_default'")).fetchone()
+    try:
+        return int(row.valor) if row else 30
+    except (TypeError, ValueError):
+        return 30
+
+
+@router.get("/config")
+def obtener_config(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("citas", "read")),
+):
+    return {"tolerancia_min_default": _tolerancia_default(db)}
+
+
+@router.put("/config")
+def actualizar_config(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permiso("citas", "write")),
+):
+    tolerancia = body.get("tolerancia_min_default")
+    try:
+        tolerancia = int(tolerancia)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "La tolerancia debe ser un número de minutos")
+    if tolerancia < 0 or tolerancia > 240:
+        raise HTTPException(400, "La tolerancia debe estar entre 0 y 240 minutos")
+
+    db.execute(text("""
+        INSERT INTO configuracion (clave, valor, updated_at, updated_por)
+        VALUES ('tolerancia_min_default', :v, NOW(), :uid)
+        ON CONFLICT (clave) DO UPDATE SET valor = :v, updated_at = NOW(), updated_por = :uid
+    """), {"v": str(tolerancia), "uid": current_user["id"]})
+    db.commit()
+    return {"tolerancia_min_default": tolerancia}
+
+
 @router.post("/cargar")
 def cargar_archivo(
     body: dict,
@@ -67,6 +120,7 @@ def cargar_archivo(
     #    Esto reemplaza por completo la programación de cada fecha que trae el
     #    archivo, así que preferimos fallar antes de escribir nada a dejar el
     #    día a medio reemplazar si una fila se cae a mitad del proceso.
+    tolerancia = _tolerancia_default(db)
     validas = []
     errores = []
     vistos: dict[str, int] = {}  # (fecha, orden) -> primera fila donde apareció
@@ -107,6 +161,7 @@ def cargar_archivo(
             "cantidad_pallets": _str(fila.get("cantidad_pallets")),
             "hora_cita_inicio": hora_inicio,
             "hora_cita_fin": hora_fin,
+            "tolerancia_min": tolerancia,
         })
 
     archivo_id = str(uuid.uuid4())
@@ -145,12 +200,20 @@ def cargar_archivo(
                 INSERT INTO citas_programadas
                     (id, archivo_id, fecha, numero_orden_compra, proveedor_codigo, proveedor_nombre,
                      flujo, descripcion_carga, fecha_documento_compra, cantidad_pallets,
-                     hora_cita_inicio, hora_cita_fin)
+                     hora_cita_inicio, hora_cita_fin, tolerancia_min)
                 VALUES
                     (:id, :archivo_id, :fecha, :numero_orden_compra, :proveedor_codigo, :proveedor_nombre,
                      :flujo, :descripcion_carga, :fecha_documento_compra, :cantidad_pallets,
-                     :hora_cita_inicio, :hora_cita_fin)
+                     :hora_cita_inicio, :hora_cita_fin, :tolerancia_min)
             """), v)
+
+        try:
+            _audit(db, current_user, "CARGAR_ARCHIVO", "archivos_citas", archivo_id, {
+                "nombre_archivo": nombre_archivo, "fechas": fechas_afectadas,
+                "importadas": len(validas), "errores": len(errores), "reemplazadas": reemplazadas,
+            })
+        except Exception:
+            pass
 
         db.commit()
     except (IntegrityError, DataError) as e:
