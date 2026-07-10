@@ -4606,11 +4606,25 @@ function ProveedorAutorregistroPage({token}){
   const manejosCarga = ['Conductor con certificado de montacargas','Reciservicios','Ercol','Operador logístico externo'];
   const emptyVeh = {placa_vehiculo:'',nombre_conductor:'',tipo_documento:'CC',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',
     fecha_pago_arl:'',epp_cumple:'',tipo_carga:'',formato_carga:'',cantidad_pallets:'',manejo_carga:''};
-  const emptyOrd = {empresa:'',numero_orden_compra:''};
+  const emptyOrd = {numero_orden_compra:''};
   const [vehiculo,setVehiculo] = useState(emptyVeh);
   const [ordenes,setOrdenes]   = useState([]);
   const [ordenDraft,setOrdenDraft] = useState(emptyOrd);
+  const [ordenCheck,setOrdenCheck] = useState(null); // null | {valido:true,proveedor_nombre,hora_cita_inicio,hora_cita_fin,cita_id} | {valido:false,motivo}
+  const [ordenValidando,setOrdenValidando] = useState(false);
   const [frecuente,setFrecuente] = useState(null); // true|false|null (null = aun no se busco)
+
+  const validarOrdenDraft = async()=>{
+    const numero = ordenDraft.numero_orden_compra.trim();
+    if(!numero||!tokenSesion) return;
+    setOrdenValidando(true);
+    try{
+      const r = await api.get(`/proveedores-publico/validar-orden?numero=${encodeURIComponent(numero)}&token=${encodeURIComponent(tokenSesion)}`);
+      setOrdenCheck(r);
+    }catch(_){
+      setOrdenCheck({valido:false,motivo:'No se pudo validar la orden, intenta de nuevo.'});
+    }finally{ setOrdenValidando(false); }
+  };
 
   const buscarFrecuente = async(cedula)=>{
     setFrecuente(null);
@@ -4639,10 +4653,15 @@ function ProveedorAutorregistroPage({token}){
   },[token]);
 
   const agregarOrden = ()=>{
-    if(!ordenDraft.empresa.trim()){ setErrorMsg('El proveedor es obligatorio'); return; }
-    if(!ordenDraft.numero_orden_compra.trim()){ setErrorMsg('El número de orden de compra es obligatorio'); return; }
-    setOrdenes(p=>[...p,{...ordenDraft}]);
+    if(!ordenCheck||!ordenCheck.valido){ setErrorMsg('Escribe un número de orden válido antes de agregarlo a la lista'); return; }
+    setOrdenes(p=>[...p,{
+      numero_orden_compra: ordenDraft.numero_orden_compra.trim(),
+      empresa: ordenCheck.proveedor_nombre,
+      cita_id: ordenCheck.cita_id,
+      franja: `${ordenCheck.hora_cita_inicio}–${ordenCheck.hora_cita_fin}`,
+    }]);
     setOrdenDraft({...emptyOrd});
+    setOrdenCheck(null);
     setErrorMsg('');
   };
   const quitarOrden = (i)=>setOrdenes(p=>p.filter((_,idx)=>idx!==i));
@@ -4777,18 +4796,25 @@ function ProveedorAutorregistroPage({token}){
       ordenes.map((o,i)=>h('div',{key:i,style:{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'1px solid var(--border)'}},
         h('div',{style:{flex:1,minWidth:0}},
           h('div',{style:{fontWeight:700,fontSize:13}},o.empresa),
-          h('div',{style:{fontSize:11,color:'var(--slate)'}},'OC '+o.numero_orden_compra)
+          h('div',{style:{fontSize:11,color:'var(--slate)'}},'OC '+o.numero_orden_compra+(o.franja?' · cita '+o.franja:''))
         ),
         h('button',{onClick:()=>quitarOrden(i),style:{background:'#fee2e2',border:'none',cursor:'pointer',color:'#dc2626',padding:'4px 8px',borderRadius:6,fontSize:11}},h(Ico,{n:'trash',s:12}))
       )),
       h('div',{style:{marginTop:10,paddingTop:10,borderTop:'1px dashed var(--border)'}},
-        h('div',{className:'fg'},h('label',null,'Proveedor',h('span',{className:'req'},'*')),
-          h('input',{type:'text',value:ordenDraft.empresa,onChange:e=>setOrdenDraft(p=>({...p,empresa:e.target.value})),placeholder:'Nombre del proveedor'})
-        ),
         h('div',{className:'fg'},h('label',null,'N° orden de compra',h('span',{className:'req'},'*')),
-          h('input',{type:'text',value:ordenDraft.numero_orden_compra,onChange:e=>setOrdenDraft(p=>({...p,numero_orden_compra:e.target.value})),placeholder:'Número de orden'})
+          h('input',{type:'text',inputMode:'numeric',value:ordenDraft.numero_orden_compra,
+            onChange:e=>{setOrdenDraft({numero_orden_compra:e.target.value.replace(/[^0-9]/g,'')});setOrdenCheck(null);},
+            onBlur:validarOrdenDraft,
+            placeholder:'10 dígitos, empieza en 4'}),
+          ordenValidando&&h('div',{style:{marginTop:5,fontSize:11,color:'var(--slate)'}},'Validando contra el archivo del día...'),
+          ordenCheck&&ordenCheck.valido&&h('div',{style:{marginTop:5,padding:'6px 9px',borderRadius:7,fontSize:11,fontWeight:600,display:'flex',alignItems:'center',gap:5,background:'#d1fae5',color:'#065f46',border:'1px solid #6ee7b7'}},
+            h(Ico,{n:'check',s:12}),ordenCheck.proveedor_nombre+' · cita '+ordenCheck.hora_cita_inicio+'–'+ordenCheck.hora_cita_fin
+          ),
+          ordenCheck&&!ordenCheck.valido&&h('div',{style:{marginTop:5,padding:'6px 9px',borderRadius:7,fontSize:11,fontWeight:600,display:'flex',alignItems:'center',gap:5,background:'#fee2e2',color:'#991b1b',border:'1px solid #fca5a5'}},
+            h(Ico,{n:'alert',s:12}),ordenCheck.motivo
+          )
         ),
-        h('button',{onClick:agregarOrden,style:{width:'100%',background:'var(--navy)',border:'none',color:'#fff',borderRadius:8,padding:'9px 14px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6,fontSize:13,fontWeight:700,fontFamily:'inherit'}},
+        h('button',{onClick:agregarOrden,disabled:!ordenCheck?.valido,style:{width:'100%',background:ordenCheck?.valido?'var(--navy)':'#cbd5e1',border:'none',color:'#fff',borderRadius:8,padding:'9px 14px',cursor:ordenCheck?.valido?'pointer':'not-allowed',display:'flex',alignItems:'center',justifyContent:'center',gap:6,fontSize:13,fontWeight:700,fontFamily:'inherit'}},
           h(Ico,{n:'plus',s:14}),'Agregar a la lista')
       )
     ),

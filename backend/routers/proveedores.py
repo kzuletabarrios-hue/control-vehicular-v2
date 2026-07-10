@@ -31,6 +31,7 @@ CAMPOS_VEHICULO = [
 CAMPOS_ORDEN = [
     "empresa", "carga_compartida",
     "actividad_a_desarrollar", "dependencia_autoriza", "numero_orden_compra",
+    "cita_id",
 ]
 
 # ── QR de autorregistro de proveedores ────────────────────────────
