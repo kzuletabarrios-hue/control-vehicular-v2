@@ -899,7 +899,7 @@ function HomePage({setPage,user}){
     {id:'sust',  label:'Sustancias',        desc:'Control de sustancias',  cls:'m-sust', icon:'alert',    roles:['admin','supervisor','operador','guarda_peatonal'],cnt:null},
     {id:'herr',  label:'Herramientas',     desc:'Control de herramientas',cls:'m-herr', icon:'key',      roles:['admin','supervisor','operador','guarda_peatonal'],cnt:null},
     {id:'bd',    label:'Base de Datos',    desc:'Catálogos maestros',     cls:'m-bd',   icon:'database', roles:['admin','supervisor'],cnt:null},
-    {id:'carga', label:'Carga Masiva',     desc:'Importar desde Excel',   cls:'m-carga',icon:'upload',   roles:['admin'],cnt:null},
+    {id:'carga', label:'Carga Masiva',     desc:'Importar desde Excel',   cls:'m-carga',icon:'upload',   roles:['admin','coordinador'],cnt:null},
     {id:'reg',       label:'Reportes',    desc:'Historial y Excel',      cls:'m-reg',  icon:'fileText', roles:['admin','supervisor','consulta','operador'],cnt:null},
     {id:'ronda',     label:'Ronda',       desc:'Marcación de puntos',    cls:'m-ronda',icon:'mapPin',   roles:['admin','supervisor','recorredor_externo'],cnt:null},
     {id:'novedades', label:'Novedades',   desc:'Registro de incidencias',cls:'m-nov',  icon:'bell',     roles:['admin','supervisor','recorredor_externo','operador'],cnt:null},
@@ -1571,39 +1571,47 @@ function FlotaPage({user,online,addOffline}){
 }
 
 /* ── CARGA MASIVA ── */
-function CargaMasivaPage(){
+function CargaMasivaPage({user}){
   const TABS = [
     {
-      id:'conductores', label:'Conductores',
+      id:'conductores', label:'Conductores', roles:['admin'],
       cols:['codigo','conductor','n_cedula','celular','tipo'],
       headers:['Código','Nombre','Cédula','Celular','Tipo (Propio/Tercero)'],
       endpoint:'/carga/conductores',
       required:['conductor'],
     },
     {
-      id:'vehiculos', label:'Vehículos',
+      id:'vehiculos', label:'Vehículos', roles:['admin'],
       cols:['placa','marca','modelo','color','anio','tipo','capacidad'],
       headers:['Placa','Marca','Modelo','Color','Año','Tipo','Capacidad'],
       endpoint:'/carga/vehiculos',
       required:['placa'],
     },
     {
-      id:'empleados', label:'Empleados',
+      id:'empleados', label:'Empleados', roles:['admin'],
       cols:['cedula','nombre','contratista','estado'],
       headers:['Cédula','Nombre','Contratista','Estado (ACTIVO/INACTIVO)'],
       endpoint:'/carga/empleados',
       required:['cedula','nombre'],
     },
     {
-      id:'tiendas', label:'Tiendas',
+      id:'tiendas', label:'Tiendas', roles:['admin'],
       cols:['codigo','nombre','direccion'],
       headers:['COD','Name','Dirección'],
       endpoint:'/carga/tiendas',
       required:['nombre'],
     },
-  ];
+    {
+      id:'citas', label:'Citas de Proveedores', roles:['admin','coordinador'],
+      cols:['numero_orden_compra','proveedor_codigo','proveedor_nombre','flujo','descripcion_carga','fecha','fecha_documento_compra','cantidad_pallets','hora_cita_inicio','hora_cita_fin'],
+      headers:['Doc.compr.','Proveedor','Número de cuenta del proveedor','Flujo','Descripción','Misma FeEn','Fecha doc.','EKKO-YYPAL','inicio cita','fin cita'],
+      endpoint:'/citas/cargar',
+      required:['numero_orden_compra'],
+      nota:'Reemplaza por completo las citas de cada fecha que traiga el archivo. Sube el Excel tal como llega de logística — no hace falta editarlo.',
+    },
+  ].filter(t=>t.roles.includes(user?.rol));
 
-  const [tab, setTab]       = useState('conductores');
+  const [tab, setTab]       = useState(TABS[0]?.id);
   const [rows, setRows]     = useState([]);
   const [fileName, setFile] = useState('');
   const [loading, setLoad]  = useState(false);
@@ -1631,7 +1639,7 @@ function CargaMasivaPage(){
     const reader = new FileReader();
     reader.onload = ev => {
       try {
-        const wb = window.XLSX.read(ev.target.result, {type:'array'});
+        const wb = window.XLSX.read(ev.target.result, {type:'array', cellDates:true});
         const ws = wb.Sheets[wb.SheetNames[0]];
         const raw = window.XLSX.utils.sheet_to_json(ws, {defval:''});
         const normalized = raw.map(row=>{
@@ -1644,6 +1652,7 @@ function CargaMasivaPage(){
                 val = row[k]; break;
               }
             }
+            if(val instanceof Date) val = val.toISOString().slice(0,10);
             r[col] = val;
           });
           return r;
@@ -1660,7 +1669,7 @@ function CargaMasivaPage(){
     if(!rows.length) return setErr('No hay datos para importar');
     setLoad(true); setErr(''); setResult(null);
     try {
-      const res = await api.post(tabDef.endpoint, {filas:rows});
+      const res = await api.post(tabDef.endpoint, {filas:rows, nombre_archivo:fileName});
       setResult(res);
       setRows([]); setFile('');
     } catch(ex){
@@ -1682,7 +1691,8 @@ function CargaMasivaPage(){
         ),
         h('p',{style:{fontSize:10,color:'var(--slate)',marginTop:6}},
           `Columnas: ${tabDef.headers.join(' · ')}`
-        )
+        ),
+        tabDef.nota&&h('p',{style:{fontSize:11,color:'var(--amber)',marginTop:8,fontWeight:600}},tabDef.nota)
       ),
 
       h('div',{className:'fcard',style:{marginBottom:12}},
@@ -4844,7 +4854,7 @@ function App(){
     :rol==='guarda_peatonal'     ? [{id:'home',label:'Inicio',icon:'home'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'},{id:'sust',label:'Sust.',icon:'alert'},{id:'herr',label:'Herram.',icon:'key'}]
     :rol==='guarda_vehicular'    ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'visitavh',label:'Visita Vh.',icon:'truck'},{id:'visit',label:'Visitas',icon:'users'}]
     :rol==='recorredor_externo'  ? [{id:'home',label:'Inicio',icon:'home'},{id:'ronda',label:'Ronda',icon:'mapPin'},{id:'novedades',label:'Novedades',icon:'bell'}]
-    :rol==='coordinador'         ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'}]
+    :rol==='coordinador'         ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'carga',label:'Citas',icon:'upload'}]
     :[
       {id:'home',  label:'Inicio',  icon:'home'},
       {id:'flota', label:'Flota',   icon:'truck'},
@@ -4863,7 +4873,7 @@ function App(){
     sust:   h(ItemAccesoPage,{tipo:'sustancias',user}),
     herr:   h(ItemAccesoPage,{tipo:'herramientas',user}),
     bd:        h(BaseDatosPage,{user}),
-    carga:     h(CargaMasivaPage,null),
+    carga:     h(CargaMasivaPage,{user}),
     reg:       h(RegistrosPage,null),
     ronda:     h(RondaPage,{user}),
     novedades: h(NovedadesPage,{user}),
