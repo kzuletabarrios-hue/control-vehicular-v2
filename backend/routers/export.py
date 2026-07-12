@@ -1,6 +1,6 @@
 # backend/routers/export.py
 import io
-from datetime import date
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -15,6 +15,13 @@ router = APIRouter()
 
 NAVY = "0F2440"
 AMBER = "F59E0B"
+
+_BOG = timezone(timedelta(hours=-5))
+
+
+def _hoy_bog() -> str:
+    """Fecha de hoy en Bogota (no la del servidor) para nombrar los archivos exportados."""
+    return datetime.now(_BOG).date().isoformat()
 
 
 def _header_style(ws, headers: list[str]):
@@ -94,7 +101,7 @@ def export_flota(
         ws.append(list(row))
 
     _autowidth(ws)
-    fname = f"flota_propia_{date.today()}.xlsx"
+    fname = f"flota_propia_{_hoy_bog()}.xlsx"
     return _stream(wb, fname)
 
 
@@ -158,7 +165,7 @@ def export_proveedores(
         vals[idx_epp] = "Sí" if vals[idx_epp] else ("No" if vals[idx_epp] is False else "")
         ws.append(vals)
     _autowidth(ws)
-    return _stream(wb, f"proveedores_{date.today()}.xlsx")
+    return _stream(wb, f"proveedores_{_hoy_bog()}.xlsx")
 
 
 @router.get("/control-acceso")
@@ -197,7 +204,7 @@ def export_control_acceso(
     for row in rows:
         ws.append(list(row))
     _autowidth(ws)
-    return _stream(wb, f"control_acceso_{date.today()}.xlsx")
+    return _stream(wb, f"control_acceso_{_hoy_bog()}.xlsx")
 
 
 @router.get("/visitantes")
@@ -235,7 +242,7 @@ def export_visitantes(
     for row in rows:
         ws.append(list(row))
     _autowidth(ws)
-    return _stream(wb, f"visitantes_{date.today()}.xlsx")
+    return _stream(wb, f"visitantes_{_hoy_bog()}.xlsx")
 
 
 @router.get("/conductores")
@@ -258,7 +265,7 @@ def export_conductores(
     for row in rows:
         ws.append(list(row))
     _autowidth(ws)
-    return _stream(wb, f"conductores_{date.today()}.xlsx")
+    return _stream(wb, f"conductores_{_hoy_bog()}.xlsx")
 
 
 @router.get("/bd-tiendas")
@@ -281,7 +288,7 @@ def export_bd_tiendas(
     for row in rows:
         ws.append(list(row))
     _autowidth(ws)
-    return _stream(wb, f"tiendas_{date.today()}.xlsx")
+    return _stream(wb, f"tiendas_{_hoy_bog()}.xlsx")
 
 
 @router.get("/bd-vehiculos")
@@ -304,7 +311,7 @@ def export_bd_vehiculos(
     for row in rows:
         ws.append(list(row))
     _autowidth(ws)
-    return _stream(wb, f"vehiculos_{date.today()}.xlsx")
+    return _stream(wb, f"vehiculos_{_hoy_bog()}.xlsx")
 
 
 @router.get("/bd-empleados")
@@ -327,7 +334,7 @@ def export_bd_empleados(
     for row in rows:
         ws.append(list(row))
     _autowidth(ws)
-    return _stream(wb, f"empleados_{date.today()}.xlsx")
+    return _stream(wb, f"empleados_{_hoy_bog()}.xlsx")
 
 
 @router.get("/bd-proveedores")
@@ -350,7 +357,7 @@ def export_bd_proveedores(
     for row in rows:
         ws.append(list(row))
     _autowidth(ws)
-    return _stream(wb, f"bd_proveedores_{date.today()}.xlsx")
+    return _stream(wb, f"bd_proveedores_{_hoy_bog()}.xlsx")
 
 
 @router.get("/visita-vehicular")
@@ -389,7 +396,7 @@ def export_visita_vehicular(
     for row in rows:
         ws.append(list(row))
     _autowidth(ws)
-    return _stream(wb, f"visita_vehicular_{date.today()}.xlsx")
+    return _stream(wb, f"visita_vehicular_{_hoy_bog()}.xlsx")
 
 
 @router.get("/sustancias")
@@ -428,7 +435,7 @@ def export_sustancias(
         vals[6] = "Sí" if vals[6] else "No"
         ws.append(vals)
     _autowidth(ws)
-    return _stream(wb, f"sustancias_{date.today()}.xlsx")
+    return _stream(wb, f"sustancias_{_hoy_bog()}.xlsx")
 
 
 @router.get("/herramientas")
@@ -467,7 +474,7 @@ def export_herramientas(
         vals[6] = "Sí" if vals[6] else "No"
         ws.append(vals)
     _autowidth(ws)
-    return _stream(wb, f"herramientas_{date.today()}.xlsx")
+    return _stream(wb, f"herramientas_{_hoy_bog()}.xlsx")
 
 
 @router.get("/novedades")
@@ -505,7 +512,7 @@ def export_novedades(
     for row in rows:
         ws.append(list(row))
     _autowidth(ws)
-    return _stream(wb, f"novedades_{date.today()}.xlsx")
+    return _stream(wb, f"novedades_{_hoy_bog()}.xlsx")
 
 
 @router.get("/apoyos")
@@ -543,7 +550,7 @@ def export_apoyos(
     for row in rows:
         ws.append(list(row))
     _autowidth(ws)
-    return _stream(wb, f"apoyos_operativos_{date.today()}.xlsx")
+    return _stream(wb, f"apoyos_operativos_{_hoy_bog()}.xlsx")
 
 
 @router.get("/rondas")
@@ -587,4 +594,4 @@ def export_rondas(
     for row in rows:
         ws.append(list(row))
     _autowidth(ws)
-    return _stream(wb, f"rondas_{date.today()}.xlsx")
+    return _stream(wb, f"rondas_{_hoy_bog()}.xlsx")
