@@ -148,7 +148,8 @@ def duplicar(
     current_user: dict = Depends(require_permiso("flota", "write")),
 ):
     import uuid
-    from datetime import date
+    from datetime import datetime, timedelta, timezone
+    _BOG = timezone(timedelta(hours=-5))
     original = db.execute(
         text("SELECT * FROM flota_propia WHERE id = :id"), {"id": id}
     ).fetchone()
@@ -158,7 +159,7 @@ def duplicar(
     d = dict(original._mapping)
     nuevo_id = str(uuid.uuid4())
     d["id"] = nuevo_id
-    d["fecha"] = date.today().isoformat()
+    d["fecha"] = datetime.now(_BOG).date().isoformat()
     d["creado_por"] = current_user["id"]
     d.pop("created_at", None)
     d.pop("updated_at", None)

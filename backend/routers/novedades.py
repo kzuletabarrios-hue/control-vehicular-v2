@@ -1,6 +1,6 @@
 # backend/routers/novedades.py
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -9,6 +9,8 @@ from database import get_db
 from routers.auth import get_current_user
 
 router = APIRouter()
+
+_BOG = timezone(timedelta(hours=-5))
 
 ROLES_GESTION = ('admin', 'supervisor')
 MODULOS_VALIDOS   = ('flota', 'proveedores', 'acceso', 'visitantes', 'ronda', 'general')
@@ -66,14 +68,14 @@ def crear(
     if categoria not in CATEGORIAS_VALIDAS:
         categoria = "otro"
 
-    rid  = str(uuid.uuid4())
-    hora = datetime.now().strftime("%H:%M:%S")
+    rid   = str(uuid.uuid4())
+    ahora = datetime.now(_BOG)
 
     db.execute(text("""
         INSERT INTO novedades
             (id, usuario_id, modulo_origen, categoria, descripcion, fotografia, fecha, hora)
         VALUES
-            (:id, :usuario_id, :modulo_origen, :categoria, :descripcion, :fotografia, CURRENT_DATE, :hora)
+            (:id, :usuario_id, :modulo_origen, :categoria, :descripcion, :fotografia, :fecha, :hora)
     """), {
         "id": rid,
         "usuario_id":    user["id"],
@@ -81,7 +83,8 @@ def crear(
         "categoria":     categoria,
         "descripcion":   descripcion,
         "fotografia":    body.get("fotografia") or None,
-        "hora":          hora,
+        "fecha":         ahora.date().isoformat(),
+        "hora":          ahora.strftime("%H:%M:%S"),
     })
     db.commit()
     return {"id": rid, "message": "Novedad registrada"}
