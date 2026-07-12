@@ -19,7 +19,7 @@ router = APIRouter()
 CAMPOS_VEHICULO = [
     "fecha", "placa_vehiculo", "nombre_conductor", "tipo_documento", "cedula_conductor",
     "telefono_conductor",
-    "tipo_vehiculo", "hora_ingreso", "hora_salida", "fecha_salida",
+    "tipo_vehiculo", "hora_ingreso", "hora_cita", "hora_salida", "fecha_salida",
     "fecha_pago_arl", "arl_proveedor", "epp_cumple",
     "tipo_carga", "formato_carga", "cantidad_pallets", "manejo_carga",
     "observaciones", "foto_url",

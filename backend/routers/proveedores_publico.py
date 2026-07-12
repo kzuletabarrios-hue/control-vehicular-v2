@@ -23,7 +23,7 @@ _BOG = timezone(timedelta(hours=-5))
 
 CAMPOS_VEHICULO_PUBLICOS = [
     "placa_vehiculo", "nombre_conductor", "tipo_documento", "cedula_conductor",
-    "telefono_conductor", "tipo_vehiculo",
+    "telefono_conductor", "tipo_vehiculo", "hora_cita",
     "fecha_pago_arl", "epp_cumple", "tipo_carga", "formato_carga",
     "cantidad_pallets", "manejo_carga",
 ]

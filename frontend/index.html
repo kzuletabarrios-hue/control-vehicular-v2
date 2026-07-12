@@ -3082,7 +3082,15 @@ function ProveedoresPage({user,online,addOffline}){
         const etapa = pendConf?{txt:'🔔 Llegó — Por confirmar',cls:'pill-amber'}
           :conSalida?null
           :{txt:'Ingreso autorizado',cls:'pill-green'};
-        return h('div',{key:r.id,className:'list-item',style:pendConf?{border:'1.5px solid #fcd34d',background:'#fffbeb'}:null},
+        // Alerta cuando falta 1h o menos para la hora de cita que dio el
+        // conductor y el vehiculo todavia no ha llegado/confirmado.
+        const citaProxima = pendConf && r.hora_cita && (()=>{
+          const [ch,cm] = r.hora_cita.split(':').map(Number);
+          const [ah,am] = ahoraHora().split(':').map(Number);
+          const diff = (ch*60+cm) - (ah*60+am);
+          return diff>=0 && diff<=60;
+        })();
+        return h('div',{key:r.id,className:'list-item',style:citaProxima?{border:'1.5px solid #f87171',background:'#fef2f2'}:pendConf?{border:'1.5px solid #fcd34d',background:'#fffbeb'}:null},
           h('div',{className:'li-icon',style:{background:pendConf?'#fef3c7':'#fde68a'}},
             h(Ico,{n:pendConf?'bell':'package',s:18,style:{color:'#d97706'}})
           ),
@@ -3090,12 +3098,14 @@ function ProveedoresPage({user,online,addOffline}){
             setForm({...emptyF,...r,cedula_conductor:r.cedula_conductor||'',hora_ingreso:r.hora_ingreso||'',hora_salida:r.hora_salida||''});
             setSelected(r);setFormOrdenes(r.ordenes||[]);setAddingOrd(false);setView('form');
           }},
+            citaProxima&&h('span',{className:'pill',style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#fee2e2',color:'#991b1b',border:'1px solid #fca5a5'}},'⏰ Cita en ≤1h'),
             etapa&&h('span',{className:`pill ${etapa.cls}`,style:{marginBottom:3,display:'inline-block'}},etapa.txt),
             h('div',{className:'li-title'},r.nombre_conductor||r.placa_vehiculo||'Sin nombre'),
             h('div',{className:'li-sub'},
               [r.cedula_conductor&&('CC '+r.cedula_conductor),r.placa_vehiculo&&h('strong',{key:'placa',style:{fontWeight:700,color:'var(--text,#0f172a)'}},r.placa_vehiculo),r.tipo_vehiculo,r.muelle_descargue&&('Muelle '+r.muelle_descargue),r.telefono_conductor&&('📞 '+r.telefono_conductor)]
                 .filter(Boolean).reduce((acc,cur,i)=>i===0?[cur]:[...acc,' · ',cur],[])
             ),
+            r.hora_cita&&h('div',{className:'li-sub'},'Cita: '+r.hora_cita.slice(0,5)),
             r.hora_ingreso&&h('div',{className:'li-sub'},'Ingreso '+r.hora_ingreso.slice(0,5)),
             h('div',{className:'li-sub'},empLabel),
             ords.length>1&&h('span',{style:{fontSize:10,background:'#dbeafe',color:'#1d4ed8',borderRadius:4,padding:'1px 6px',fontWeight:700,display:'inline-block',marginTop:2}},ords.length+' órdenes')
@@ -4594,7 +4604,7 @@ function ProveedorAutorregistroPage({token}){
   const tiposCarga = ['Seca','Refrigerada','Mixta'];
   const formatosCarga = ['Paletizada','Granel','Mixta'];
   const manejosCarga = ['Conductor con certificado de montacargas','Reciservicios','Ercol','Operador logístico externo'];
-  const emptyVeh = {placa_vehiculo:'',nombre_conductor:'',tipo_documento:'CC',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',
+  const emptyVeh = {placa_vehiculo:'',nombre_conductor:'',tipo_documento:'CC',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_cita:'',
     fecha_pago_arl:'',epp_cumple:'',tipo_carga:'',formato_carga:'',cantidad_pallets:'',manejo_carga:''};
   const emptyOrd = {empresa:'',numero_orden_compra:''};
   const [vehiculo,setVehiculo] = useState(emptyVeh);
@@ -4646,6 +4656,7 @@ function ProveedorAutorregistroPage({token}){
     if(!vehiculo.cedula_conductor.trim()) return setErrorMsg('El número de documento es obligatorio');
     if(!vehiculo.telefono_conductor.trim()) return setErrorMsg('El teléfono del conductor es obligatorio');
     if(!vehiculo.tipo_vehiculo.trim()) return setErrorMsg('Selecciona el tipo de vehículo');
+    if(!vehiculo.hora_cita) return setErrorMsg('La hora de la cita es obligatoria');
     if(!vehiculo.fecha_pago_arl) return setErrorMsg('La fecha de ARL es obligatoria');
     if(vehiculo.epp_cumple==='') return setErrorMsg('Indica si cuentas con los elementos de protección personal');
     if(!vehiculo.tipo_carga) return setErrorMsg('Selecciona el tipo de carga');
@@ -4722,6 +4733,9 @@ function ProveedorAutorregistroPage({token}){
             h('option',{value:''},'Seleccionar...'),...tiposVehiculo.map(t=>h('option',{key:t,value:t},t))
           )
         )
+      ),
+      h('div',{className:'fg'},h('label',null,'Hora de tu cita',h('span',{className:'req'},'*')),
+        h('input',{type:'time',value:vehiculo.hora_cita,onChange:e=>setVehiculo(p=>({...p,hora_cita:e.target.value}))})
       )
     ),
     h('div',{className:'fcard'},
