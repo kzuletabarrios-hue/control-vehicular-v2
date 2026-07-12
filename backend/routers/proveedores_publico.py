@@ -31,6 +31,7 @@ CAMPOS_VEHICULO_PUBLICOS = [
 # confirmar el ingreso (ver PUT /api/proveedores/{id}).
 
 _PLACA_RE = re.compile(r"^[A-Z]+[0-9]+$")
+_ORDEN_RE = re.compile(r"^4\d{9}$")
 
 TIPOS_DOCUMENTO = ("CC", "NIT", "Otro")
 TIPOS_CARGA     = ("Seca", "Refrigerada", "Mixta")
@@ -132,8 +133,11 @@ def autorregistro(
     for o in ordenes:
         if not (o.get("empresa") or "").strip():
             raise HTTPException(400, "Cada proveedor/orden debe tener nombre")
-        if not (o.get("numero_orden_compra") or "").strip():
+        numero_oc = (o.get("numero_orden_compra") or "").strip()
+        if not numero_oc:
             raise HTTPException(400, "Cada proveedor/orden debe tener número de orden de compra")
+        if not _ORDEN_RE.match(numero_oc):
+            raise HTTPException(400, f"El número de orden \"{numero_oc}\" debe empezar en 4 y tener 10 dígitos (ej. 4001234567)")
 
     ahora = datetime.now(_BOG)
     rid = str(uuid.uuid4())
