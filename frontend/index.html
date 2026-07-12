@@ -774,7 +774,7 @@ function PerfilSheet({user,onClose,onLogout}){
 }
 
 /* ── HEADER COMPONENT ── */
-function BusquedaSheet({onClose}){
+function BusquedaSheet({onClose,onAbrirFlota}){
   const [q,setQ]           = useState('');
   const [items,setItems]   = useState([]);
   const [loading,setLoading]=useState(false);
@@ -819,22 +819,26 @@ function BusquedaSheet({onClose}){
           h('div',{style:{textAlign:'center',padding:20,color:'var(--slate)',fontSize:13}},'Sin resultados'),
         !loading&&q.trim().length<2&&
           h('div',{style:{textAlign:'center',padding:20,color:'var(--slate)',fontSize:12}},'Escribe al menos 2 caracteres'),
-        items.map((it,i)=>h('div',{key:it.modulo+it.id+i,style:{
-          display:'flex',justifyContent:'space-between',alignItems:'center',
-          padding:'10px 12px',borderRadius:8,background:'#f8fafc',marginBottom:6
-        }},
-          h('div',null,
-            h('div',{style:{fontWeight:700,fontSize:13}},it.identificador||'—'),
-            h('div',{style:{fontSize:11,color:'var(--slate)'}},[it.detalle,it.modulo_label,it.fecha].filter(Boolean).join(' · '))
-          ),
-          h('span',{className:'pill '+estadoColor(it.estado)},it.estado)
-        ))
+        items.map((it,i)=>{
+          const esFlota = it.modulo==='flota';
+          return h('div',{key:it.modulo+it.id+i,onClick:esFlota?()=>{onAbrirFlota(it.id);onClose();}:undefined,style:{
+            display:'flex',justifyContent:'space-between',alignItems:'center',
+            padding:'10px 12px',borderRadius:8,background:'#f8fafc',marginBottom:6,
+            cursor:esFlota?'pointer':'default'
+          }},
+            h('div',null,
+              h('div',{style:{fontWeight:700,fontSize:13}},it.identificador||'—'),
+              h('div',{style:{fontSize:11,color:'var(--slate)'}},[it.detalle,it.modulo_label,it.fecha].filter(Boolean).join(' · '))
+            ),
+            h('span',{className:'pill '+estadoColor(it.estado)},it.estado)
+          );
+        })
       )
     )
   );
 }
 
-function AppHeader({user,page,setPage,online,offlineQueue}){
+function AppHeader({user,page,setPage,online,offlineQueue,onAbrirFlota}){
   const [perfilOpen,setPerfilOpen] = useState(false);
   const [buscarOpen,setBuscarOpen] = useState(false);
   const titleMap = {home:'Inicio',flota:'Flota Propia',prov:'Proveedores',acceso:'Control Acceso',visit:'Visitantes',visitavh:'Visita Vehicular',bd:'Base de Datos',reg:'Registros',carga:'Carga Masiva'};
@@ -860,7 +864,7 @@ function AppHeader({user,page,setPage,online,offlineQueue}){
         )
       )
     ),
-    buscarOpen&&h(BusquedaSheet,{onClose:()=>setBuscarOpen(false)}),
+    buscarOpen&&h(BusquedaSheet,{onClose:()=>setBuscarOpen(false),onAbrirFlota}),
     perfilOpen&&h(PerfilSheet,{user,onClose:()=>setPerfilOpen(false),onLogout:()=>{setPerfilOpen(false);logout();}})
   );
 }
@@ -1069,7 +1073,7 @@ function TiendaPicker({label,tiendas,value,onChange}){
 }
 
 /* ── FLOTA PAGE ── */
-function FlotaPage({user,online,addOffline}){
+function FlotaPage({user,online,addOffline,openId,onOpened}){
   const [view,setView]         = useState('list');
   const [records,setRecords]   = useState([]);
   const [conductores,setCond]  = useState([]);
@@ -1128,6 +1132,27 @@ function FlotaPage({user,online,addOffline}){
     api.get('/maestros/distribucion').then(setTiendas).catch(()=>{});
   },[]);
   useEffect(()=>{ load(); const t=setInterval(load,30000); return ()=>clearInterval(t); },[load]);
+
+  // Abre el detalle completo (hora, fecha, tiendas/ruta, sellos) para un
+  // registro. Se usa tanto al tocar la lista como al abrirlo desde la
+  // búsqueda global -- ahí siempre se muestra este detalle sin importar el
+  // rol, porque es la vista que sí trae hora, fecha y ruta juntos.
+  const abrirDetalle = (r) => {
+    setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');setTipoSelloEntrada(r.tipo_sello_entrada||'');
+    setSelloEntradaDetalle(r.sello_entrada||'');setSelloSalida(r.sello||'');setTempSalida(r.temperatura||'');
+    setObsSalida(r.obs_salida||'');setObsLleg(r.obs_llegada||'');setUltimaTiendaLleg(r.ultima_tienda||'');
+  };
+
+  // Viene de la búsqueda global (lupa): pide el registro puntual por id --
+  // no depende de que esté en la página cargada de la lista, que solo trae
+  // los más recientes.
+  useEffect(()=>{
+    if(!openId) return;
+    api.get(`/flota/${openId}`)
+      .then(r=>abrirDetalle(r))
+      .catch(()=>setAlert({type:'err',msg:'No se pudo abrir el registro'}))
+      .finally(()=>onOpened&&onOpened());
+  },[openId]);
 
   const fld = (name,label,type='text',req=false,opts=null) => h('div',{className:'fg'},
     h('label',null,label,req&&h('span',{className:'req'},'*')),
@@ -1272,7 +1297,7 @@ function FlotaPage({user,online,addOffline}){
       visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'truck',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='pendientes'?'Sin vehículos activos':'Sin registros hoy')):
       visibles.map(r=>h('div',{key:r.id,className:'list-item'},
         h('div',{className:'li-icon',style:{background:'#dbeafe'}},h(Ico,{n:'truck',s:18,c:'',style:{color:'#1d4ed8'}})),
-        h('div',{className:'li-body',onClick:esCoordinador?undefined:()=>{ if(esVehicular){setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');setTipoSelloEntrada(r.tipo_sello_entrada||'');setSelloEntradaDetalle(r.sello_entrada||'');setSelloSalida(r.sello||'');setTempSalida(r.temperatura||'');setObsSalida(r.obs_salida||'');setObsLleg(r.obs_llegada||'');setUltimaTiendaLleg(r.ultima_tienda||'');}else{setForm({...emptyF,...r});setSelected(r);setView('form');} }},
+        h('div',{className:'li-body',onClick:esCoordinador?undefined:()=>{ if(esVehicular){abrirDetalle(r);}else{setForm({...emptyF,...r});setSelected(r);setView('form');} }},
           h('div',{className:'li-title'},r.placa,
             h('span',{style:{fontSize:10,fontWeight:600,marginLeft:6,padding:'2px 6px',borderRadius:4,
               background:r.hora_llegada?'#d1fae5':r.hora_salida_cedi?'#fef3c7':'#dbeafe',
@@ -1290,12 +1315,12 @@ function FlotaPage({user,online,addOffline}){
           !esCoordinador&&h('div',{style:{display:'flex',gap:4,marginTop:3}},
             esVehicular&&!r.hora_salida_cedi&&h('button',{
               title:'Ver detalle y registrar salida',
-              onClick:(e)=>{e.stopPropagation();setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');setTipoSelloEntrada(r.tipo_sello_entrada||'');setSelloEntradaDetalle(r.sello_entrada||'');setSelloSalida(r.sello||'');setTempSalida(r.temperatura||'');setObsSalida(r.obs_salida||'');setObsLleg(r.obs_llegada||'');setUltimaTiendaLleg(r.ultima_tienda||'');},
+              onClick:(e)=>{e.stopPropagation();abrirDetalle(r);},
               style:{background:'#059669',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Salida'),
             esVehicular&&r.hora_salida_cedi&&!r.hora_llegada&&h('button',{
               title:'Ver detalle y registrar llegada',
-              onClick:(e)=>{e.stopPropagation();setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');setTipoSelloEntrada(r.tipo_sello_entrada||'');setSelloEntradaDetalle(r.sello_entrada||'');setSelloSalida(r.sello||'');setTempSalida(r.temperatura||'');setObsSalida(r.obs_salida||'');setObsLleg(r.obs_llegada||'');setUltimaTiendaLleg(r.ultima_tienda||'');},
+              onClick:(e)=>{e.stopPropagation();abrirDetalle(r);},
               style:{background:'#f59e0b',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Llegada'),
             !esVehicular&&r.hora_salida_cedi&&!r.hora_llegada&&h('button',{
@@ -1427,6 +1452,12 @@ function FlotaPage({user,online,addOffline}){
           background:detalleVeh.hora_llegada?'#d1fae5':detalleVeh.hora_salida_cedi?'#fef3c7':'#dbeafe',
           color:detalleVeh.hora_llegada?'#065f46':detalleVeh.hora_salida_cedi?'#92400e':'#1e40af'
         }},detalleVeh.hora_llegada?'Regresó':detalleVeh.hora_salida_cedi?'En ruta':'En bodega'),
+        h('div',{style:{marginTop:12,display:'flex',flexWrap:'wrap',gap:'6px 16px',fontSize:12,color:'var(--slate)'}},
+          h('div',null,h('strong',{style:{color:'var(--navy)'}},'Fecha: '),fmtDate(detalleVeh.fecha)),
+          detalleVeh.hora_salida_muelle&&h('div',null,h('strong',{style:{color:'var(--navy)'}},'Salida muelle: '),detalleVeh.hora_salida_muelle),
+          detalleVeh.hora_salida_cedi&&h('div',null,h('strong',{style:{color:'var(--navy)'}},'Salida CEDI: '),detalleVeh.hora_salida_cedi),
+          detalleVeh.hora_llegada&&h('div',null,h('strong',{style:{color:'var(--navy)'}},'Llegada: '),detalleVeh.hora_llegada)
+        ),
         h('div',{style:{marginTop:14,background:'#f8fafc',borderRadius:10,padding:'12px 14px'}},
           h('p',{style:{fontSize:11,fontWeight:700,color:'var(--navy)',marginBottom:8,textTransform:'uppercase',letterSpacing:'0.05em'}},'Ruta de distribución'),
           (()=>{
@@ -4854,6 +4885,7 @@ function App(){
   const [page,setPageState]  = useState('home');
   const [online,setOnline]   = useState(navigator.onLine);
   const [queue,setQueue]     = useState(getQueue);
+  const [openFlotaId,setOpenFlotaId] = useState(null);
 
   const navigate = (newPage)=>{
     if(newPage===page) return;
@@ -4912,7 +4944,7 @@ function App(){
 
   const pageContent = {
     home:   h(HomePage,{setPage:navigate,user}),
-    flota:  h(FlotaPage,{user,online,addOffline}),
+    flota:  h(FlotaPage,{user,online,addOffline,openId:openFlotaId,onOpened:()=>setOpenFlotaId(null)}),
     prov:   h(ProveedoresPage,{user,online,addOffline}),
     visitavh: h(VisitaVehicularPage,{user,online,addOffline}),
     acceso: h(AccesoPage,{user,online,addOffline}),
@@ -4929,7 +4961,7 @@ function App(){
 
   return h('div',{className:'app-wrap'},
     h('div',{className:'app-main'},
-      h(AppHeader,{user,page,setPage:navigate,online,offlineQueue:queue.length}),
+      h(AppHeader,{user,page,setPage:navigate,online,offlineQueue:queue.length,onAbrirFlota:(id)=>{setOpenFlotaId(id);navigate('flota');}}),
       queue.length>0&&online&&h('div',{className:'queue-banner'},
         h(Ico,{n:'wifi',s:14}),
         h('p',null,`${queue.length} registros pendientes de sincronizar`),
