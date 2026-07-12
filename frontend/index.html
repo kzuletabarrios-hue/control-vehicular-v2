@@ -469,6 +469,25 @@ const obtenerUbicacion = () => new Promise(resolve=>{
 });
 const today     = () => _bogSnap().fecha;
 const ahoraHora = () => _bogSnap().hora;
+// Beep de alerta (Web Audio API, sin archivos externos) para avisar cuando
+// falten pocos minutos para una hora de cita. 3 tonos cortos ascendentes.
+const playAlertSound = () => {
+  try{
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new Ctx();
+    [660,880,1046].forEach((freq,i)=>{
+      const t0 = ctx.currentTime + i*0.22;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.35, t0+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0+0.18);
+      o.start(t0); o.stop(t0+0.2);
+    });
+  }catch(e){ /* audio no soportado/bloqueado por el navegador */ }
+};
 const fmtDate   = d  => d?new Date(d+'T12:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short'}):'—';
 const initials  = n  => (n||'U').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
 // Normaliza nombres propios a "Primera Letra Mayúscula" (evita que queden en
@@ -2550,6 +2569,27 @@ function ProveedoresPage({user,online,addOffline}){
     api.get('/proveedores').then(r=>setRecords(r.items||r)).catch(()=>setAlert({type:'err',msg:'Error cargando datos'})).finally(()=>setLoading(false));
   },[]);
   useEffect(()=>{ load(); const t=setInterval(load,30000); return ()=>clearInterval(t); },[load]);
+
+  // Suena una alerta cuando a un proveedor por confirmar le falten ≤5 min para
+  // su hora de cita (declarada por el conductor). Una sola vez por registro.
+  const avisados5min = useRef(new Set());
+  useEffect(()=>{
+    const pendientesIds = new Set();
+    records.forEach(r=>{
+      if(r.estado_confirmacion!=='pendiente' || !r.hora_cita) return;
+      pendientesIds.add(r.id);
+      const [ch,cm] = r.hora_cita.split(':').map(Number);
+      const [ah,am] = ahoraHora().split(':').map(Number);
+      const diff = (ch*60+cm) - (ah*60+am);
+      if(diff>=0 && diff<=5 && !avisados5min.current.has(r.id)){
+        avisados5min.current.add(r.id);
+        playAlertSound();
+      }
+    });
+    // Limpia ids que ya no aplican (confirmados o fuera de la lista) para no
+    // acumular memoria indefinidamente en un turno largo.
+    avisados5min.current.forEach(id=>{ if(!pendientesIds.has(id)) avisados5min.current.delete(id); });
+  },[records]);
 
   useEffect(()=>{
     api.get('/maestros/proveedores').then(r=>setBdProv(Array.isArray(r)?r:(r.items||[]))).catch(()=>{});
