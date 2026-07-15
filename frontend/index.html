@@ -4908,6 +4908,27 @@ function App(){
     return ()=>window.removeEventListener('popstate',onPop);
   },[]);
 
+  // Mantiene sincronizados nombre/rol con la BD: si a este usuario le
+  // cambiaron el rol después de iniciar sesión, el localStorage quedaría
+  // con datos viejos y el menú mostraría módulos que el backend ya no
+  // le permite, causando 403 ("Error cargando datos") en esas pestañas.
+  useEffect(()=>{
+    if(!user) return;
+    const syncUser = ()=>{
+      api.get('/auth/me').then(u=>{
+        if(!u) return;
+        setUser(prev=>{
+          const merged = {...prev,...u};
+          localStorage.setItem('cv_user',JSON.stringify(merged));
+          return merged;
+        });
+      }).catch(()=>{});
+    };
+    syncUser();
+    const t = setInterval(syncUser,300000);
+    return ()=>clearInterval(t);
+  },[user?.id]);
+
   const addOffline = (item)=>{ addToQueue(item); setQueue(getQueue()); };
 
   const syncQueue = async()=>{
