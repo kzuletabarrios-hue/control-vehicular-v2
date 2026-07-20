@@ -62,24 +62,46 @@ def export_flota(
     where = ["1=1"]
     params = {}
     if fecha_desde:
-        where.append("fecha >= :desde")
+        where.append("f.fecha >= :desde")
         params["desde"] = fecha_desde
     if fecha_hasta:
-        where.append("fecha <= :hasta")
+        where.append("f.fecha <= :hasta")
         params["hasta"] = fecha_hasta
 
+    def _tienda_col(alias: str, col: str) -> str:
+        return (
+            f"CASE WHEN {alias}.codigo IS NOT NULL "
+            f"THEN {alias}.codigo::text || ' - ' || {alias}.name "
+            f"ELSE {alias}.name END AS {col}_nombre"
+        )
+
+    tienda_cols = ", ".join(
+        _tienda_col(f"d{i}", f"tienda_{i}") for i in range(1, 6)
+    )
+    tienda_joins = "\n".join(
+        f"LEFT JOIN distribucion d{i} ON d{i}.id = f.tienda_{i}" for i in range(1, 6)
+    )
+
     rows = db.execute(text(f"""
-        SELECT placa, conductor, n_pallets, n_contenedores,
-               cant_volumen_externo, muelle_cargue,
-               fecha, hora_salida_muelle,
-               ultima_tienda_visitada, protocolo, temperatura,
-               sello, sello_entrada,
-               fecha_salida, hora_salida_cedi,
-               fecha_llegada, hora_llegada,
-               observacion
-        FROM flota_propia
+        SELECT f.placa, f.conductor, f.n_pallets, f.n_contenedores,
+               f.cant_volumen_externo, f.muelle_cargue,
+               {tienda_cols},
+               CASE
+                   WHEN du.codigo IS NOT NULL THEN du.codigo::text || ' - ' || du.name
+                   WHEN du.name IS NOT NULL THEN du.name
+                   ELSE f.ultima_tienda_visitada
+               END AS ultima_tienda_nombre,
+               f.fecha, f.hora_salida_muelle,
+               f.protocolo, f.temperatura,
+               f.sello, f.sello_entrada,
+               f.fecha_salida, f.hora_salida_cedi,
+               f.fecha_llegada, f.hora_llegada,
+               f.observacion
+        FROM flota_propia f
+        {tienda_joins}
+        LEFT JOIN distribucion du ON du.id = f.ultima_tienda
         WHERE {' AND '.join(where)}
-        ORDER BY fecha DESC, created_at DESC
+        ORDER BY f.fecha DESC, f.created_at DESC
     """), params).fetchall()
 
     wb = Workbook()
@@ -89,8 +111,10 @@ def export_flota(
     headers = [
         "Placa", "Conductor", "Pallets", "Contenedores",
         "Vol. Externo", "Muelle",
+        "Tienda 1", "Tienda 2", "Tienda 3", "Tienda 4", "Tienda 5",
+        "Última Tienda Visitada",
         "Fecha Registro", "H. Sal. Muelle",
-        "Última Tienda", "Protocolo", "Temperatura",
+        "Protocolo", "Temperatura",
         "Sello", "Sello Entrada",
         "Fecha Salida", "H. Salida CEDI",
         "Fecha Llegada", "H. Llegada", "Observación",
