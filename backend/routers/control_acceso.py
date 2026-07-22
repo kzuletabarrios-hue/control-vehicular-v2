@@ -1,13 +1,51 @@
 # backend/routers/control_acceso.py
 import uuid
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 
 from database import get_db
 from routers.auth import require_permiso
 
 router = APIRouter()
+
+
+# ── ANULACIÓN: modelo de entrada y helpers de traducción de errores ─
+class AnularBody(BaseModel):
+    motivo: str
+
+    @field_validator("motivo")
+    @classmethod
+    def motivo_no_vacio(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("El motivo de anulación es obligatorio")
+        return v
+
+
+def _mensaje_error_pg(e: DBAPIError) -> str:
+    """Extrae el texto legible que la función fn_control_acceso_anular
+    manda vía RAISE EXCEPTION, sin el ruido de CONTEXT/DETAIL que
+    psycopg2 concatena en str(e.orig)."""
+    orig = getattr(e, "orig", None)
+    diag = getattr(orig, "diag", None)
+    msg = getattr(diag, "message_primary", None) if diag else None
+    if msg:
+        return msg
+    return str(orig or e).split("\n")[0].strip()
+
+
+def _codigo_http_anulacion(mensaje: str) -> int:
+    m = mensaje.lower()
+    if "no encontrado" in m:
+        return 404
+    if "no tiene el permiso" in m:
+        return 403
+    # "ya está anulado", "fuera de la ventana" y "motivo ... obligatorio"
+    # (esta última es defensa en profundidad: Pydantic ya la bloquea antes).
+    return 400
 
 
 # ── SUSTANCIAS ────────────────────────────────────────────────────
@@ -160,6 +198,7 @@ def listar(
     q: str = None,
     limit: int = 100,
     offset: int = 0,
+    incluir_anulados: bool = False,
     db: Session = Depends(get_db),
     _: dict = Depends(require_permiso("control_acceso", "read")),
 ):
@@ -171,6 +210,11 @@ def listar(
     if q:
         where.append("(ca.nombre ILIKE :q OR ca.contratista ILIKE :q OR CAST(ca.cedula AS TEXT) ILIKE :q)")
         params["q"] = f"%{q}%"
+    if not incluir_anulados:
+        # Por defecto los anulados no se mezclan en el listado operativo.
+        # Cubierto por el índice parcial idx_ca_activos_fecha (fecha DESC,
+        # hora_ingreso DESC) WHERE anulado = FALSE.
+        where.append("ca.anulado = FALSE")
 
     where_sql = ' AND '.join(where)
     rows = db.execute(text(f"""
@@ -278,6 +322,35 @@ def actualizar(
     db.execute(text(f"UPDATE control_acceso SET {sets}, updated_at = NOW() WHERE id = :id"), vals)
     db.commit()
     return {"message": "Registro actualizado"}
+
+
+@router.put("/{id}/anular")
+def anular(
+    id: str,
+    body: AnularBody,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permiso("control_acceso", "anular")),
+):
+    """Anula (soft-delete trazable) un registro de control_acceso.
+    Toda la regla de negocio (permiso, motivo obligatorio, ventana de
+    tiempo, no doble anulación) y el audit_log los resuelve
+    fn_control_acceso_anular en la propia base de datos; acá solo se
+    traduce el RAISE EXCEPTION de Postgres a HTTP.
+    p_ventana_horas no se pasa: se usa el DEFAULT 24h de la función
+    (placeholder pendiente de confirmar con Alejandro/negocio).
+    """
+    try:
+        row = db.execute(
+            text("SELECT * FROM fn_control_acceso_anular(:id, :usuario_id, :motivo)"),
+            {"id": id, "usuario_id": current_user["id"], "motivo": body.motivo},
+        ).fetchone()
+        db.commit()
+    except DBAPIError as e:
+        db.rollback()
+        mensaje = _mensaje_error_pg(e)
+        raise HTTPException(status_code=_codigo_http_anulacion(mensaje), detail=mensaje)
+
+    return dict(row._mapping)
 
 
 @router.delete("/{id}")

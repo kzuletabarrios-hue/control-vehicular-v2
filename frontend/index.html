@@ -381,6 +381,7 @@ const Icons = {
   search:`<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>`,
   edit:`<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>`,
   calendar:`<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>`,
+  ban:`<circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>`,
 };
 const Ico = ({n,s=20,c=''}) => SVG(Icons[n]||'',s,c);
 
@@ -489,6 +490,42 @@ const playAlertSound = () => {
   }catch(e){ /* audio no soportado/bloqueado por el navegador */ }
 };
 const fmtDate   = d  => d?new Date(d+'T12:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short'}):'—';
+// Timestamp completo (usado para anulado_at, created_at, etc. — vienen como TIMESTAMPTZ ISO)
+const fmtDateHora = iso => { if(!iso) return '—'; const d=new Date(iso); return isNaN(d) ? '—' : d.toLocaleString('es-CO',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}); };
+
+/* ── ANULACIÓN CONTROL ACCESO: permiso (UX) + traducción de errores ──
+   /auth/me NO expone el objeto `permisos` real de la BD (el backend lo
+   descarta a propósito en /auth/me, ver auth.py). Esta lista es un
+   espejo manual de qué roles quedaron con "anular" tras
+   migration_anulacion_control_acceso.sql (todo rol que ya tuviera
+   "write" en control_acceso). NO es la fuente de verdad: solo controla
+   mostrar/ocultar el botón. El backend re-valida siempre con 403, así
+   que un desajuste aquí es un problema de UX (botón visible que falla,
+   o botón oculto que sí funcionaría), nunca un hueco de seguridad.
+   Si el equipo agrega permisos granulares a /auth/me, reemplazar esto. */
+const ROLES_ANULAR_CONTROL_ACCESO = ['admin','supervisor','operador','guarda_peatonal','guarda_vehicular','guarda_bodega'];
+const puedeAnularAcceso = user => !!user?.rol && ROLES_ANULAR_CONTROL_ACCESO.includes(user.rol);
+
+// Traduce el detail crudo de PUT /control-acceso/{id}/anular (400/403/404)
+// a un mensaje accionable. api._fetch descarta el status code y hace
+// throw new Error(await r.text()), así que acá solo tenemos el texto del
+// body — se intenta parsear como JSON de FastAPI ({"detail":...}) y si
+// falla se usa el texto crudo tal cual.
+function textoErrorAnulacion(e){
+  let detail = '';
+  try{
+    const parsed = JSON.parse(e.message);
+    if(typeof parsed.detail === 'string') detail = parsed.detail;
+    else if(Array.isArray(parsed.detail) && parsed.detail[0]) detail = String(parsed.detail[0].msg||'').replace(/^Value error,\s*/i,'');
+  }catch(_){ detail = e.message || ''; }
+  const d = detail.toLowerCase();
+  if(d.includes('no encontrado')) return 'Este registro ya no existe (puede que ya lo hayan eliminado). Actualiza la lista.';
+  if(d.includes('sin permiso') || d.includes('no tiene el permiso')) return 'No tienes permiso para anular registros. Pide a un supervisor o administrador que lo haga.';
+  if(d.includes('ya está anulado')) return 'Este registro ya había sido anulado antes. Actualiza la lista para verlo en "Anulados".';
+  if(d.includes('fuera de la ventana')) return 'Ya pasaron más de 24 horas desde que se creó este registro. Pide a un supervisor o administrador que lo anule.';
+  if(d.includes('motivo')) return 'Escribe el motivo de la anulación.';
+  return detail || 'No se pudo anular el registro. Intenta de nuevo.';
+}
 const initials  = n  => (n||'U').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
 // Normaliza nombres propios a "Primera Letra Mayúscula" (evita que queden en
 // MAYÚSCULA SOSTENIDA o en minúscula por como los digite quien los registra).
@@ -917,7 +954,7 @@ function HomePage({setPage,user}){
     {id:'flota', label:'Flota Propia',     desc:'Salidas de vehículos',   cls:'m-flota',icon:'truck',    roles:['admin','supervisor','operador','guarda_bodega','guarda_vehicular','coordinador'],cnt:resumen?.flota?.hoy},
     {id:'prov',  label:'Proveedores',desc:'Vehículos terceros',     cls:'m-prov', icon:'package',  roles:['admin','supervisor','operador','guarda_vehicular','guarda_bodega','coordinador'],cnt:resumen?.proveedores?.hoy},
     {id:'visitavh',label:'Visita Vehicular',desc:'Visitas puntuales en vehículo', cls:'m-visitavh', icon:'truck', roles:['admin','supervisor','operador','guarda_bodega','guarda_vehicular'],cnt:resumen?.visita_vehicular?.hoy},
-    {id:'acceso',label:'Control Acceso',   desc:'Entrada/salida personal',cls:'m-acc',  icon:'userCheck',roles:['admin','supervisor','operador','guarda_peatonal'],  cnt:resumen?.control_acceso?.hoy},
+    {id:'acceso',label:'Control Acceso',   desc:'Entrada/salida personal',cls:'m-acc',  icon:'userCheck',roles:['admin','supervisor','operador','guarda_peatonal','guarda_vehicular','guarda_bodega'],  cnt:resumen?.control_acceso?.hoy},
     {id:'visit', label:'Visitantes',       desc:'Registro de visitas',    cls:'m-vis',  icon:'users',    roles:['admin','supervisor','operador','guarda_peatonal','guarda_vehicular'],  cnt:resumen?.visitantes?.hoy},
     {id:'sust',  label:'Sustancias',        desc:'Control de sustancias',  cls:'m-sust', icon:'alert',    roles:['admin','supervisor','operador','guarda_peatonal'],cnt:null},
     {id:'herr',  label:'Herramientas',     desc:'Control de herramientas',cls:'m-herr', icon:'key',      roles:['admin','supervisor','operador','guarda_peatonal'],cnt:null},
@@ -2004,6 +2041,15 @@ function AccesoPage({user,online,addOffline}){
   const [filtro,setFiltro] = useState('pendientes');
   const [busqueda,setBusqueda] = useState('');
 
+  // ── Anulación ──
+  const [anular,setAnular]           = useState(null);   // registro activo en el modal de anulación
+  const [motivoAnular,setMotivoAnular]= useState('');
+  const [anulando,setAnulando]       = useState(false);
+  const [errorAnular,setErrorAnular] = useState(null);
+  const anulandoRef = useRef(false);  // guarda dura contra doble-click (independiente del re-render de setAnulando)
+  const [anuladosRecords,setAnuladosRecords] = useState([]);
+  const [loadingAnulados,setLoadingAnulados]  = useState(false);
+
   const load = useCallback(()=>{
     setLoading(true);
     api.get('/control-acceso').then(r=>setRecords(r.items||r)).catch(()=>setAlert({type:'err',msg:'Error cargando datos'})).finally(()=>setLoading(false));
@@ -2015,6 +2061,39 @@ function AccesoPage({user,online,addOffline}){
       setContratistas(uniq);
     }).catch(()=>{});
   },[]);
+
+  // GET /control-acceso ya no trae anulados por defecto: para el historial
+  // hay que pedirlos aparte con incluir_anulados=true. Se carga solo cuando
+  // el guarda entra a la pestaña "Anulados" (lazy), no en cada visita a la página.
+  const cargarAnulados = useCallback(()=>{
+    setLoadingAnulados(true);
+    api.get('/control-acceso?incluir_anulados=true')
+      .then(r=>setAnuladosRecords((r.items||r).filter(x=>x.anulado)))
+      .catch(()=>setAlert({type:'err',msg:'Error cargando el historial de anulados'}))
+      .finally(()=>setLoadingAnulados(false));
+  },[]);
+  useEffect(()=>{ if(filtro==='anulados') cargarAnulados(); },[filtro]);
+
+  const cerrarModalAnular = ()=>{ if(anulando) return; setAnular(null); setMotivoAnular(''); setErrorAnular(null); };
+
+  const confirmarAnular = async ()=>{
+    const motivo = motivoAnular.trim();
+    if(!motivo || anulandoRef.current) return;
+    anulandoRef.current = true;
+    setAnulando(true); setErrorAnular(null);
+    try{
+      await api.put(`/control-acceso/${anular.id}/anular`,{motivo});
+      setAnular(null); setMotivoAnular('');
+      load();
+      if(filtro==='anulados') cargarAnulados();
+      setAlert({type:'ok',msg:'Registro anulado correctamente'});
+    }catch(e){
+      setErrorAnular(textoErrorAnulacion(e));
+    }finally{
+      anulandoRef.current = false;
+      setAnulando(false);
+    }
+  };
 
   const buscarCedula = async(val)=>{
     const prev = form.cedula||'';
@@ -2099,8 +2178,10 @@ function AccesoPage({user,online,addOffline}){
   const nPend = records.filter(r=>!r.hora_salida).length;
   const nDiasAnteriores = records.filter(r=>!r.hora_salida && r.fecha!==hoyStr).length;
   const diasAbiertos = f => Math.round((new Date(hoyStr+'T00:00:00') - new Date(f+'T00:00:00'))/86400000);
-  const visibles = records
+  const esVistaAnulados = filtro==='anulados';
+  const visibles = (esVistaAnulados ? anuladosRecords : records)
     .filter(r=>{
+      if(esVistaAnulados) return true;
       if(filtro==='dias_anteriores') return !r.hora_salida && r.fecha!==hoyStr;
       if(filtro==='pendientes') return !r.hora_salida;
       return true;
@@ -2112,7 +2193,8 @@ function AccesoPage({user,online,addOffline}){
         h('div',{style:{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}},
           h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
           nDiasAnteriores>0&&h('button',{onClick:()=>setFiltro('dias_anteriores'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='dias_anteriores'?'#b91c1c':'#fee2e2',color:filtro==='dias_anteriores'?'#fff':'#991b1b',borderColor:filtro==='dias_anteriores'?'#b91c1c':'#fecaca'}},`⚠ Días anteriores (${nDiasAnteriores})`),
-          h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
+          h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`),
+          h('button',{onClick:()=>setFiltro('anulados'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='anulados'?'var(--slate)':'transparent',color:filtro==='anulados'?'#fff':'var(--slate)',borderColor:filtro==='anulados'?'var(--slate)':'var(--border)',display:'flex',alignItems:'center',gap:4}},h(Ico,{n:'ban',s:11}),'Anulados')
         ),
         h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
           h(Ico,{n:'plus',s:15}),' Nuevo'
@@ -2125,9 +2207,23 @@ function AccesoPage({user,online,addOffline}){
     ),
     h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
-      loading?h(LoadingDots):
-      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'userCheck',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='dias_anteriores'?'Sin pendientes de días anteriores':filtro==='pendientes'?'Sin personas activas':'Sin registros hoy')):
-      visibles.map(r=>h('div',{key:r.id,className:'list-item'},
+      (esVistaAnulados?loadingAnulados:loading)?h(LoadingDots):
+      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:esVistaAnulados?'ban':'userCheck',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':esVistaAnulados?'Sin registros anulados':filtro==='dias_anteriores'?'Sin pendientes de días anteriores':filtro==='pendientes'?'Sin personas activas':'Sin registros hoy')):
+      visibles.map(r=> esVistaAnulados ? h('div',{key:r.id,className:'list-item',style:{cursor:'default',opacity:.85}},
+        h('div',{className:'li-icon',style:{background:'#f1f5f9'}},
+          h(Ico,{n:'ban',s:18,style:{color:'var(--slate)'}})
+        ),
+        h('div',{className:'li-body'},
+          h('span',{className:'pill pill-slate',style:{marginBottom:3,display:'inline-block'}},'Anulado'),
+          h('div',{className:'li-title',style:{textDecoration:'line-through',color:'var(--slate)'}},r.nombre),
+          h('div',{className:'li-sub'},r.contratista||'Sin empresa'),
+          h('div',{className:'li-sub',style:{color:'#991b1b'}},'Motivo: ',r.anulado_motivo||'—')
+        ),
+        h('div',{className:'li-right'},
+          h('span',{className:'li-date'},r.cedula||'—'),
+          h('span',{style:{fontSize:9,color:'var(--slate)',marginTop:2}},fmtDateHora(r.anulado_at))
+        )
+      ) : h('div',{key:r.id,className:'list-item'},
         h('div',{className:'li-icon',style:{background: r.hora_salida?'#dcfce7':'#dbeafe'}},
           h(Ico,{n:'userCheck',s:18,style:{color: r.hora_salida?'#16a34a':'#1d4ed8'}})
         ),
@@ -2147,6 +2243,11 @@ function AccesoPage({user,online,addOffline}){
               onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(ahoraHora());setFechaSalidaA(today());},
               style:{background:'#16a34a',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Salida'),
+            !r.anulado&&puedeAnularAcceso(user)&&h('button',{
+              title:'Anular registro',
+              onClick:(e)=>{e.stopPropagation();setAnular(r);setMotivoAnular('');setErrorAnular(null);},
+              style:{background:'none',border:'1.5px solid #fecaca',cursor:'pointer',color:'#b91c1c',padding:'3px 7px',borderRadius:6,fontSize:11,fontWeight:700,display:'flex',alignItems:'center',gap:3}
+            },h(Ico,{n:'ban',s:11}),'Anular'),
             !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
           )
         )
@@ -2190,6 +2291,40 @@ function AccesoPage({user,online,addOffline}){
             }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
             finally{setSaving(false);}
           }},saving?h('div',{className:'spinner'}):h(Ico,{n:'checkCircle',s:16}),saving?'Guardando...':'Confirmar salida')
+        )
+      )
+    ),
+    anular&&h('div',{className:'overlay',onClick:cerrarModalAnular},
+      h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
+        h('div',{className:'sheet-handle'}),
+        h('div',{style:{padding:'0 0 4px',textAlign:'center'}},
+          h('div',{className:'confirm-icon'},h(Ico,{n:'ban',s:22})),
+          h('h3',{style:{fontSize:16,fontWeight:700,marginBottom:6}},'Anular registro'),
+          h('p',{style:{fontSize:12,color:'var(--slate)',marginBottom:14,lineHeight:1.5}},anular.nombre,' · ',anular.contratista||'Sin empresa',' · Ingreso ',fmtDate(anular.fecha),' ',anular.hora_ingreso||'')
+        ),
+        h('div',{style:{background:'#fef3c7',border:'1px solid #fcd34d',borderRadius:10,padding:'10px 12px',display:'flex',gap:8,marginBottom:14,alignItems:'flex-start',textAlign:'left'}},
+          h(Ico,{n:'alert',s:15,style:{color:'#92400e',flexShrink:0,marginTop:1}}),
+          h('p',{style:{fontSize:11.5,color:'#78350f',lineHeight:1.5}},
+            'Esta acción queda asociada a tu usuario y ',h('strong',null,'no se puede deshacer'),'. El registro no se elimina: pasa al historial marcado como anulado.'
+          )
+        ),
+        h('div',{className:'fg',style:{textAlign:'left'}},
+          h('label',null,'Motivo de la anulación',h('span',{className:'req'},'*')),
+          h('textarea',{
+            value:motivoAnular,
+            onChange:e=>{setMotivoAnular(e.target.value); if(errorAnular) setErrorAnular(null);},
+            rows:3,
+            placeholder:'Ej: se registró por error, el ingreso corresponde a otra persona...',
+            autoFocus:true,
+            disabled:anulando
+          })
+        ),
+        errorAnular&&h(Alert,{type:'err',msg:errorAnular,onClose:()=>setErrorAnular(null)}),
+        h('div',{style:{display:'flex',gap:8,marginTop:4}},
+          h('button',{className:'btn-cancel',style:{flex:1},disabled:anulando,onClick:cerrarModalAnular},'Cancelar'),
+          h('button',{className:'btn-primary',style:{background:(anulando||!motivoAnular.trim())?'#94a3b8':'var(--red)'},disabled:anulando||!motivoAnular.trim(),onClick:confirmarAnular},
+            anulando?h('div',{className:'spinner'}):h(Ico,{n:'ban',s:16}),anulando?'Anulando...':'Confirmar anulación'
+          )
         )
       )
     ),
@@ -2567,6 +2702,7 @@ function ProveedoresPage({user,online,addOffline}){
   const [salida,setSalida]     = useState(null);
   const [horaSalida,setHoraSalida]     = useState('');
   const [fechaSalidaP,setFechaSalidaP] = useState('');
+  const [fotoSalida,setFotoSalida]     = useState(null);
   const [filtro,setFiltro]     = useState('confirmar'); // confirmar | dentro | todos
   const [busqueda,setBusqueda] = useState('');
   const esBodega    = user?.rol==='guarda_bodega';
@@ -3193,7 +3329,7 @@ function ProveedoresPage({user,online,addOffline}){
               },'Confirmar'),
               !esBodega&&!pendConf&&r.hora_ingreso&&!r.hora_salida&&h('button',{
                 title:'Registrar salida',
-                onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(ahoraHora());setFechaSalidaP(today());},
+                onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(ahoraHora());setFechaSalidaP(today());setFotoSalida(null);},
                 style:{background:'#d97706',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
               },'Salida'),
               (esBodega||esVehicular)&&(r.observaciones||r.foto_url)&&h('span',{style:{fontSize:10,background:'#fef3c7',color:'#92400e',borderRadius:4,padding:'2px 6px',fontWeight:600}},'Con observación'),
@@ -3228,13 +3364,19 @@ function ProveedoresPage({user,online,addOffline}){
           h('div',{className:'fg'},h('label',null,'Fecha de salida'),h('input',{type:'date',value:fechaSalidaP,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg'},h('label',null,'Hora de salida'),h('input',{type:'time',value:horaSalida,readOnly:true,style:{background:'#f8fafc',cursor:'default'}}))
         ),
+        h('div',{className:'fg'},
+          h('label',null,'Foto (opcional)'),
+          h(CameraField,{value:fotoSalida,onChange:setFotoSalida})
+        ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
-          h('button',{className:'btn-cancel',onClick:()=>setSalida(null),disabled:saving},'Cancelar'),
+          h('button',{className:'btn-cancel',onClick:()=>{setSalida(null);setFotoSalida(null);},disabled:saving},'Cancelar'),
           h('button',{className:'btn-primary',style:{background:'#d97706'},disabled:saving,onClick:async()=>{
             setSaving(true);
             try{
-              const ts=await _tsBog();await api.put(`/proveedores/${salida.id}`,{hora_salida:ts.hora,fecha_salida:ts.fecha});
-              setSalida(null);load();setAlert({type:'ok',msg:'Salida registrada'});
+              const ts=await _tsBog();const upd={hora_salida:ts.hora,fecha_salida:ts.fecha};
+              if(fotoSalida) upd.foto_url=fotoSalida;
+              await api.put(`/proveedores/${salida.id}`,upd);
+              setSalida(null);setFotoSalida(null);load();setAlert({type:'ok',msg:'Salida registrada'});
             }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
             finally{setSaving(false);}
           }},saving?h('div',{className:'spinner'}):h(Ico,{n:'check',s:16}),saving?'Guardando...':'Confirmar salida')
@@ -4950,9 +5092,9 @@ function App(){
 
   const rol = user?.rol||'';
   const navItems =
-    rol==='guarda_bodega'        ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'visitavh',label:'Visita Vh.',icon:'truck'}]
+    rol==='guarda_bodega'        ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'visitavh',label:'Visita Vh.',icon:'truck'},{id:'acceso',label:'Acceso',icon:'userCheck'}]
     :rol==='guarda_peatonal'     ? [{id:'home',label:'Inicio',icon:'home'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'},{id:'sust',label:'Sust.',icon:'alert'},{id:'herr',label:'Herram.',icon:'key'}]
-    :rol==='guarda_vehicular'    ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'visitavh',label:'Visita Vh.',icon:'truck'},{id:'visit',label:'Visitas',icon:'users'}]
+    :rol==='guarda_vehicular'    ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'visitavh',label:'Visita Vh.',icon:'truck'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'}]
     :rol==='recorredor_externo'  ? [{id:'home',label:'Inicio',icon:'home'},{id:'ronda',label:'Ronda',icon:'mapPin'},{id:'novedades',label:'Novedades',icon:'bell'}]
     :rol==='coordinador'         ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'}]
     :[
