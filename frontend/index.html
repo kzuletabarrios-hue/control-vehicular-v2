@@ -503,7 +503,7 @@ const fmtDateHora = iso => { if(!iso) return '—'; const d=new Date(iso); retur
    que un desajuste aquí es un problema de UX (botón visible que falla,
    o botón oculto que sí funcionaría), nunca un hueco de seguridad.
    Si el equipo agrega permisos granulares a /auth/me, reemplazar esto. */
-const ROLES_ANULAR_CONTROL_ACCESO = ['admin','supervisor','operador','guarda_peatonal','guarda_vehicular','guarda_bodega'];
+const ROLES_ANULAR_CONTROL_ACCESO = ['admin','supervisor','operador','guarda_peatonal'];
 const puedeAnularAcceso = user => !!user?.rol && ROLES_ANULAR_CONTROL_ACCESO.includes(user.rol);
 
 // Traduce el detail crudo de PUT /control-acceso/{id}/anular (400/403/404)
@@ -954,7 +954,7 @@ function HomePage({setPage,user}){
     {id:'flota', label:'Flota Propia',     desc:'Salidas de vehículos',   cls:'m-flota',icon:'truck',    roles:['admin','supervisor','operador','guarda_bodega','guarda_vehicular','coordinador'],cnt:resumen?.flota?.hoy},
     {id:'prov',  label:'Proveedores',desc:'Vehículos terceros',     cls:'m-prov', icon:'package',  roles:['admin','supervisor','operador','guarda_vehicular','guarda_bodega','coordinador'],cnt:resumen?.proveedores?.hoy},
     {id:'visitavh',label:'Visita Vehicular',desc:'Visitas puntuales en vehículo', cls:'m-visitavh', icon:'truck', roles:['admin','supervisor','operador','guarda_bodega','guarda_vehicular'],cnt:resumen?.visita_vehicular?.hoy},
-    {id:'acceso',label:'Control Acceso',   desc:'Entrada/salida personal',cls:'m-acc',  icon:'userCheck',roles:['admin','supervisor','operador','guarda_peatonal','guarda_vehicular','guarda_bodega'],  cnt:resumen?.control_acceso?.hoy},
+    {id:'acceso',label:'Control Acceso',   desc:'Entrada/salida personal',cls:'m-acc',  icon:'userCheck',roles:['admin','supervisor','operador','guarda_peatonal'],  cnt:resumen?.control_acceso?.hoy},
     {id:'visit', label:'Visitantes',       desc:'Registro de visitas',    cls:'m-vis',  icon:'users',    roles:['admin','supervisor','operador','guarda_peatonal','guarda_vehicular'],  cnt:resumen?.visitantes?.hoy},
     {id:'sust',  label:'Sustancias',        desc:'Control de sustancias',  cls:'m-sust', icon:'alert',    roles:['admin','supervisor','operador','guarda_peatonal'],cnt:null},
     {id:'herr',  label:'Herramientas',     desc:'Control de herramientas',cls:'m-herr', icon:'key',      roles:['admin','supervisor','operador','guarda_peatonal'],cnt:null},
@@ -5092,9 +5092,9 @@ function App(){
 
   const rol = user?.rol||'';
   const navItems =
-    rol==='guarda_bodega'        ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'visitavh',label:'Visita Vh.',icon:'truck'},{id:'acceso',label:'Acceso',icon:'userCheck'}]
+    rol==='guarda_bodega'        ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'visitavh',label:'Visita Vh.',icon:'truck'}]
     :rol==='guarda_peatonal'     ? [{id:'home',label:'Inicio',icon:'home'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'},{id:'sust',label:'Sust.',icon:'alert'},{id:'herr',label:'Herram.',icon:'key'}]
-    :rol==='guarda_vehicular'    ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'visitavh',label:'Visita Vh.',icon:'truck'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'}]
+    :rol==='guarda_vehicular'    ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'visitavh',label:'Visita Vh.',icon:'truck'},{id:'visit',label:'Visitas',icon:'users'}]
     :rol==='recorredor_externo'  ? [{id:'home',label:'Inicio',icon:'home'},{id:'ronda',label:'Ronda',icon:'mapPin'},{id:'novedades',label:'Novedades',icon:'bell'}]
     :rol==='coordinador'         ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'}]
     :[
