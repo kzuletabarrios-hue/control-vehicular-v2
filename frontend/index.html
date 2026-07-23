@@ -165,6 +165,17 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 .li-route{font-size:10px;color:#2563eb;margin-top:2px}
 .li-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
 .li-date{font-size:10px;color:var(--slate)}
+/* ── LIST ROW ACTION BUTTONS (Eliminar/Desactivar/Duplicar) ── */
+/* Objetivo: acercarse a un área táctil de 44×44 sin romper el alto compacto de las filas de lista (~38-58px). 30×30 duplica el área de click anterior (~18px) y agrega borde+fondo como affordance visual. */
+.li-act{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:background .12s,transform .08s}
+.li-act:active{transform:scale(0.92)}
+.li-act svg{display:block}
+.li-act-danger{background:#fef2f2;border:1.5px solid #fecaca;color:#dc2626}
+.li-act-danger:active{background:#fecaca}
+.li-act-neutral{background:var(--bg);border:1.5px solid var(--border);color:var(--slate)}
+.li-act-neutral:active{background:#e2e8f0}
+.li-act-positive{background:#f0fdf4;border:1.5px solid #bbf7d0;color:#16a34a}
+.li-act-positive:active{background:#bbf7d0}
 .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600}
 .pill-blue {background:#dbeafe;color:#1d4ed8}
 .pill-green{background:#d1fae5;color:#065f46}
@@ -1349,7 +1360,7 @@ function FlotaPage({user,online,addOffline,openId,onOpened}){
             r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#d97706',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida)),
             r.fecha_llegada&&r.fecha_llegada!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Regr: '+fmtDate(r.fecha_llegada))
           ),
-          !esCoordinador&&h('div',{style:{display:'flex',gap:4,marginTop:3}},
+          !esCoordinador&&h('div',{style:{display:'flex',gap:6,marginTop:3,alignItems:'center'}},
             esVehicular&&!r.hora_salida_cedi&&h('button',{
               title:'Ver detalle y registrar salida',
               onClick:(e)=>{e.stopPropagation();abrirDetalle(r);},
@@ -1365,8 +1376,8 @@ function FlotaPage({user,online,addOffline,openId,onOpened}){
               onClick:(e)=>{e.stopPropagation();setLlegada(r);setHoraLlegada(ahoraHora());setFechaLlegadaV(today());setUltimaTiendaLleg(r.ultima_tienda||'');},
               style:{background:'#f59e0b',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Llegada'),
-            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Duplicar',onClick:()=>handleDuplicate(r),style:{background:'none',border:'none',cursor:'pointer',color:'var(--slate)',padding:2}},h(Ico,{n:'copy',s:14})),
-            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:()=>setConfirm(r.id),style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
+            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Duplicar',onClick:()=>handleDuplicate(r),className:'li-act li-act-neutral'},h(Ico,{n:'copy',s:14})),
+            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:()=>setConfirm(r.id),className:'li-act li-act-danger'},h(Ico,{n:'trash',s:14}))
           )
         )
       ))
@@ -1974,13 +1985,13 @@ function ItemAccesoPage({tipo,user}){
           h('span',{className:'li-date'},fmtDate(r.fecha),
             r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida))
           ),
-          h('div',{style:{display:'flex',gap:4,marginTop:3}},
+          h('div',{style:{display:'flex',gap:6,marginTop:3,alignItems:'center'}},
             !r.hora_salida&&!r.es_consumible&&h('button',{
               title:'Registrar salida',
               onClick:(e)=>{e.stopPropagation();setSalidaItem(r);setHoraSalidaItem(ahoraHora());setFechaSalidaItem(today());},
               style:{background:cfg.color,border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Salida'),
-            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2,marginTop:4}},h(Ico,{n:'trash',s:14}))
+            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},className:'li-act li-act-danger',style:{marginTop:4}},h(Ico,{n:'trash',s:14}))
           )
         )
       ))
@@ -2237,7 +2248,7 @@ function AccesoPage({user,online,addOffline}){
           h('span',{className:'li-date'},r.cedula||'—',
             r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida))
           ),
-          h('div',{style:{display:'flex',gap:4,marginTop:3}},
+          h('div',{style:{display:'flex',gap:6,marginTop:3,alignItems:'center'}},
             r.hora_ingreso&&!r.hora_salida&&h('button',{
               title:'Registrar salida',
               onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(ahoraHora());setFechaSalidaA(today());},
@@ -2248,7 +2259,7 @@ function AccesoPage({user,online,addOffline}){
               onClick:(e)=>{e.stopPropagation();setAnular(r);setMotivoAnular('');setErrorAnular(null);},
               style:{background:'none',border:'1.5px solid #fecaca',cursor:'pointer',color:'#b91c1c',padding:'3px 7px',borderRadius:6,fontSize:11,fontWeight:700,display:'flex',alignItems:'center',gap:3}
             },h(Ico,{n:'ban',s:11}),'Anular'),
-            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
+            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},className:'li-act li-act-danger'},h(Ico,{n:'trash',s:14}))
           )
         )
       ))
@@ -2455,13 +2466,13 @@ function VisitantesPage({user,online,addOffline}){
           h('span',{className:'li-date'},r.cedula||'—',
             r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida))
           ),
-          h('div',{style:{display:'flex',gap:4,marginTop:3}},
+          h('div',{style:{display:'flex',gap:6,marginTop:3,alignItems:'center'}},
             r.hora_ingreso&&!r.hora_salida&&h('button',{
               title:'Registrar salida',
               onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(ahoraHora());setFechaSalidaVis(today());},
               style:{background:'#7c3aed',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Salida'),
-            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
+            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},className:'li-act li-act-danger'},h(Ico,{n:'trash',s:14}))
           )
         )
       ))
@@ -2634,13 +2645,13 @@ function VisitaVehicularPage({user,online,addOffline}){
           h('span',{className:'li-date'},r.motivo_visita||'—',
             r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida))
           ),
-          h('div',{style:{display:'flex',gap:4,marginTop:3}},
+          h('div',{style:{display:'flex',gap:6,marginTop:3,alignItems:'center'}},
             r.hora_ingreso&&!r.hora_salida&&h('button',{
               title:'Registrar salida',
               onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(ahoraHora());setFechaSalidaVV(today());},
               style:{background:'#0284c7',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Salida'),
-            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
+            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},className:'li-act li-act-danger'},h(Ico,{n:'trash',s:14}))
           )
         )
       ))
@@ -3321,7 +3332,7 @@ function ProveedoresPage({user,online,addOffline}){
             h('span',{className:'li-date'},fmtDate(r.fecha),
               r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida))
             ),
-            !esCoordinador&&h('div',{style:{display:'flex',gap:4,marginTop:3}},
+            !esCoordinador&&h('div',{style:{display:'flex',gap:6,marginTop:3,alignItems:'center'}},
               !esBodega&&pendConf&&h('button',{
                 title:'Confirmar ingreso',
                 onClick:(e)=>{e.stopPropagation();confirmarIngreso(r.id);},
@@ -3333,7 +3344,7 @@ function ProveedoresPage({user,online,addOffline}){
                 style:{background:'#d97706',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
               },'Salida'),
               (esBodega||esVehicular)&&(r.observaciones||r.foto_url)&&h('span',{style:{fontSize:10,background:'#fef3c7',color:'#92400e',borderRadius:4,padding:'2px 6px',fontWeight:600}},'Con observación'),
-              !esBodega&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:14}))
+              !esBodega&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},className:'li-act li-act-danger'},h(Ico,{n:'trash',s:14}))
             )
           )
         );
@@ -3493,7 +3504,7 @@ function BdPersonasTab(){
           h('span',{className:`pill ${r.estado==='ACTIVO'?'pill-green':'pill-slate'}`},r.estado||'ACTIVO'),
           h('div',{style:{display:'flex',alignItems:'center',gap:4,marginTop:4}},
             h('span',{style:{fontSize:10,color:'var(--slate)'}},r.cedula),
-            h('button',{title:'Desactivar',onClick:(e)=>{e.stopPropagation();setConfirm(r.cedula);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:13}))
+            h('button',{title:'Desactivar',onClick:(e)=>{e.stopPropagation();setConfirm(r.cedula);},className:'li-act li-act-danger'},h(Ico,{n:'trash',s:13}))
           )
         )
       ))
@@ -3569,7 +3580,7 @@ function BdProveedoresTab(){
         ),
         h('div',{className:'li-right'},
           h('span',{className:`pill ${r.activo?'pill-green':'pill-slate'}`},r.activo?'Activo':'Inactivo'),
-          h('button',{title:'Desactivar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2,marginTop:6,display:'block'}},h(Ico,{n:'trash',s:13}))
+          h('button',{title:'Desactivar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},className:'li-act li-act-danger',style:{marginTop:6}},h(Ico,{n:'trash',s:13}))
         )
       ))
     ),
@@ -3651,7 +3662,7 @@ function BdTiendasTab(){
           h('div',{className:'li-title'},r.codigo?`${r.codigo} - ${r.name}`:r.name),
           r.direccion&&h('div',{className:'li-sub'},r.direccion)
         ),
-        h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:4}},h(Ico,{n:'trash',s:14}))
+        h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},className:'li-act li-act-danger'},h(Ico,{n:'trash',s:14}))
       ))
     ),
     confirm&&h(ConfirmSheet,{msg:'Se eliminará la tienda del catálogo.',onOk:async()=>{await api.del(`/maestros/distribucion/${confirm}`);setConfirm(null);load();setAlert({type:'ok',msg:'Tienda eliminada'});},onCancel:()=>setConfirm(null)})
@@ -3750,7 +3761,7 @@ function BdConductoresTab(){
           h('span',{className:`pill ${r.activo!==false?'pill-green':'pill-slate'}`},r.activo!==false?'Activo':'Inactivo'),
           h('div',{style:{display:'flex',alignItems:'center',gap:4,marginTop:4}},
             r.codigo&&h('span',{style:{fontSize:10,color:'var(--slate)'}},`#${r.codigo}`),
-            h('button',{title:'Desactivar',onClick:e=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2}},h(Ico,{n:'trash',s:13}))
+            h('button',{title:'Desactivar',onClick:e=>{e.stopPropagation();setConfirm(r.id);},className:'li-act li-act-danger'},h(Ico,{n:'trash',s:13}))
           )
         )
       ))
@@ -3856,7 +3867,7 @@ function BdUsuariosTab(){
           h('div',{style:{display:'flex',alignItems:'center',gap:4,marginTop:4}},
             h('span',{className:`pill ${r.activo?'pill-green':'pill-slate'}`,style:{fontSize:9}},r.activo?'Activo':'Inactivo'),
             h('button',{title:r.activo?'Desactivar':'Activar',onClick:e=>handleToggle(r.id,e),
-              style:{background:'none',border:'none',cursor:'pointer',color:r.activo?'#fca5a5':'#86efac',padding:2}},
+              className:r.activo?'li-act li-act-danger':'li-act li-act-positive'},
               h(Ico,{n:r.activo?'trash':'checkCircle',s:13})
             )
           )
@@ -3977,7 +3988,7 @@ function BdConductoresFrecuentesTab(){
         ),
         h('div',{className:'li-right'},
           h('span',{className:`pill ${r.activo?'pill-green':'pill-slate'}`},r.activo?'Activo':'Inactivo'),
-          h('button',{title:'Desactivar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},style:{background:'none',border:'none',cursor:'pointer',color:'#fca5a5',padding:2,marginTop:6,display:'block'}},h(Ico,{n:'trash',s:13}))
+          h('button',{title:'Desactivar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},className:'li-act li-act-danger',style:{marginTop:6}},h(Ico,{n:'trash',s:13}))
         )
       ))
     ),
