@@ -628,6 +628,7 @@ function CameraField({value,onChange}){
   };
   const handleFile = e => {
     const f=e.target.files[0]; if(!f) return;
+    e.target.value = '';
     setErrUp(null); setUploading(true);
     compress(f, async b64 => {
       try {
