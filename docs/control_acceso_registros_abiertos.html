@@ -1,0 +1,196 @@
+<title>Control de Acceso — registros sin salida</title>
+<style>
+  :root{
+    --navy:#0f2440; --navy-2:#1d3a63; --ink:#152238; --muted:#5b6b84;
+    --bg:#eef1f6; --paper:#ffffff; --line:#dbe1ea;
+    --amber:#f59e0b; --amber-bg:#fff4e0; --amber-ink:#8a5a08;
+    --red:#dc2626; --red-bg:#fdecec; --red-ink:#8f1d1d;
+    --green:#16803d;
+    --row-hover:#f3f6fb;
+  }
+  :root[data-theme="dark"]{
+    --ink:#e8edf5; --bg:#0b1220; --paper:#121b2e; --line:#243250; --muted:#93a2bd;
+    --navy-2:#2a4a80; --amber-bg:#2b210a; --amber-ink:#ffcf87;
+    --red-bg:#2a1414; --red-ink:#ff9d9d; --row-hover:#182238;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --ink:#e8edf5; --bg:#0b1220; --paper:#121b2e; --line:#243250; --muted:#93a2bd;
+      --navy-2:#2a4a80; --amber-bg:#2b210a; --amber-ink:#ffcf87;
+      --red-bg:#2a1414; --red-ink:#ff9d9d; --row-hover:#182238;
+    }
+  }
+  :root[data-theme="light"]{
+    --ink:#152238; --bg:#eef1f6; --paper:#ffffff; --line:#dbe1ea; --muted:#5b6b84;
+    --navy-2:#1d3a63; --amber-bg:#fff4e0; --amber-ink:#8a5a08;
+    --red-bg:#fdecec; --red-ink:#8f1d1d; --row-hover:#f3f6fb;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Segoe UI","Trebuchet MS",Verdana,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{ max-width:980px; margin:0 auto; padding:28px 20px 60px; }
+
+  header{
+    background:linear-gradient(160deg,var(--navy) 0%,#0a1930 100%);
+    color:#fff; border-radius:18px; padding:26px 26px 22px;
+    box-shadow:0 8px 24px rgba(15,36,64,.12);
+    margin-bottom:20px;
+  }
+  .eyebrow{
+    font-size:11.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+    color:#ffd699; margin:0 0 8px;
+  }
+  h1{ margin:0 0 6px; font-size:22px; font-weight:800; letter-spacing:-.01em; text-wrap:balance; }
+  header p{ margin:0; color:#c9d5e8; font-size:14px; line-height:1.55; max-width:62ch; }
+
+  .stats{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+    gap:10px; margin:18px 0 20px;
+  }
+  .stat{
+    background:var(--paper); border:1px solid var(--line); border-radius:14px;
+    padding:14px 16px;
+  }
+  .stat .n{ font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.1; }
+  .stat .l{ font-size:11.5px; color:var(--muted); margin-top:3px; }
+  .stat.warn .n{ color:var(--amber-ink); }
+
+  .toolbar{
+    display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;
+  }
+  .toolbar input, .toolbar select{
+    font:inherit; font-size:13.5px; padding:9px 12px; border-radius:10px;
+    border:1px solid var(--line); background:var(--paper); color:var(--ink);
+  }
+  .toolbar input{ flex:1; min-width:200px; }
+  .toolbar input:focus, .toolbar select:focus{ outline:2px solid var(--navy-2); outline-offset:1px; }
+
+  .table-wrap{
+    background:var(--paper); border:1px solid var(--line); border-radius:16px;
+    overflow:hidden; box-shadow:0 1px 2px rgba(15,36,64,.05);
+  }
+  .scroll{ overflow-x:auto; }
+  table{ width:100%; border-collapse:collapse; font-size:13.5px; min-width:640px; }
+  thead th{
+    position:sticky; top:0; background:var(--navy); color:#fff;
+    text-align:left; padding:11px 14px; font-size:11.5px; font-weight:700;
+    letter-spacing:.05em; text-transform:uppercase; white-space:nowrap;
+  }
+  tbody td{ padding:10px 14px; border-top:1px solid var(--line); vertical-align:middle; }
+  tbody tr:hover{ background:var(--row-hover); }
+  td.num, th.num{ font-variant-numeric:tabular-nums; }
+  td.nombre{ font-weight:600; }
+  td.cedula{ color:var(--muted); font-variant-numeric:tabular-nums; }
+
+  .chip{
+    display:inline-block; padding:3px 9px; border-radius:20px;
+    font-size:11.5px; font-weight:700; white-space:nowrap;
+  }
+  .chip.red{ background:var(--red-bg); color:var(--red-ink); }
+  .chip.amber{ background:var(--amber-bg); color:var(--amber-ink); }
+
+  .empty{ padding:40px 20px; text-align:center; color:var(--muted); font-size:13.5px; }
+
+  footer{ text-align:center; color:var(--muted); font-size:12px; margin-top:18px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Control de Acceso · CEDI R10</p>
+    <h1>Registros sin salida de días anteriores</h1>
+    <p>Personas marcadas como "sin salida" que llevan más de un día abiertas — se hicieron visibles recién al corregir el límite de 100 registros que las ocultaba. Revisa si siguen dentro o si simplemente falta registrar su salida.</p>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="toolbar">
+    <input id="buscar" type="search" placeholder="Buscar por nombre, cédula o contratista…" autocomplete="off" />
+    <select id="filtroContratista"></select>
+  </div>
+
+  <div class="table-wrap">
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Días abierto</th>
+            <th>Fecha ingreso</th>
+            <th>Hora</th>
+            <th>Nombre</th>
+            <th>Cédula</th>
+            <th>Contratista</th>
+            <th>Estado BD</th>
+          </tr>
+        </thead>
+        <tbody id="filas"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="empty" style="display:none">Sin resultados para tu búsqueda.</div>
+  </div>
+
+  <footer>Datos en vivo al momento de la revisión · fecha de referencia 2026-07-07</footer>
+</div>
+
+<script>
+const HOY = new Date("2026-07-07T00:00:00");
+const DATA = [{"fecha": "2026-06-27", "nombre": "ANDRES ALFONSO PAREJA ROMOS", "cedula": 1118817952, "contratista": "TGN", "hora_ingreso": "00:28:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "NEIBER DAVID ARRIETA UTRIA", "cedula": 1065601111, "contratista": "TGN", "hora_ingreso": "01:11:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "MOISES RAFAEL ORTIZ ALVIS", "cedula": 12646418, "contratista": "TGN", "hora_ingreso": "02:02:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "KEINER EDUARDO HOLGUIN ESCORCIA", "cedula": 1118823109, "contratista": "TGN", "hora_ingreso": "02:04:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "HUBER ANDRES ALVAREZ ANDRADE", "cedula": 1065128232, "contratista": "TGN", "hora_ingreso": "02:33:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "ARNALDO ANDRES TOSCANO SALAZAR", "cedula": 1065579975, "contratista": "TGN", "hora_ingreso": "04:23:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "FREDDY ANDRES CABRERA LOPEZ", "cedula": 1065575339, "contratista": "TGN", "hora_ingreso": "04:24:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "NORIEGA RICO FREDY ALONSO", "cedula": 77161728, "contratista": "SEGURIDAD NACIONAL", "hora_ingreso": "04:33:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "CARLOS FIDEL PALACIOS BARON", "cedula": 80738510, "contratista": "TGN", "hora_ingreso": "04:57:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "CORRALES HERNANDEZ JUAN DAVID", "cedula": 1083557809, "contratista": "SEGURIDAD NACIONAL", "hora_ingreso": "05:17:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "JOSE SOLANO MULLET", "cedula": null, "contratista": "TGN", "hora_ingreso": "05:23:00", "estado_bd": null}, {"fecha": "2026-06-27", "nombre": "PAJARO AGUILAR ANDRES EDUARDO", "cedula": 1067724568, "contratista": "SEGURIDAD NACIONAL", "hora_ingreso": "05:38:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "ALEXANDER BANQUEZ", "cedula": 1065826745, "contratista": "ECOVIDA – RECISERVICIO", "hora_ingreso": "05:40:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "ARIZA MEJIA DANIEL DAVID", "cedula": 1065603412, "contratista": "SEGURIDAD NACIONAL", "hora_ingreso": "05:40:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "MEJIA MOLINA MARIA ALEJANDRA", "cedula": 1066268035, "contratista": "SEGURIDAD NACIONAL", "hora_ingreso": "05:41:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "ISACC YAMITH JIMENEZ", "cedula": 1066268174, "contratista": "MERCICO", "hora_ingreso": "05:45:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "SEGOVIA OVIEDO JAVIER ALFONSO", "cedula": 1065564712, "contratista": "SEGURIDAD NACIONAL", "hora_ingreso": "05:45:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "SANDRA CAMPO", "cedula": 52500397, "contratista": "NEWREST", "hora_ingreso": "05:46:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "CADENA MARTINEZ CARLOS ANDRES", "cedula": 1065822663, "contratista": "SEGURIDAD NACIONAL", "hora_ingreso": "05:54:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "DANIEL MATUTE", "cedula": null, "contratista": "TGN", "hora_ingreso": "06:01:00", "estado_bd": null}, {"fecha": "2026-06-27", "nombre": "FRANK AGUDELO", "cedula": 1065590515, "contratista": "ERCOL", "hora_ingreso": "06:33:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "JESUS ALBERTO ALMENDRALES", "cedula": null, "contratista": "LIELCO", "hora_ingreso": "08:17:00", "estado_bd": null}, {"fecha": "2026-06-27", "nombre": "RAMON GUILLERMO IBARRA PEREZ", "cedula": null, "contratista": "TGN", "hora_ingreso": "08:55:00", "estado_bd": null}, {"fecha": "2026-06-27", "nombre": "ELIAS HUMBERTO MEZA CASTILLO", "cedula": 1193116130, "contratista": "TGN", "hora_ingreso": "11:25:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "JULIO CESAR LARA SARMIENTO", "cedula": 1023894997, "contratista": "TGN", "hora_ingreso": "11:43:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "LUIS GABRIEL GONZALES", "cedula": 1065654368, "contratista": "TGN", "hora_ingreso": "13:14:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "MILEIDYS SALCEDO", "cedula": 1004271622, "contratista": "ECOVIDA – RECISERVICIO", "hora_ingreso": "13:21:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "JUAN CARLOS PEREZ JULIO", "cedula": 1065633263, "contratista": "TGN", "hora_ingreso": "13:23:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "EIBER JOSE MUÑOZ SANTANA", "cedula": 1065825242, "contratista": "TGN", "hora_ingreso": "13:33:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "LAURA ROMERO DIAZ", "cedula": 1003383717, "contratista": "TGN", "hora_ingreso": "14:10:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "ALEX SANTANDER BAQUERO SIERRA", "cedula": 77151491, "contratista": "TGN", "hora_ingreso": "15:28:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "MONTERO PEREZ ROGER DAVID", "cedula": 1062401375, "contratista": "SEGURIDAD NACIONAL", "hora_ingreso": "17:35:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "NORIEGA CAMPO CAROLINA", "cedula": null, "contratista": "SEGURIDAD NACIONAL", "hora_ingreso": "17:36:00", "estado_bd": null}, {"fecha": "2026-06-27", "nombre": "ERIC MANUEL CHIMA ANDRADE", "cedula": 77093764, "contratista": "TGN", "hora_ingreso": "17:52:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "CARLOS AMAYA", "cedula": 1065124381, "contratista": "TGN", "hora_ingreso": "18:03:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-27", "nombre": "JEINER RAFAEL DE LA HOZ BASTIDAS", "cedula": 1065591566, "contratista": "TGN", "hora_ingreso": "21:29:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-28", "nombre": "LAUREANO JOSE DAZA BAQUERO", "cedula": 84105126, "contratista": "TGN", "hora_ingreso": "21:56:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-29", "nombre": "CARLOS AMAYA", "cedula": 1065124381, "contratista": "TGN", "hora_ingreso": "09:31:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-29", "nombre": "ANDRES DAVID PRETEL MAESTRE", "cedula": 1065657517, "contratista": "TGN", "hora_ingreso": "16:16:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-29", "nombre": "JHON JEIDER TRILLOS PAEZ", "cedula": 1065825066, "contratista": "TGN", "hora_ingreso": "19:32:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-29", "nombre": "ANDRES MAURICIO ALARCON MERCADO", "cedula": 1085227699, "contratista": "TGN", "hora_ingreso": "19:49:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-29", "nombre": "LUIS ENRIQUE FERNANDEZ TORRES", "cedula": 1127660296, "contratista": "TGN", "hora_ingreso": "22:20:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-29", "nombre": "JULIO CESAR LARA SARMIENTO", "cedula": null, "contratista": "TGN", "hora_ingreso": "22:51:00", "estado_bd": null}, {"fecha": "2026-06-29", "nombre": "NELSON ENRIQUE CORZO MARTINEZ", "cedula": 15174371, "contratista": "TGN", "hora_ingreso": "23:54:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-30", "nombre": "ALVER ENRIQUE SIERRA FONTALVO", "cedula": 1062401658, "contratista": "TGN", "hora_ingreso": "00:56:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-30", "nombre": "BRAYAN ENRIQUE AMAYA CASTRO", "cedula": 1065811447, "contratista": "ERCOL", "hora_ingreso": "07:32:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-30", "nombre": "CARLOS FONSECA", "cedula": null, "contratista": "ECOVIDA – RECISERVICIO", "hora_ingreso": "08:35:00", "estado_bd": null}, {"fecha": "2026-06-30", "nombre": "ANDRES DAVID PRETEL MAESTRE", "cedula": 1065657517, "contratista": "TGN", "hora_ingreso": "18:41:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-30", "nombre": "ROGELIO GONZALEZ GONZALEZ", "cedula": 1062808755, "contratista": "TGN", "hora_ingreso": "19:33:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-30", "nombre": "CESAR DAVID PALOMO HERNANDEZ", "cedula": 1065622650, "contratista": "TGN", "hora_ingreso": "20:08:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-06-30", "nombre": "LAUREANO JOSE DAZA BAQUERO", "cedula": 84105126, "contratista": "TGN", "hora_ingreso": "20:57:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-01", "nombre": "NEIBER DAVID ARRIETA UTRIA", "cedula": 1065601111, "contratista": "TGN", "hora_ingreso": "00:12:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-01", "nombre": "MARCELO AUGUSTO ROMERO OROZCO", "cedula": 1065618119, "contratista": "TGN", "hora_ingreso": "02:01:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-01", "nombre": "KEINER EDUARDO HOLGUIN ESCORCIA", "cedula": 1118823109, "contratista": "TGN", "hora_ingreso": "08:12:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-01", "nombre": "JULIO ALBERTO JIMENEZ PEÑA", "cedula": 77188489, "contratista": "TGN", "hora_ingreso": "14:59:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-01", "nombre": "CARLOS AMAYA", "cedula": 1065124381, "contratista": "TGN", "hora_ingreso": "19:10:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-01", "nombre": "LUIS ALBERTO SOLIS PEÑALOZA", "cedula": 1065688088, "contratista": "TGN", "hora_ingreso": "20:33:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-01", "nombre": "ALAN DAVID MARTINEZ MEJIA", "cedula": 1065814724, "contratista": "TGN", "hora_ingreso": "22:47:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-01", "nombre": "JHORMAN ALEXANDER PARRA RODRIGUEZ", "cedula": 1065842603, "contratista": "TGN", "hora_ingreso": "22:48:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-02", "nombre": "ALVER ENRIQUE SIERRA FONTALVO", "cedula": 1062401658, "contratista": "TGN", "hora_ingreso": "01:54:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-02", "nombre": "JUAN CARLOS PEREZ JULIO", "cedula": 1065633263, "contratista": "TGN", "hora_ingreso": "05:05:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-02", "nombre": "ALBERTO OROZCO HERNANDEZ", "cedula": 77168269, "contratista": "TGN", "hora_ingreso": "09:08:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-02", "nombre": "JORGE LEONARDO CABANA ROMERO", "cedula": 1065619418, "contratista": "TGN", "hora_ingreso": "15:57:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-02", "nombre": "ANDRES ALFONSO PAREJA ROMOS", "cedula": 1118817952, "contratista": "TGN", "hora_ingreso": "18:24:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-02", "nombre": "ALBERTO OROZCO HERNANDEZ", "cedula": 77168269, "contratista": "TGN", "hora_ingreso": "19:38:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-02", "nombre": "FREDDY ANDRES CABRERA LOPEZ", "cedula": 1065575339, "contratista": "TGN", "hora_ingreso": "20:52:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-02", "nombre": "YORMAN MACHADO", "cedula": 1122814396, "contratista": "ECOVIDA – RECISERVICIO", "hora_ingreso": "21:02:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-02", "nombre": "LAUREANO JOSE DAZA BAQUERO", "cedula": 84105126, "contratista": "TGN", "hora_ingreso": "21:12:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-02", "nombre": "NEIBER DAVID ARRIETA UTRIA", "cedula": 1065601111, "contratista": "TGN", "hora_ingreso": "22:06:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-03", "nombre": "LUIS ENRIQUE FERNANDEZ TORRES", "cedula": 1127660296, "contratista": "TGN", "hora_ingreso": "00:49:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-03", "nombre": "ROGELIO GONZALEZ GONZALEZ", "cedula": 1062808755, "contratista": "TGN", "hora_ingreso": "05:15:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-03", "nombre": "GILMAR GONZALEZ", "cedula": 1065813300, "contratista": "TGN", "hora_ingreso": "15:50:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-03", "nombre": "NORIEGA CAMPO CAROLINA", "cedula": 1003313485, "contratista": "SEGURIDAD NACIONAL", "hora_ingreso": "17:49:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-03", "nombre": "ANDRES DAVID PRETEL MAESTRE", "cedula": 1065657517, "contratista": "TGN", "hora_ingreso": "18:35:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-03", "nombre": "JHORMAN ALEXANDER PARRA RODRIGUEZ", "cedula": 1065842603, "contratista": "TGN", "hora_ingreso": "21:13:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-03", "nombre": "JEINER SAID BERMUDEZ GUETTE", "cedula": 1065625186, "contratista": "TGN", "hora_ingreso": "21:15:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-03", "nombre": "ANDRES MAURICIO ALARCON MERCADO", "cedula": 1085227699, "contratista": "TGN", "hora_ingreso": "23:12:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-04", "nombre": "EDUDES CONTRERAS GONZALES", "cedula": 1007321214, "contratista": "TGN", "hora_ingreso": "00:34:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-04", "nombre": "JULIO CESAR LARA SARMIENTO", "cedula": null, "contratista": "TGN", "hora_ingreso": "00:59:00", "estado_bd": null}, {"fecha": "2026-07-04", "nombre": "CARLOS AMAYA", "cedula": 1065124381, "contratista": "TGN", "hora_ingreso": "01:33:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-04", "nombre": "ALVER ENRIQUE SIERRA FONTALVO", "cedula": 1062401658, "contratista": "TGN", "hora_ingreso": "02:00:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-04", "nombre": "ALAN DAVID MARTINEZ MEJIA", "cedula": 1065814724, "contratista": "TGN", "hora_ingreso": "02:47:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-04", "nombre": "GILMAR GONZALEZ", "cedula": 1065813300, "contratista": "TGN", "hora_ingreso": "08:39:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-05", "nombre": "ROGELIO GONZALEZ GONZALEZ", "cedula": 1062808755, "contratista": "TGN", "hora_ingreso": "19:13:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-05", "nombre": "ALBERTO OROZCO HERNANDEZ", "cedula": 77168269, "contratista": "TGN", "hora_ingreso": "19:14:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-05", "nombre": "HEINER ENRRIQUE MONTERO ARRIETA", "cedula": 12643938, "contratista": "TGN", "hora_ingreso": "19:39:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-05", "nombre": "LUIS ENRIQUE FERNANDEZ TORRES", "cedula": 1127660296, "contratista": "TGN", "hora_ingreso": "20:09:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-06", "nombre": "LAUREANO JOSE DAZA BAQUERO", "cedula": 84105126, "contratista": "TGN", "hora_ingreso": "00:11:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-06", "nombre": "HUBER ANDRES ALVAREZ ANDRADE", "cedula": 1065128232, "contratista": "TGN", "hora_ingreso": "01:30:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-06", "nombre": "RAMON GUILLERMO IBARRA PEREZ", "cedula": null, "contratista": "TGN", "hora_ingreso": "01:31:00", "estado_bd": null}, {"fecha": "2026-07-06", "nombre": "NEIBER DAVID ARRIETA UTRIA", "cedula": 1065601111, "contratista": "TGN", "hora_ingreso": "02:28:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-06", "nombre": "KEINER EDUARDO HOLGUIN ESCORCIA", "cedula": 1118823109, "contratista": "TGN", "hora_ingreso": "04:35:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-06", "nombre": "ANDRES ALFONSO PAREJA ROMOS", "cedula": 1118817952, "contratista": "TGN", "hora_ingreso": "07:56:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-06", "nombre": "YENIFER ZABALETA FLORES", "cedula": 1001847818, "contratista": "MERCICO", "hora_ingreso": "09:18:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-06", "nombre": "ANDRES MAURICIO ALARCON MERCADO", "cedula": 1085227699, "contratista": "TGN", "hora_ingreso": "20:10:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-06", "nombre": "FREDDY ANDRES CABRERA LOPEZ", "cedula": 1065575339, "contratista": "TGN", "hora_ingreso": "21:35:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-06", "nombre": "JHORMAN ALEXANDER PARRA RODRIGUEZ", "cedula": 1065842603, "contratista": "TGN", "hora_ingreso": "23:04:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-06", "nombre": "MOISES RAFAEL ORTIZ ALVIS", "cedula": 12646418, "contratista": "TGN", "hora_ingreso": "23:48:00", "estado_bd": "ACTIVO"}, {"fecha": "2026-07-06", "nombre": "LUIS CAMILO VILLAZÓN LOPEZ", "cedula": 1122398974, "contratista": "TGN", "hora_ingreso": "23:48:00", "estado_bd": "ACTIVO"}];
+
+function diasAbierto(fecha){
+  const f = new Date(fecha+"T00:00:00");
+  return Math.round((HOY-f)/86400000);
+}
+
+DATA.forEach(r=>r._dias = diasAbierto(r.fecha));
+DATA.sort((a,b)=> a.fecha===b.fecha ? (a.hora_ingreso||"").localeCompare(b.hora_ingreso||"") : a.fecha.localeCompare(b.fecha));
+
+const contratistas = [...new Set(DATA.map(r=>r.contratista||"—"))].sort();
+const selectC = document.getElementById("filtroContratista");
+selectC.innerHTML = '<option value="">Todos los contratistas</option>' +
+  contratistas.map(c=>`<option value="${c}">${c} (${DATA.filter(r=>(r.contratista||"—")===c).length})</option>`).join("");
+
+const statsEl = document.getElementById("stats");
+statsEl.innerHTML = `
+  <div class="stat warn"><div class="n">${DATA.length}</div><div class="l">registros abiertos</div></div>
+  <div class="stat"><div class="n">${Math.max(...DATA.map(r=>r._dias))}</div><div class="l">días, el más antiguo</div></div>
+  <div class="stat"><div class="n">${contratistas.length}</div><div class="l">contratistas distintos</div></div>
+`;
+
+function chipDias(d){
+  const cls = d>=5 ? "red" : "amber";
+  return `<span class="chip ${cls}">${d} día${d===1?"":"s"}</span>`;
+}
+
+function render(){
+  const q = document.getElementById("buscar").value.trim().toLowerCase();
+  const c = selectC.value;
+  const filas = document.getElementById("filas");
+  const emptyEl = document.getElementById("empty");
+  const rows = DATA.filter(r=>{
+    if(c && (r.contratista||"—")!==c) return false;
+    if(!q) return true;
+    return (r.nombre||"").toLowerCase().includes(q)
+      || String(r.cedula||"").includes(q)
+      || (r.contratista||"").toLowerCase().includes(q);
+  });
+  filas.innerHTML = rows.map(r=>`
+    <tr>
+      <td>${chipDias(r._dias)}</td>
+      <td class="num">${r.fecha}</td>
+      <td class="num">${(r.hora_ingreso||"").slice(0,5)}</td>
+      <td class="nombre">${r.nombre||"—"}</td>
+      <td class="cedula">${r.cedula||"—"}</td>
+      <td>${r.contratista||"—"}</td>
+      <td>${r.estado_bd||"—"}</td>
+    </tr>
+  `).join("");
+  emptyEl.style.display = rows.length===0 ? "block" : "none";
+}
+
+document.getElementById("buscar").addEventListener("input", render);
+selectC.addEventListener("change", render);
+render();
+</script>

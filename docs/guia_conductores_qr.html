@@ -1,0 +1,314 @@
+<title>Cómo registrar tu ingreso por QR — CEDI R10</title>
+<style>
+  :root{
+    --navy: #0f2440;
+    --navy-2: #16335c;
+    --ink: #152238;
+    --amber: #f59e0b;
+    --amber-ink: #7c4a05;
+    --green: #16803d;
+    --bg: #eef1f6;
+    --paper: #ffffff;
+    --line: #dbe1ea;
+    --muted: #5b6b84;
+    --step-num-text: #ffffff;
+    --shadow: 0 1px 2px rgba(15,36,64,.06), 0 8px 24px rgba(15,36,64,.08);
+  }
+  :root[data-theme="dark"]{
+    --ink: #e8edf5;
+    --bg: #0b1220;
+    --paper: #121b2e;
+    --line: #253253;
+    --muted: #93a2bd;
+    --navy-2: #2a4a80;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 32px rgba(0,0,0,.35);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ink: #e8edf5;
+      --bg: #0b1220;
+      --paper: #121b2e;
+      --line: #253253;
+      --muted: #93a2bd;
+      --navy-2: #2a4a80;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 32px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"]{
+    --ink: #152238;
+    --bg: #eef1f6;
+    --paper: #ffffff;
+    --line: #dbe1ea;
+    --muted: #5b6b84;
+    --navy-2: #16335c;
+    --shadow: 0 1px 2px rgba(15,36,64,.06), 0 8px 24px rgba(15,36,64,.08);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Trebuchet MS","Segoe UI",Verdana,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    display:flex;
+    justify-content:center;
+    padding:0 0 56px;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important;}
+  }
+
+  .page{ width:100%; max-width:640px; }
+
+  header.hero{
+    background:
+      radial-gradient(120% 140% at 15% -10%, var(--navy-2), transparent 60%),
+      linear-gradient(160deg, var(--navy) 0%, #0a1930 100%);
+    color:#fff;
+    padding:44px 28px 34px;
+    border-radius:0 0 28px 28px;
+    box-shadow: var(--shadow);
+    position:relative;
+    overflow:hidden;
+  }
+  header.hero::after{
+    content:"";
+    position:absolute; right:-40px; top:-40px; width:220px; height:220px;
+    background:radial-gradient(circle, rgba(245,158,11,.25), transparent 70%);
+    pointer-events:none;
+  }
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:"Helvetica Neue",Arial,sans-serif;
+    font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+    color:#ffd699;
+    margin:0 0 14px;
+  }
+  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--amber);display:inline-block}
+  h1{
+    font-family:"Helvetica Neue",Arial,sans-serif;
+    font-weight:800;
+    font-size:clamp(28px,7vw,38px);
+    line-height:1.08;
+    letter-spacing:-.01em;
+    margin:0 0 10px;
+    text-wrap:balance;
+    max-width:18ch;
+  }
+  .hero p{
+    margin:0;
+    font-size:16px;
+    line-height:1.55;
+    color:#c9d5e8;
+    max-width:38ch;
+  }
+  .hero-icon{
+    position:absolute; right:22px; bottom:18px; opacity:.9;
+  }
+
+  main{ padding:26px 20px 0; }
+
+  .steps{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    counter-reset:step;
+  }
+
+  .step{
+    counter-increment:step;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:18px;
+    box-shadow:var(--shadow);
+    padding:20px 20px 20px 22px;
+    display:grid;
+    grid-template-columns:auto 1fr;
+    gap:16px;
+    align-items:start;
+    position:relative;
+    opacity:0;
+    transform:translateY(10px);
+    animation:rise .5s ease forwards;
+  }
+  .step:nth-child(1){animation-delay:.02s}
+  .step:nth-child(2){animation-delay:.08s}
+  .step:nth-child(3){animation-delay:.14s}
+  .step:nth-child(4){animation-delay:.20s}
+  .step:nth-child(5){animation-delay:.26s}
+  .step:nth-child(6){animation-delay:.32s}
+  @keyframes rise{ to{ opacity:1; transform:none; } }
+
+  .step:not(:last-child)::before{
+    content:"";
+    position:absolute;
+    left:38px; top:74px; bottom:-14px;
+    width:2px;
+    background:repeating-linear-gradient(to bottom, var(--line) 0 6px, transparent 6px 12px);
+  }
+
+  .num{
+    width:40px; height:40px; border-radius:50%;
+    background:linear-gradient(160deg, var(--navy-2), var(--navy));
+    color:var(--step-num-text);
+    display:flex; align-items:center; justify-content:center;
+    font-family:"Helvetica Neue",Arial,sans-serif;
+    font-weight:800; font-size:17px;
+    flex-shrink:0;
+    box-shadow:0 3px 8px rgba(15,36,64,.25);
+    position:relative; z-index:1;
+  }
+
+  .step-body h2{
+    font-family:"Helvetica Neue",Arial,sans-serif;
+    font-size:17px;
+    font-weight:700;
+    margin:2px 0 6px;
+    display:flex; align-items:center; gap:8px;
+    line-height:1.3;
+  }
+  .step-body h2 svg{flex-shrink:0}
+  .step-body p{
+    margin:0;
+    font-size:15px;
+    line-height:1.6;
+    color:var(--muted);
+    max-width:46ch;
+  }
+  .step-body p strong{color:var(--ink)}
+
+  .callout{
+    margin-top:22px;
+    background:linear-gradient(180deg, rgba(245,158,11,.12), rgba(245,158,11,.05));
+    border:1.5px solid rgba(245,158,11,.55);
+    border-radius:16px;
+    padding:16px 18px;
+    display:grid;
+    grid-template-columns:auto 1fr;
+    gap:12px;
+    align-items:start;
+  }
+  :root[data-theme="dark"] .callout, @media (prefers-color-scheme:dark){ .callout{ background:linear-gradient(180deg, rgba(245,158,11,.16), rgba(245,158,11,.06)); } }
+  .callout svg{flex-shrink:0; margin-top:2px}
+  .callout p{ margin:0; font-size:14.5px; line-height:1.6; color:var(--ink); }
+  .callout strong{ color:var(--amber-ink); }
+  :root[data-theme="dark"] .callout strong{ color:#ffcf87; }
+
+  footer{
+    text-align:center;
+    padding:26px 20px 0;
+    color:var(--muted);
+    font-size:12.5px;
+    letter-spacing:.02em;
+  }
+  footer .brand{
+    font-family:"Helvetica Neue",Arial,sans-serif;
+    font-weight:700;
+    color:var(--ink);
+  }
+
+  @media (max-width:420px){
+    header.hero{padding:36px 20px 30px}
+    .num{width:36px;height:36px;font-size:15px}
+    .step{padding:16px 16px 16px 18px; gap:12px}
+    .step:not(:last-child)::before{left:34px; top:66px}
+  }
+</style>
+
+<div class="page">
+  <header class="hero">
+    <p class="eyebrow"><span class="dot"></span>CEDI R10 · Portería vehicular</p>
+    <h1>Cómo registrar<br/>tu ingreso por QR</h1>
+    <p>Guía rápida para conductores de proveedores. Solo toma un minuto, desde tu propio celular.</p>
+    <svg class="hero-icon" width="72" height="72" viewBox="0 0 72 72" fill="none" aria-hidden="true">
+      <rect x="6" y="6" width="60" height="60" rx="12" stroke="#ffd699" stroke-width="2.5" opacity="0.55"/>
+      <rect x="16" y="16" width="12" height="12" rx="2" fill="#ffd699" opacity="0.85"/>
+      <rect x="44" y="16" width="12" height="12" rx="2" fill="#ffd699" opacity="0.85"/>
+      <rect x="16" y="44" width="12" height="12" rx="2" fill="#ffd699" opacity="0.85"/>
+      <rect x="34" y="34" width="6" height="6" fill="#ffd699" opacity="0.85"/>
+      <rect x="44" y="44" width="12" height="12" rx="2" stroke="#ffd699" stroke-width="2.5" opacity="0.7"/>
+    </svg>
+  </header>
+
+  <main>
+    <div class="steps">
+
+      <div class="step">
+        <div class="num">1</div>
+        <div class="step-body">
+          <h2>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/><path d="M14 14h3v3h-3zM20 14v3M14 20h3M20 20v0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Busca el código QR
+          </h2>
+          <p>Está pegado o en una pantalla, justo junto a la entrada de vehículos en la portería.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">2</div>
+        <div class="step-body">
+          <h2>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.5" stroke="currentColor" stroke-width="2"/><path d="M11 18h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Escanéalo con tu celular
+          </h2>
+          <p>Ábrelo con la cámara, como cualquier foto. <strong>No necesitas instalar nada</strong> — se abre una página sola.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">3</div>
+        <div class="step-body">
+          <h2>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 4h6a1 1 0 0 1 1 1v2H8V5a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="2"/><rect x="5" y="6" width="14" height="15" rx="2" stroke="currentColor" stroke-width="2"/><path d="M9 12h6M9 16h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Llena tus datos
+          </h2>
+          <p>Placa, tu nombre, documento, teléfono, tipo de vehículo, tu ARL, EPP y los datos de la carga que traes.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">4</div>
+        <div class="step-body">
+          <h2>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 9 12 4l9 5-9 5-9-5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 9v6l9 5 9-5V9M12 14v5" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            Agrega la empresa y la orden
+          </h2>
+          <p>La empresa y el número de orden de compra a la que traes mercancía. Si traes para varias, agrégalas todas.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">5</div>
+        <div class="step-body">
+          <h2>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M22 2 11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="m22 2-7 20-4-9-9-4 20-7Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            Envía el formulario
+          </h2>
+          <p>Tienes hasta <strong>30 minutos</strong> desde que escaneas el QR para llenarlo con calma, sin afán.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">6</div>
+        <div class="step-body">
+          <h2>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="m8 12 3 3 5-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Espera la confirmación
+          </h2>
+          <p>Verás un mensaje de que tu registro quedó enviado. El guarda de portería confirma tu ingreso en un momento.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="callout">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3 2 20h20L12 3Z" stroke="var(--amber-ink)" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v4" stroke="var(--amber-ink)" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17" r="1" fill="var(--amber-ink)"/></svg>
+      <p><strong>El QR cambia cada pocos minutos</strong> por seguridad. Una foto guardada de antes no sirve — escanea el QR real que está en portería en este momento.</p>
+    </div>
+  </main>
+
+  <footer>
+    <span class="brand">CEDI R10</span> · Control de Acceso y Operaciones
+  </footer>
+</div>

@@ -28,3 +28,9 @@ Thumbs.db
 *.suo
 *.user
 .vercel
+
+# Datos sensibles / artefactos locales
+.claude/settings.local.json
+backend/tmp_bcrypt/
+*.xlsx
+*.xls
