@@ -14,7 +14,13 @@ from database import get_db
 
 router = APIRouter()
 
-SECRET_KEY     = os.getenv("SECRET_KEY", "CAMBIAR_EN_PRODUCCION_clave_muy_larga_y_aleatoria")
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY or len(SECRET_KEY) < 32:
+    raise RuntimeError(
+        "SECRET_KEY no está definida o es demasiado corta "
+        "(mínimo 32 caracteres) en las variables de entorno"
+    )
+
 ACCESS_EXPIRE  = int(os.getenv("ACCESS_TOKEN_MINUTES", "60"))      # 1 hora
 REFRESH_EXPIRE = int(os.getenv("REFRESH_TOKEN_DAYS",   "30"))      # 30 días
 ALGORITHM      = "HS256"
