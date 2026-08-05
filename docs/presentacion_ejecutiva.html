@@ -96,8 +96,8 @@
     <h2>Digitalización del control de acceso vehicular y peatonal</h2>
     <div class="portada-stats">
       <div class="ps"><div class="ps-val">100%</div><div class="ps-lbl">Operativo</div></div>
-      <div class="ps"><div class="ps-val">8</div><div class="ps-lbl">Módulos activos</div></div>
-      <div class="ps"><div class="ps-val">4</div><div class="ps-lbl">Usuarios guardas</div></div>
+      <div class="ps"><div class="ps-val">13</div><div class="ps-lbl">Módulos activos</div></div>
+      <div class="ps"><div class="ps-val">9</div><div class="ps-lbl">Roles operativos</div></div>
       <div class="ps"><div class="ps-val">10K+</div><div class="ps-lbl">Registros soportados</div></div>
     </div>
   </div>
@@ -118,9 +118,9 @@
       <p>Desplegado en infraestructura gratuita (Railway + Vercel + Supabase). Sin costo de licencias.</p>
     </div>
     <div class="card card-green">
-      <div class="num">3</div>
+      <div class="num">9</div>
       <h4>Roles diferenciados</h4>
-      <p>Bodega, vehicular y peatonal con accesos y vistas independientes por usuario.</p>
+      <p>Bodega, vehicular, peatonal, recorredor de seguridad, coordinador y administración, cada uno con accesos y vistas independientes.</p>
     </div>
   </div>
 
@@ -128,17 +128,46 @@
   <h2>2. Módulos del Sistema</h2>
   <div class="modulos">
     <div class="modulo"><div class="modulo-icon" style="background:#dbeafe">🚛</div><div><h4>Flota Propia</h4><p>Registro completo del ciclo: bodega → salida → regreso con sellos y evidencia fotográfica</p></div></div>
-    <div class="modulo"><div class="modulo-icon" style="background:#fef3c7">📦</div><div><h4>Proveedores</h4><p>Registro de vehículos de terceros, empresa, muelle de descargue y horarios</p></div></div>
+    <div class="modulo"><div class="modulo-icon" style="background:#fef3c7">📦</div><div><h4>Proveedores</h4><p>Autorregistro por QR, empresa, muelle de descargue y horarios de terceros</p></div></div>
+    <div class="modulo"><div class="modulo-icon" style="background:#dbeafe">🚚</div><div><h4>Visita Vehicular</h4><p>Visitas puntuales de vehículos que no son de flota propia ni proveedores</p></div></div>
     <div class="modulo"><div class="modulo-icon" style="background:#d1fae5">👷</div><div><h4>Control Acceso</h4><p>Ingreso y salida de contratistas con búsqueda automática por cédula</p></div></div>
     <div class="modulo"><div class="modulo-icon" style="background:#ede9fe">👥</div><div><h4>Visitantes</h4><p>Registro de personas externas con control de entrada y salida</p></div></div>
     <div class="modulo"><div class="modulo-icon" style="background:#fee2e2">⚠️</div><div><h4>Sustancias</h4><p>Control de sustancias sospechosas o controladas que ingresan al CEDI</p></div></div>
     <div class="modulo"><div class="modulo-icon" style="background:#fef3c7">🔧</div><div><h4>Herramientas</h4><p>Registro de herramientas y equipos que ingresan con responsable asignado</p></div></div>
     <div class="modulo"><div class="modulo-icon" style="background:#f0f9ff">🗄️</div><div><h4>Base de Datos</h4><p>Catálogos de conductores, contratistas, tiendas y usuarios del sistema</p></div></div>
+    <div class="modulo"><div class="modulo-icon" style="background:#e0e7ff">📥</div><div><h4>Carga Masiva</h4><p>Importación de catálogos desde Excel para poblar la base de datos</p></div></div>
+    <div class="modulo"><div class="modulo-icon" style="background:#fce7f3">🛡️</div><div><h4>Ronda de Seguridad</h4><p>Marcación de puntos por QR con georreferenciación en cada escaneo</p></div></div>
+    <div class="modulo"><div class="modulo-icon" style="background:#fef9c3">📣</div><div><h4>Novedades</h4><p>Registro de incidencias detectadas durante los recorridos de seguridad</p></div></div>
+    <div class="modulo"><div class="modulo-icon" style="background:#cffafe">🕐</div><div><h4>Panel Rondero</h4><p>Supervisión en vivo del cumplimiento y alertas de rondas de seguridad</p></div></div>
     <div class="modulo"><div class="modulo-icon" style="background:#f0fdf4">📊</div><div><h4>Reportes y Exportación</h4><p>Exportación a Excel de cualquier módulo con filtro por rango de fechas</p></div></div>
   </div>
 
-  <!-- 3. CAPACIDAD -->
-  <h2>3. Capacidad de Almacenamiento</h2>
+  <!-- 3. RONDAS DE SEGURIDAD -->
+  <h2>3. Rondas de Seguridad: Supervisión y Anti-Fraude</h2>
+  <p>El módulo de Rondas resuelve un problema que el control manual nunca pudo responder con certeza: <strong>¿el recorredor realmente caminó el recorrido de seguridad?</strong> Cada punto de control tiene su propio código QR, y el sistema ahora captura evidencia objetiva en cada marcación.</p>
+
+  <div class="cards-3">
+    <div class="card card-navy">
+      <div class="num">📍</div>
+      <h4>Ubicación GPS por punto</h4>
+      <p>Cada escaneo de QR queda georreferenciado. El sistema calcula la distancia real recorrida entre puntos consecutivos.</p>
+    </div>
+    <div class="card card-amber">
+      <div class="num">🚨</div>
+      <h4>Alerta automática de rondas sospechosas</h4>
+      <p>El sistema detecta y marca automáticamente rondas completadas de forma físicamente imposible (ej. varios puntos en menos de un minuto), sin que un supervisor tenga que revisarlo manualmente.</p>
+    </div>
+    <div class="card card-green">
+      <div class="num">✓</div>
+      <h4>Caso real detectado</h4>
+      <p>Ya en operación, el sistema identificó rondas marcadas en menos de 3 minutos cuando el recorrido real toma cerca de 30 — evidencia que antes era imposible de obtener.</p>
+    </div>
+  </div>
+
+  <p>Además, el <strong>Panel Rondero</strong> le da a supervisión visibilidad en tiempo real: rondas completadas por turno, tiempos de recorrido, distancia caminada, alertas por atraso o inactividad, y un <strong>reporte semanal de cumplimiento</strong> por cada recorredor.</p>
+
+  <!-- 4. CAPACIDAD -->
+  <h2>4. Capacidad de Almacenamiento</h2>
   <p>El sistema está respaldado por <strong>Supabase</strong> (PostgreSQL en la nube), con la siguiente capacidad:</p>
 
   <div class="cap-grid">
@@ -166,8 +195,8 @@
   </table>
   <p style="font-size:12px;color:#94a3b8">*Las fotos se almacenan como URLs base64 directamente en la BD. Para volúmenes mayores se puede migrar a almacenamiento dedicado (Supabase Storage) sin cambios en el frontend.</p>
 
-  <!-- 4. ARQUITECTURA -->
-  <h2>4. Arquitectura Tecnológica</h2>
+  <!-- 5. ARQUITECTURA -->
+  <h2>5. Arquitectura Tecnológica</h2>
   <p>El sistema usa tecnologías modernas, probadas y de bajo costo de operación:</p>
 
   <div class="cards-2">
@@ -209,8 +238,8 @@
     </div>
   </div>
 
-  <!-- 5. BENEFICIOS -->
-  <h2>5. Beneficios del Sistema</h2>
+  <!-- 6. BENEFICIOS -->
+  <h2>6. Beneficios del Sistema</h2>
   <div class="beneficio">
     <div class="ben-icon">📍</div>
     <div class="ben-body"><h4>Trazabilidad completa del ciclo vehicular</h4><p>Cada vehículo queda registrado desde que llega a bodega hasta su regreso, con sellos, fotografías y horas exactas. Elimina disputas sobre tiempos y condiciones de salida/llegada.</p></div>
@@ -239,15 +268,20 @@
     <div class="ben-icon">📸</div>
     <div class="ben-body"><h4>Evidencia fotográfica</h4><p>Los registros de salida, llegada, acceso y herramientas incluyen campo de foto opcional, generando evidencia visual de cada evento registrado.</p></div>
   </div>
+  <div class="beneficio">
+    <div class="ben-icon">🛡️</div>
+    <div class="ben-body"><h4>Detección automática de rondas falsas</h4><p>El sistema identifica solo, sin intervención humana, cuando una ronda de seguridad se marcó de forma físicamente imposible, protegiendo la integridad del control perimetral del CEDI.</p></div>
+  </div>
 
-  <!-- 6. COMPARATIVO -->
-  <h2>6. Comparativo: Antes vs. Después</h2>
+  <!-- 7. COMPARATIVO -->
+  <h2>7. Comparativo: Antes vs. Después</h2>
   <table>
     <tr><th>Aspecto</th><th>Antes (manual)</th><th>Ahora (sistema)</th></tr>
     <tr><td>Registro de vehículos</td><td>Cuaderno físico, letra ilegible, datos incompletos</td><td>Digital, campos obligatorios, búsqueda instantánea</td></tr>
     <tr><td>Control de sellos</td><td>Sin trazabilidad del número de sello</td><td>Sello obligatorio en salida y regreso, con foto</td></tr>
     <tr><td>Acceso de contratistas</td><td>Lista en papel, sin validación</td><td>Búsqueda por cédula en base de datos validada</td></tr>
     <tr><td>Vehículos en ruta</td><td>No había forma de saber cuántos estaban fuera</td><td>Dashboard en tiempo real con vehículos pendientes</td></tr>
+    <tr><td>Rondas de seguridad</td><td>Sin forma de verificar si el recorrido se hizo de verdad</td><td>GPS por punto + alerta automática de rondas sospechosas</td></tr>
     <tr><td>Reportes</td><td>Consolidación manual semanal/mensual</td><td>Exportación Excel en segundos, cualquier período</td></tr>
     <tr><td>Evidencia fotográfica</td><td>No existía</td><td>Disponible en todos los módulos</td></tr>
     <tr><td>Acceso a información</td><td>Solo en la sede física</td><td>Desde cualquier celular, en cualquier momento</td></tr>
@@ -266,7 +300,7 @@
   </div>
 
   <div style="margin-top:40px;text-align:center;color:#94a3b8;font-size:11px;border-top:1px solid #e2e8f0;padding-top:20px">
-    Resumen Ejecutivo · Sistema de Control de Acceso y Operaciones · CEDI R10 · Junio 2026 · Confidencial
+    Resumen Ejecutivo · Sistema de Control de Acceso y Operaciones · CEDI R10 · Julio 2026 · Confidencial
   </div>
 
 </div>
