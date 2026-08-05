@@ -552,6 +552,49 @@ const fechaValida = v => {
   return anio>=2000 && anio<=2100;
 };
 
+/* ── POLLING CON PAUSA EN SEGUNDO PLANO ──
+   Sustituye a setInterval "a secas" en pantallas que refrescan datos
+   periódicamente. Evita el egress de Supabase que se sigue generando
+   cuando la pestaña queda oculta (minimizada o con la pantalla del
+   guarda bloqueada): mientras document.visibilityState !== 'visible' el
+   polling queda en pausa por completo (sin fetch alguno) y se reanuda
+   -- con una ejecución inmediata, para no dejar datos obsoletos -- en
+   cuanto la pestaña vuelve a estar visible.
+   `fn` puede cambiar en cada render (se guarda en un ref, sin necesidad
+   de useCallback en quien llama), y `deps` controla cuándo se reinicia
+   el ciclo completo (listener + interval), igual que el arreglo de
+   dependencias de un useEffect normal. `enabled=false` desactiva el
+   polling por completo (ni fetch inicial ni listener) -- lo usan
+   pantallas donde el refresco solo aplica a una sub-vista puntual
+   (p.ej. el QR de portería solo mientras esa vista está abierta). */
+function useVisibilityPolling(fn, intervalMs, deps=[], enabled=true){
+  const fnRef = useRef(fn);
+  fnRef.current = fn;
+  useEffect(()=>{
+    if(!enabled) return;
+    let timerId = null;
+    const start = ()=>{
+      if(timerId) return; // ya corriendo, evita duplicar el interval
+      fnRef.current();
+      timerId = setInterval(()=>fnRef.current(), intervalMs);
+    };
+    const stop = ()=>{
+      if(timerId){ clearInterval(timerId); timerId=null; }
+    };
+    const onVisibilityChange = ()=>{
+      if(document.visibilityState==='visible') start();
+      else stop();
+    };
+    if(document.visibilityState==='visible') start();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return ()=>{
+      stop();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [...deps, enabled]);
+}
+
 /* ── CAMERA COMPONENT ── */
 function CameraField({value,onChange}){
   const fileRef = useRef();
@@ -559,17 +602,27 @@ function CameraField({value,onChange}){
   const [uploading,setUploading] = useState(false);
   const [errUp,setErrUp]         = useState(null);
   useEffect(()=>{ const t=setTimeout(()=>{ready.current=true;},350); return ()=>clearTimeout(t); },[]);
-  const compress = (file,cb) => {
+  const compress = (file,cb,cbErr) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
-      const MAX = 800;
-      let w=img.width,h=img.height;
-      if(w>MAX){h=h*(MAX/w);w=MAX;}
-      const c=document.createElement('canvas'); c.width=w; c.height=h;
-      c.getContext('2d').drawImage(img,0,0,w,h);
-      cb(c.toDataURL('image/jpeg',0.75));
+      try {
+        const MAX = 800;
+        let w=img.width,h=img.height;
+        if(w>MAX){h=h*(MAX/w);w=MAX;}
+        const c=document.createElement('canvas'); c.width=w; c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        const dataUrl = c.toDataURL('image/jpeg',0.75);
+        URL.revokeObjectURL(url);
+        cb(dataUrl);
+      } catch(err) {
+        URL.revokeObjectURL(url);
+        cbErr(err);
+      }
+    };
+    img.onerror = () => {
       URL.revokeObjectURL(url);
+      cbErr(new Error('No se pudo decodificar la imagen'));
     };
     img.src=url;
   };
@@ -583,6 +636,9 @@ function CameraField({value,onChange}){
       } catch(err) {
         setErrUp('Error al subir foto. Intenta de nuevo.');
       } finally { setUploading(false); }
+    }, err => {
+      setErrUp('No se pudo procesar la foto. Intenta de nuevo o elige otra imagen.');
+      setUploading(false);
     });
   };
   if(uploading) return h('div',{className:'camera-field'},
@@ -959,7 +1015,9 @@ function HomePage({setPage,user}){
   const isCoordinador     = rol==='coordinador';
 
   const cargar = ()=>api.get('/dashboard/resumen').then(setResumen).catch(()=>{});
-  useEffect(()=>{ cargar(); const t=setInterval(cargar,60000); return ()=>clearInterval(t); },[]);
+  // Home es la pantalla menos operativa de las 4 con polling: 2 min y se
+  // pausa en background (pestaña oculta / pantalla bloqueada).
+  useVisibilityPolling(cargar, 120000, []);
 
   const allMods = [
     {id:'flota', label:'Flota Propia',     desc:'Salidas de vehículos',   cls:'m-flota',icon:'truck',    roles:['admin','supervisor','operador','guarda_bodega','guarda_vehicular','coordinador'],cnt:resumen?.flota?.hoy},
@@ -1179,7 +1237,10 @@ function FlotaPage({user,online,addOffline,openId,onOpened}){
       .finally(()=>setLoading(false));
     api.get('/maestros/distribucion').then(setTiendas).catch(()=>{});
   },[]);
-  useEffect(()=>{ load(); const t=setInterval(load,30000); return ()=>clearInterval(t); },[load]);
+  // Flota es operativa (guardas la usan "en vivo"): 1 min y se pausa en
+  // background para no seguir consultando /flota, /conductores y
+  // /maestros/distribucion con la pestaña oculta.
+  useVisibilityPolling(load, 60000, [load]);
 
   // Abre el detalle completo (hora, fecha, tiendas/ruta, sellos) para un
   // registro. Se usa tanto al tocar la lista como al abrirlo desde la
@@ -2746,7 +2807,9 @@ function ProveedoresPage({user,online,addOffline}){
   const load = useCallback(()=>{
     api.get('/proveedores').then(r=>setRecords(r.items||r)).catch(()=>setAlert({type:'err',msg:'Error cargando datos'})).finally(()=>setLoading(false));
   },[]);
-  useEffect(()=>{ load(); const t=setInterval(load,30000); return ()=>clearInterval(t); },[load]);
+  // Proveedores es operativa (alerta de hora de cita): 1 min y se pausa en
+  // background.
+  useVisibilityPolling(load, 60000, [load]);
 
   // Suena una alerta cuando a un proveedor por confirmar le falten ≤5 min para
   // su hora de cita (declarada por el conductor). Una sola vez por registro.
@@ -2784,19 +2847,21 @@ function ProveedoresPage({user,online,addOffline}){
   /* ── QR de ingreso (kiosco de portería) ── */
   const [qrImgUrl,setQrImgUrl] = useState(null);
   const [qrError,setQrError]   = useState(null);
-  useEffect(()=>{
-    if(view!=='qr') return;
-    let active=true;
-    const fetchQr = ()=>{
-      fetch(`${API_BASE}/proveedores/qr-imagen`,{headers:{Authorization:'Bearer '+getToken()}})
-        .then(r=>{ if(!r.ok) throw new Error('No se pudo generar el QR'); return r.text(); })
-        .then(svg=>{ if(active){ setQrError(null); setQrImgUrl('data:image/svg+xml;utf8,'+encodeURIComponent(svg)); } })
-        .catch(e=>{ if(active) setQrError(e.message); });
-    };
-    fetchQr();
-    const t=setInterval(fetchQr,60000);
-    return ()=>{ active=false; clearInterval(t); };
-  },[view]);
+  // Ref (en vez de la `view` capturada en el closure) para descartar una
+  // respuesta que llegue tarde después de que el usuario ya salió de esta
+  // vista (o volvió a entrar y ya hay un fetch más nuevo en curso).
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const fetchQr = useCallback(()=>{
+    fetch(`${API_BASE}/proveedores/qr-imagen`,{headers:{Authorization:'Bearer '+getToken()}})
+      .then(r=>{ if(!r.ok) throw new Error('No se pudo generar el QR'); return r.text(); })
+      .then(svg=>{ if(viewRef.current==='qr'){ setQrError(null); setQrImgUrl('data:image/svg+xml;utf8,'+encodeURIComponent(svg)); } })
+      .catch(e=>{ if(viewRef.current==='qr') setQrError(e.message); });
+  },[]);
+  // El QR expira a los 5 min (QR_INGRESO_TTL_SEG en el backend); 90s deja
+  // margen amplio. Se limita a la vista 'qr' (enabled) y se pausa si la
+  // pestaña queda oculta -- si nadie ve el kiosco, nadie va a escanearlo.
+  useVisibilityPolling(fetchQr, 90000, [], view==='qr');
 
   if(view==='qr') return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{className:'header'},
@@ -4564,7 +4629,9 @@ function RondaPanelPage({user}){
   const load = useCallback(()=>{
     api.get('/rondas/panel').then(r=>setData(Array.isArray(r)?r:[])).catch(()=>{}).finally(()=>setLoading(false));
   },[]);
-  useEffect(()=>{ load(); const t=setInterval(load,30000); return ()=>clearInterval(t); },[load]);
+  // Panel de rondas es de las pantallas más operativas: 1 min y se pausa en
+  // background.
+  useVisibilityPolling(load, 60000, [load]);
 
   const handleCancelarAdmin = async()=>{
     if(!confirmCancelar) return;
@@ -5065,22 +5132,20 @@ function App(){
   // cambiaron el rol después de iniciar sesión, el localStorage quedaría
   // con datos viejos y el menú mostraría módulos que el backend ya no
   // le permite, causando 403 ("Error cargando datos") en esas pestañas.
-  useEffect(()=>{
-    if(!user) return;
-    const syncUser = ()=>{
-      api.get('/auth/me').then(u=>{
-        if(!u) return;
-        setUser(prev=>{
-          const merged = {...prev,...u};
-          localStorage.setItem('cv_user',JSON.stringify(merged));
-          return merged;
-        });
-      }).catch(()=>{});
-    };
-    syncUser();
-    const t = setInterval(syncUser,300000);
-    return ()=>clearInterval(t);
-  },[user?.id]);
+  const syncUser = useCallback(()=>{
+    api.get('/auth/me').then(u=>{
+      if(!u) return;
+      setUser(prev=>{
+        const merged = {...prev,...u};
+        localStorage.setItem('cv_user',JSON.stringify(merged));
+        return merged;
+      });
+    }).catch(()=>{});
+  },[]);
+  // Se mantiene en 5 min (no es dato operativo urgente) pero también se
+  // pausa en background: si la sesión está oculta/bloqueada no hay 403 que
+  // prevenir en ese momento, así que no vale la pena seguir consultando.
+  useVisibilityPolling(syncUser, 300000, [user?.id], !!user);
 
   const addOffline = (item)=>{ addToQueue(item); setQueue(getQueue()); };
 
