@@ -12,12 +12,28 @@ router = APIRouter()
 BUCKET = "fotos"
 
 
+# Fallbacks de desarrollo. La publishable key NO es secreta (solo da acceso
+# al bucket "fotos", publico; las tablas siguen protegidas con RLS), pero si
+# falta la env var se advierte explicitamente en logs para no fallar en
+# silencio con un proyecto de Supabase que no es el de produccion.
+_SUPABASE_URL_FALLBACK = "https://vhzxtgrpnztwntoqhfaf.supabase.co"
+_SUPABASE_KEY_FALLBACK = "sb_publishable_2uJ9BDV4zSRAE7z24Ow4ag_xfKHdZXM"
+
+
 def _storage_upload(img_bytes: bytes, filename: str) -> str:
-    supabase_url = os.environ.get("SUPABASE_URL", "https://vhzxtgrpnztwntoqhfaf.supabase.co").rstrip("/")
-    # Publishable key (no es secreta, reemplaza la legacy anon key que quedo filtrada
-    # en el historial del repo publico). Solo da acceso al bucket "fotos" (publico);
-    # las tablas ya estan protegidas con RLS sin importar esta clave.
-    publishable_key = os.environ.get("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_2uJ9BDV4zSRAE7z24Ow4ag_xfKHdZXM")
+    if not os.environ.get("SUPABASE_URL"):
+        print(
+            "ADVERTENCIA: SUPABASE_URL no está definida en las variables de "
+            "entorno, usando fallback de desarrollo hardcodeado."
+        )
+    supabase_url = os.environ.get("SUPABASE_URL", _SUPABASE_URL_FALLBACK).rstrip("/")
+
+    if not os.environ.get("SUPABASE_PUBLISHABLE_KEY"):
+        print(
+            "ADVERTENCIA: SUPABASE_PUBLISHABLE_KEY no está definida en las "
+            "variables de entorno, usando fallback de desarrollo hardcodeado."
+        )
+    publishable_key = os.environ.get("SUPABASE_PUBLISHABLE_KEY", _SUPABASE_KEY_FALLBACK)
 
     upload_url = f"{supabase_url}/storage/v1/object/{BUCKET}/{filename}"
     r = req.post(
