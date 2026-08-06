@@ -18,6 +18,8 @@ from routers.auth import require_permiso, SECRET_KEY, ALGORITHM
 
 router = APIRouter()
 
+_BOG = timezone(timedelta(hours=-5))
+
 CAMPOS_VEHICULO = [
     "fecha", "placa_vehiculo", "nombre_conductor", "tipo_documento", "cedula_conductor",
     "telefono_conductor",
@@ -33,6 +35,12 @@ CAMPOS_VEHICULO = [
 CAMPOS_ORDEN = [
     "empresa", "carga_compartida",
     "actividad_a_desarrollar", "dependencia_autoriza", "numero_orden_compra",
+    # cita_id (FK -> citas_programadas.id, nullable): marca "esta orden ya
+    # registró su llegada para esta cita programada". Ver migración
+    # 2026-08-06_indice_proveedores_ordenes_cita_id.sql (UNIQUE parcial que
+    # impide que dos filas apunten a la misma cita). NULL es normal cuando
+    # el guarda llena a mano sin que haya habido match con citas_programadas.
+    "cita_id",
 ]
 
 # ── QR de autorregistro de proveedores ────────────────────────────
@@ -83,6 +91,21 @@ def validar_token_sesion_registro(token: str) -> None:
         raise HTTPException(400, "Tu sesión de registro no es válida.")
     if payload.get("tipo") != SESION_REGISTRO_TIPO:
         raise HTTPException(400, "Tu sesión de registro no es válida.")
+
+
+def _raise_error_insercion(db: Session, e: IntegrityError):
+    """Traduce un IntegrityError de INSERT/UPDATE en proveedores/proveedores_ordenes
+    a un mensaje de negocio. El caso especial es la violación del UNIQUE parcial
+    idx_proveedores_ordenes_cita_id_unico (ver migración
+    2026-08-06_indice_proveedores_ordenes_cita_id.sql): dos filas de
+    proveedores_ordenes intentando apuntar a la misma cita_id -- esperable por una
+    carrera entre dos guardas, un doble clic o un reintento de red, no un error
+    real del sistema, así que responde 409 con un mensaje claro en vez de un 500
+    o el 400 genérico de "datos inválidos"."""
+    db.rollback()
+    if "idx_proveedores_ordenes_cita_id_unico" in str(getattr(e, "orig", e)):
+        raise HTTPException(409, "Esta cita ya tiene una llegada registrada. Si esto es un error, acércate a la caseta para que el guarda lo revise.")
+    raise HTTPException(400, "Datos inválidos: revisa las fechas y los campos de selección (tipo de documento, tipo/formato de carga, quién maneja la carga).")
 
 
 def _attach_ordenes(db, items: list[dict]) -> list[dict]:
@@ -316,13 +339,24 @@ def buscar_cita(
     guardado en citas_programadas (que cumple el CHECK ^4[0-9]{9}$).
     Nunca lanza error si no hay match: el guarda siempre puede seguir
     llenando el formulario a mano.
+
+    NO validar proximidad horaria aquí -- decisión de negocio 2026-08-06: ni
+    el conductor ni el guarda deben bloquearse por estar fuera del rango de
+    hora_cita_inicio/fin. Solo se alerta (GET /proveedores/citas/alertas),
+    nunca se bloquea.
+
+    Devuelve `cita_id` (citas_programadas.id) para que el frontend lo lleve
+    en la orden que arma el guarda y quede guardado en
+    proveedores_ordenes.cita_id al confirmar el ingreso (ver CAMPOS_ORDEN /
+    _insert_ordenes) -- así el endpoint de alertas sabe que esta cita ya
+    tiene una llegada registrada.
     """
     numero = _extraer_numero_orden(numero_orden_compra)
     if not fecha or not numero:
         return {"encontrado": False}
     row = db.execute(
         text("""
-            SELECT proveedor_nombre, hora_cita_inicio, hora_cita_fin
+            SELECT id, proveedor_nombre, hora_cita_inicio, hora_cita_fin
             FROM citas_programadas
             WHERE fecha = :fecha AND numero_orden_compra = :numero
             LIMIT 1
@@ -334,10 +368,107 @@ def buscar_cita(
     r = dict(row._mapping)
     return {
         "encontrado": True,
+        "cita_id": r["id"],
         "proveedor_nombre": r["proveedor_nombre"],
         "hora_cita_inicio": str(r["hora_cita_inicio"])[:5] if r["hora_cita_inicio"] else None,
         "hora_cita_fin": str(r["hora_cita_fin"])[:5] if r["hora_cita_fin"] else None,
     }
+
+
+# Minutos antes de hora_cita_inicio en los que empieza a mostrarse la alerta
+# de "por vencer" (ver GET /citas/alertas). El paso de "por vencer" a
+# "atrasada" no usa una constante fija: reutiliza tolerancia_min, columna
+# NOT NULL (default 30) que ya trae cada fila de citas_programadas.
+ALERTA_PREAVISO_MIN = 15
+
+
+@router.get("/citas/alertas")
+def citas_alertas(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("proveedores", "read")),
+):
+    """Citas programadas de HOY (fecha calculada en el SERVIDOR) para las que
+    todavía nadie registró una llegada (ninguna fila de proveedores_ordenes
+    con ese cita_id) y que ya están cerca de su hora -- para que el guarda
+    llame al proveedor antes de que se pase la cita.
+
+    NO bloquea nada: es solo información para que el guarda decida llamar.
+    NO valida proximidad horaria para impedir un registro -- decisión de
+    negocio 2026-08-06 (ver también el comentario en GET /citas/buscar):
+    este endpoint es la ÚNICA fuente de alertas por horario del módulo de
+    proveedores, y su única función es avisar, nunca bloquear.
+
+    Excluye las citas placeholder "todo el día" (00:00:00-23:59:00, ver
+    _parsear_franja_horaria) -- no tiene sentido alertar sobre esas, no
+    tienen una hora puntual a la que "llegar tarde".
+    """
+    hoy = datetime.now(_BOG).date().isoformat()
+    ahora = datetime.now(_BOG)
+    minutos_ahora = ahora.hour * 60 + ahora.minute
+
+    rows = db.execute(
+        text("""
+            SELECT cp.numero_orden_compra, cp.proveedor_nombre, cp.hora_cita_inicio,
+                   cp.tolerancia_min,
+                   (
+                       -- bd_proveedores.nombre es un catalogo mantenido a mano y
+                       -- cp.proveedor_nombre viene del WMS: pueden no calzar exacto
+                       -- en mayusculas/espacios, de ahi la comparacion tolerante.
+                       -- bd_proveedores.nombre no tiene UNIQUE, asi que se usa un
+                       -- subselect con LIMIT 1 (no un LEFT JOIN) para no duplicar
+                       -- filas de citas_programadas si hay mas de un match; se
+                       -- prioriza el proveedor activo y el mas reciente.
+                       SELECT bp.celular
+                       FROM bd_proveedores bp
+                       WHERE UPPER(btrim(bp.nombre)) = UPPER(btrim(cp.proveedor_nombre))
+                       ORDER BY bp.activo DESC, bp.updated_at DESC
+                       LIMIT 1
+                   ) AS telefono
+            FROM citas_programadas cp
+            WHERE cp.fecha = :hoy
+              AND NOT (cp.hora_cita_inicio = '00:00:00' AND cp.hora_cita_fin = '23:59:00')
+              AND NOT EXISTS (
+                  SELECT 1 FROM proveedores_ordenes po WHERE po.cita_id = cp.id
+              )
+            ORDER BY cp.hora_cita_inicio
+        """),
+        {"hoy": hoy},
+    ).fetchall()
+
+    por_vencer: list[dict] = []
+    atrasadas: list[dict] = []
+    for row in rows:
+        d = dict(row._mapping)
+        hi = d["hora_cita_inicio"]
+        if hi is None:
+            continue
+        minutos_cita = hi.hour * 60 + hi.minute
+        tolerancia = d["tolerancia_min"] if d["tolerancia_min"] is not None else 30
+        inicio_preaviso = minutos_cita - ALERTA_PREAVISO_MIN
+        limite_atraso = minutos_cita + tolerancia
+
+        if minutos_ahora < inicio_preaviso:
+            continue  # todavía falta demasiado, ni siquiera preaviso
+
+        item = {
+            "numero_orden_compra": d["numero_orden_compra"],
+            "proveedor_nombre": d["proveedor_nombre"],
+            "hora_cita_inicio": f"{hi.hour:02d}:{hi.minute:02d}",
+            "telefono": d.get("telefono"),
+        }
+        if minutos_ahora > limite_atraso:
+            item["minutos_atraso"] = minutos_ahora - minutos_cita
+            atrasadas.append(item)
+        else:
+            # minutos_restantes puede ser negativo: significa que ya pasó
+            # hora_cita_inicio pero todavía está dentro de tolerancia_min
+            # (por eso sigue en "por_vencer" y no en "atrasadas"). Se deja
+            # el número real (no se recorta a 0) para que el frontend pueda
+            # mostrar ese matiz si quiere.
+            item["minutos_restantes"] = minutos_cita - minutos_ahora
+            por_vencer.append(item)
+
+    return {"por_vencer": por_vencer, "atrasadas": atrasadas}
 
 
 @router.post("/citas/importar")
@@ -508,7 +639,9 @@ def crear(
         db.execute(text(f"INSERT INTO proveedores ({cols}) VALUES ({placeholders})"), vals)
         _insert_ordenes(db, rid, ordenes)
         db.commit()
-    except (IntegrityError, DataError):
+    except IntegrityError as e:
+        _raise_error_insercion(db, e)
+    except DataError:
         db.rollback()
         raise HTTPException(400, "Datos inválidos: revisa las fechas y los campos de selección (tipo de documento, tipo/formato de carga, quién maneja la carga).")
     return {"id": rid, "message": "Registro creado"}
@@ -529,8 +662,14 @@ def agregar_orden(
     ovals["proveedor_id"] = id
     ocols = ", ".join(ovals.keys())
     opholds = ", ".join(f":{k}" for k in ovals.keys())
-    db.execute(text(f"INSERT INTO proveedores_ordenes ({ocols}) VALUES ({opholds})"), ovals)
-    db.commit()
+    try:
+        db.execute(text(f"INSERT INTO proveedores_ordenes ({ocols}) VALUES ({opholds})"), ovals)
+        db.commit()
+    except IntegrityError as e:
+        _raise_error_insercion(db, e)
+    except DataError:
+        db.rollback()
+        raise HTTPException(400, "Datos inválidos: revisa los campos de la orden.")
     return {"id": oid, "message": "Orden agregada"}
 
 
@@ -552,8 +691,14 @@ def actualizar_orden(
         raise HTTPException(400, "Sin campos para actualizar")
     vals["oid"] = oid
     sets = ", ".join(f"{c} = :{c}" for c in vals if c != "oid")
-    db.execute(text(f"UPDATE proveedores_ordenes SET {sets} WHERE id = :oid"), vals)
-    db.commit()
+    try:
+        db.execute(text(f"UPDATE proveedores_ordenes SET {sets} WHERE id = :oid"), vals)
+        db.commit()
+    except IntegrityError as e:
+        _raise_error_insercion(db, e)
+    except DataError:
+        db.rollback()
+        raise HTTPException(400, "Datos inválidos: revisa los campos de la orden.")
     return {"message": "Orden actualizada"}
 
 
@@ -659,7 +804,9 @@ def crear_batch(
                 _insert_ordenes(db, rid, [orden_data])
             ids.append(rid)
         db.commit()
-    except (IntegrityError, DataError):
+    except IntegrityError as e:
+        _raise_error_insercion(db, e)
+    except DataError:
         db.rollback()
         raise HTTPException(400, "Datos inválidos: revisa las fechas y los campos de selección (tipo de documento, tipo/formato de carga, quién maneja la carga).")
     return {"ids": ids, "message": f"{len(ids)} registros creados"}

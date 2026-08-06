@@ -13,7 +13,7 @@ from database import get_db
 from routers.proveedores import (
     CAMPOS_VEHICULO, CAMPOS_ORDEN, _clean, _insert_ordenes,
     validar_token_ingreso_qr, crear_token_sesion_registro, validar_token_sesion_registro,
-    fecha_valida, _extraer_numero_orden,
+    fecha_valida, _extraer_numero_orden, _raise_error_insercion,
 )
 from sqlalchemy.exc import IntegrityError, DataError
 
@@ -85,14 +85,25 @@ def _buscar_cita_hoy(db: Session, numero_orden_compra) -> dict | None:
     seguridad): este flujo es público y sin autenticación, así que un POST
     directo sin pasar por el formulario debe ser rechazado igual que si
     hubiera pasado por el lookup. Mismo criterio de normalización que usa
-    el guarda en GET /proveedores/citas/buscar (routers/proveedores.py)."""
+    el guarda en GET /proveedores/citas/buscar (routers/proveedores.py).
+
+    NO validar proximidad horaria aquí -- decisión de negocio 2026-08-06: ni
+    el conductor ni el guarda deben bloquearse por estar fuera del rango de
+    hora_cita_inicio/fin. Solo se alerta (GET /proveedores/citas/alertas),
+    nunca se bloquea.
+
+    Incluye `id` (citas_programadas.id) en el resultado -- POST /autorregistro
+    lo usa para setear proveedores_ordenes.cita_id y así marcar que esta cita
+    ya tiene una llegada registrada. No se expone `id` en la respuesta
+    pública de GET /citas/buscar (ver buscar_cita_publico), solo se usa
+    internamente."""
     numero = _extraer_numero_orden(numero_orden_compra)
     if not numero:
         return None
     hoy = datetime.now(_BOG).date().isoformat()
     row = db.execute(
         text("""
-            SELECT proveedor_nombre, hora_cita_inicio
+            SELECT id, proveedor_nombre, hora_cita_inicio
             FROM citas_programadas
             WHERE fecha = :fecha AND numero_orden_compra = :numero
             LIMIT 1
@@ -103,6 +114,7 @@ def _buscar_cita_hoy(db: Session, numero_orden_compra) -> dict | None:
         return None
     r = dict(row._mapping)
     return {
+        "id": r["id"],
         "proveedor_nombre": r["proveedor_nombre"],
         "hora_cita_inicio": str(r["hora_cita_inicio"])[:5] if r["hora_cita_inicio"] else None,
     }
@@ -125,7 +137,12 @@ def buscar_cita_publico(
     cita = _buscar_cita_hoy(db, numero_orden_compra)
     if not cita:
         return {"encontrado": False}
-    return {"encontrado": True, **cita}
+    # No se expone `id` (uso interno de POST /autorregistro para cita_id).
+    return {
+        "encontrado": True,
+        "proveedor_nombre": cita["proveedor_nombre"],
+        "hora_cita_inicio": cita["hora_cita_inicio"],
+    }
 
 
 @router.post("/autorregistro", status_code=201)
@@ -205,6 +222,12 @@ def autorregistro(
                 "Acércate a la caseta para que el guarda registre tu ingreso.",
             )
         o["empresa"] = cita["proveedor_nombre"]
+        # Marca esta orden como "llegada registrada" para esta cita (ver
+        # migración 2026-08-06_indice_proveedores_ordenes_cita_id.sql). El
+        # UNIQUE parcial sobre proveedores_ordenes.cita_id se captura más
+        # abajo, al insertar, por si dos autorregistros para la misma cita
+        # llegan en carrera.
+        o["cita_id"] = cita["id"]
         # hora_cita es un campo único a nivel de vehículo (no por orden): la
         # PRIMERA orden con match de la lista fija la hora autoritativa; si
         # una orden posterior trae una hora de cita distinta no se pisa (el
@@ -235,7 +258,9 @@ def autorregistro(
         db.execute(text(f"INSERT INTO proveedores ({cols}) VALUES ({placeholders})"), vals)
         _insert_ordenes(db, rid, ordenes)
         db.commit()
-    except (IntegrityError, DataError):
+    except IntegrityError as e:
+        _raise_error_insercion(db, e)
+    except DataError:
         db.rollback()
         raise HTTPException(400, "Datos inválidos: revisa los campos e intenta de nuevo.")
 

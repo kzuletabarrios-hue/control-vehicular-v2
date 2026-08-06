@@ -386,6 +386,7 @@ const Icons = {
   upload:`<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>`,
   mapPin:`<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>`,
   bell:`<path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>`,
+  phone:`<path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/>`,
   clipboard:`<path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>`,
   qrCode:`<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="5" y="5" width="3" height="3"/><rect x="16" y="5" width="3" height="3"/><rect x="16" y="16" width="3" height="3"/><rect x="5" y="16" width="3" height="3"/>`,
   clock:`<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>`,
@@ -2799,12 +2800,17 @@ function ProveedoresPage({user,online,addOffline}){
 
   /* ── NUEVO INGRESO STATE ── */
   const emptyVeh = ()=>({fecha:today(),placa_vehiculo:'',tipo_documento:'CC',cedula_conductor:'',nombre_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),hora_cita:'',muelle_descargue:'',fecha_pago_arl:'',epp_cumple:'',tipo_carga:'',formato_carga:'',cantidad_pallets:'',manejo_carga:'',observaciones:'',foto_url:null});
-  const emptyOrd = {empresa:'',numero_orden_compra:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''};
+  const emptyOrd = {empresa:'',numero_orden_compra:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:'',cita_id:null};
   const [vehiculoForm,setVehiculoForm]     = useState(emptyVeh);
   const [ordenes,setOrdenes]               = useState([]);
   const [ordenDraft,setOrdenDraft]         = useState(emptyOrd);
   const [ordenEditingIdx,setOrdenEditingIdx] = useState(null);
   const [citaOrdenInfo,setCitaOrdenInfo]   = useState(null); // {estado:'encontrado'|'no_encontrado'}
+
+  /* Alertas de citas de hoy sin llegada registrada (GET /proveedores/citas/alertas).
+     Render mínimo a propósito -- Laura diseña el banner/badge final después,
+     esto solo deja el dato disponible y visible. */
+  const [citasAlertas,setCitasAlertas] = useState({por_vencer:[],atrasadas:[]});
 
   /* ── CARGA DIARIA DE CITAS (WMS) ──
      Sin fecha global: "Fecha Ejec." viene por fila en el archivo, el backend
@@ -2818,6 +2824,10 @@ function ProveedoresPage({user,online,addOffline}){
 
   const load = useCallback(()=>{
     api.get('/proveedores').then(r=>setRecords(r.items||r)).catch(()=>setAlert({type:'err',msg:'Error cargando datos'})).finally(()=>setLoading(false));
+    // Mismo ciclo de polling que /proveedores (no se agrega un segundo
+    // intervalo): citas de hoy sin llegada registrada, para avisarle al
+    // guarda que llame al proveedor.
+    api.get('/proveedores/citas/alertas').then(setCitasAlertas).catch(()=>{});
   },[]);
   // Proveedores es operativa (alerta de hora de cita): 1 min y se pausa en
   // background.
@@ -3000,10 +3010,13 @@ function ProveedoresPage({user,online,addOffline}){
       const res = await api.get(`/proveedores/citas/buscar?fecha=${encodeURIComponent(vehiculoForm.fecha)}&numero_orden_compra=${encodeURIComponent(numero)}`);
       if(res && res.encontrado){
         setCitaOrdenInfo({estado:'encontrado',proveedor:res.proveedor_nombre,hora:res.hora_cita_inicio});
-        setOrdenDraft(p=>({...p,empresa:p.empresa.trim()?p.empresa:(res.proveedor_nombre||p.empresa)}));
+        // cita_id viaja con la orden hasta el POST /proveedores para que el
+        // backend marque proveedores_ordenes.cita_id (ver GET /citas/buscar).
+        setOrdenDraft(p=>({...p,empresa:p.empresa.trim()?p.empresa:(res.proveedor_nombre||p.empresa),cita_id:res.cita_id||null}));
         if(res.hora_cita_inicio) setVehiculoForm(p=>({...p,hora_cita:p.hora_cita?p.hora_cita:res.hora_cita_inicio}));
       }else{
         setCitaOrdenInfo({estado:'no_encontrado'});
+        setOrdenDraft(p=>({...p,cita_id:null}));
       }
     }catch(e){ setCitaOrdenInfo(null); } // silencioso: nunca bloquea el registro manual
   };
@@ -3382,7 +3395,7 @@ function ProveedoresPage({user,online,addOffline}){
         h('div',{className:'fg'},
           h('label',null,'Número de orden'),
           h('input',{type:'text',value:ordenDraft.numero_orden_compra||'',
-            onChange:e=>{setOrdenDraft(p=>({...p,numero_orden_compra:e.target.value}));setCitaOrdenInfo(null);},
+            onChange:e=>{setOrdenDraft(p=>({...p,numero_orden_compra:e.target.value,cita_id:null}));setCitaOrdenInfo(null);},
             onBlur:e=>buscarCitaOrden(e.target.value),
             placeholder:'Como aparece en la reserva del WMS, ej. 4602898240 (opcional)'}),
           citaOrdenInfo?.estado==='encontrado'&&h('div',{style:{marginTop:5,padding:'5px 9px',borderRadius:7,fontSize:11,fontWeight:700,display:'flex',alignItems:'center',gap:5,background:'#d1fae5',color:'#065f46',border:'1px solid #6ee7b7'}},
@@ -3488,6 +3501,40 @@ function ProveedoresPage({user,online,addOffline}){
     ),
     h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      /* Citas de hoy programadas (WMS) cuyo proveedor todavía no ha llegado.
+         Distinta a la pill "🔔 Llegó — Por confirmar" (esa es de un registro YA
+         creado, esperando confirmación). Esta es informativa/agregada, sin
+         icono de campana ni ámbar-por-confirmar, para que el guarda no las
+         confunda: aquí la acción es "llamar", no "confirmar". Desaparece por
+         completo si ambas listas vienen vacías. */
+      !esBodega&&!esCoordinador&&(citasAlertas.por_vencer.length>0||citasAlertas.atrasadas.length>0)&&(()=>{
+        const atrasadas = [...citasAlertas.atrasadas].sort((a,b)=>b.minutos_atraso-a.minutos_atraso);
+        const porVencer = [...citasAlertas.por_vencer].sort((a,b)=>a.minutos_restantes-b.minutos_restantes);
+        const total = atrasadas.length+porVencer.length;
+        const Fila = (c,tono)=>h('div',{key:tono+'-'+c.numero_orden_compra,style:{display:'flex',alignItems:'center',flexWrap:'wrap',columnGap:8,rowGap:2,fontSize:12,padding:'3px 0'}},
+          h(Ico,{n:'phone',s:12,style:{color:tono==='at'?'#e11d48':'#c2650a',flexShrink:0}}),
+          h('span',{style:{fontWeight:700,color:'var(--text)'}},c.proveedor_nombre||'Sin nombre'),
+          c.telefono&&h('a',{href:'tel:'+c.telefono,style:{color:tono==='at'?'#e11d48':'#c2650a',fontWeight:600,textDecoration:'underline'}},c.telefono),
+          h('span',{style:{color:'var(--slate)'}},`orden ${c.numero_orden_compra} · cita ${c.hora_cita_inicio}`),
+          h('span',{style:{marginLeft:'auto',fontWeight:700,whiteSpace:'nowrap',padding:'1px 8px',borderRadius:20,fontSize:11,background:tono==='at'?'#fee2e2':'#ffedd5',color:tono==='at'?'#991b1b':'#9a3412'}},
+            tono==='at'?`Atrasado ${c.minutos_atraso} min`
+              :c.minutos_restantes>=0?`Cita en ${c.minutos_restantes} min`
+              :`Cita vencida hace ${Math.abs(c.minutos_restantes)} min`
+          )
+        );
+        return h('div',{style:{marginBottom:10,borderRadius:10,border:'1px solid '+(atrasadas.length>0?'#fecaca':'#fed7aa'),background:'#fff',overflow:'hidden'}},
+          h('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'7px 10px',background:atrasadas.length>0?'#fef2f2':'#fff7ed',borderBottom:'1px solid '+(atrasadas.length>0?'#fecaca':'#fed7aa')}},
+            h(Ico,{n:'alert',s:14,style:{color:atrasadas.length>0?'#e11d48':'#c2650a',flexShrink:0}}),
+            h('span',{style:{fontSize:12,fontWeight:700,color:atrasadas.length>0?'#9f1239':'#9a3412'}},'Cita programada sin llegar — llamar al proveedor'),
+            h('span',{style:{marginLeft:'auto',fontSize:11,fontWeight:700,color:atrasadas.length>0?'#9f1239':'#9a3412',background:atrasadas.length>0?'#fecaca':'#fed7aa',borderRadius:20,padding:'1px 8px',flexShrink:0}},total)
+          ),
+          h('div',{style:{padding:'2px 10px 6px'}},
+            atrasadas.map(c=>Fila(c,'at')),
+            atrasadas.length>0&&porVencer.length>0&&h('div',{style:{borderTop:'1px dashed var(--border)',margin:'4px 0'}}),
+            porVencer.map(c=>Fila(c,'pv'))
+          )
+        );
+      })(),
       loading?h(LoadingDots):
       visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'package',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='confirmar'?'Nadie por confirmar en este momento':filtro==='dentro'?'Nadie dentro en este momento':'Sin proveedores')):
       visibles.map(r=>{
