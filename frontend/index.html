@@ -2816,11 +2816,27 @@ function ProveedoresPage({user,online,addOffline}){
      Sin fecha global: "Fecha Ejec." viene por fila en el archivo, el backend
      calcula las fechas distintas presentes y reemplaza cada una. */
   const [citasModal,setCitasModal]     = useState(false);
+  const [citasTab,setCitasTab]         = useState('subir'); // 'subir' | 'ver' -- dos usos distintos del mismo modal (ver comentario en el render)
   const [citasRows,setCitasRows]       = useState([]);
   const [citasFileName,setCitasFileN]  = useState('');
   const [citasLoading,setCitasLoading] = useState(false);
   const [citasResult,setCitasResult]   = useState(null);
   const [citasErr,setCitasErr]         = useState('');
+
+  /* ── LISTA DE CITAS DEL DÍA (edición manual de hora) ──
+     GET /proveedores/citas?fecha=... -- a diferencia del import (que ya no
+     tiene selector de fecha porque "Fecha Ejec." viaja por fila del
+     archivo), acá SÍ hace falta un selector: se están consultando citas
+     YA guardadas en la BD, no un archivo nuevo. Render mínimo a propósito
+     -- Laura lo rediseña después, esto solo conecta el dato. */
+  const [citasDiaFecha,setCitasDiaFecha]     = useState(today());
+  const [citasDiaItems,setCitasDiaItems]     = useState([]);
+  const [citasDiaLoading,setCitasDiaLoading] = useState(false);
+  const [citasDiaErr,setCitasDiaErr]         = useState('');
+  const [citaEditId,setCitaEditId]           = useState(null); // id de citas_programadas en edición
+  const [citaEditForm,setCitaEditForm]       = useState({hora_cita_inicio:'',hora_cita_fin:'',motivo:''});
+  const [citaEditSaving,setCitaEditSaving]   = useState(false);
+  const [citaEditErr,setCitaEditErr]         = useState('');
 
   const load = useCallback(()=>{
     api.get('/proveedores').then(r=>setRecords(r.items||r)).catch(()=>setAlert({type:'err',msg:'Error cargando datos'})).finally(()=>setLoading(false));
@@ -3287,10 +3303,51 @@ function ProveedoresPage({user,online,addOffline}){
       setCitasResult(res);
       setCitasRows([]); setCitasFileN('');
       load(); // por si hay ordenes ya en pantalla que ahora pueden autocompletarse
+      if(res.fechas?.includes(citasDiaFecha)) cargarCitasDia(); // refresca la lista si el import tocó la fecha que se está viendo
     }catch(ex){
       let m=ex.message||'Error'; try{m=JSON.parse(m).detail||m;}catch{}
       setCitasErr(m);
     }finally{ setCitasLoading(false); }
+  };
+
+  // Traduce el body de error de FastAPI (string simple de HTTPException o
+  // lista de errores 422 de Pydantic) a un texto legible -- mismo criterio
+  // de parseo que textoErrorAnulacion.
+  const _textoErrorCita = ex => {
+    let m = ex.message || 'Error';
+    try{
+      const parsed = JSON.parse(m);
+      if(typeof parsed.detail === 'string') m = parsed.detail;
+      else if(Array.isArray(parsed.detail) && parsed.detail[0]) m = String(parsed.detail[0].msg||'').replace(/^Value error,\s*/i,'');
+    }catch(_){}
+    return m;
+  };
+
+  const cargarCitasDia = useCallback(()=>{
+    if(!citasDiaFecha) return;
+    setCitasDiaLoading(true); setCitasDiaErr('');
+    api.get(`/proveedores/citas?fecha=${citasDiaFecha}`)
+      .then(r=>setCitasDiaItems(r.items||[]))
+      .catch(ex=>setCitasDiaErr(_textoErrorCita(ex)))
+      .finally(()=>setCitasDiaLoading(false));
+  },[citasDiaFecha]);
+
+  useEffect(()=>{ if(citasModal) cargarCitasDia(); },[citasModal,cargarCitasDia]);
+
+  const empezarEditarCita = c => {
+    setCitaEditId(c.id);
+    setCitaEditForm({hora_cita_inicio:c.hora_cita_inicio||'',hora_cita_fin:c.hora_cita_fin||'',motivo:''});
+    setCitaEditErr('');
+  };
+  const cancelarEditarCita = () => { setCitaEditId(null); setCitaEditErr(''); };
+  const guardarEditarCita = async () => {
+    setCitaEditSaving(true); setCitaEditErr('');
+    try{
+      await api.put(`/proveedores/citas/${citaEditId}`,citaEditForm);
+      setCitaEditId(null);
+      cargarCitasDia();
+    }catch(ex){ setCitaEditErr(_textoErrorCita(ex)); }
+    finally{ setCitaEditSaving(false); }
   };
 
   /* ── VISTA: NUEVO INGRESO ── */
@@ -3488,7 +3545,7 @@ function ProveedoresPage({user,online,addOffline}){
         !esBodega&&!esCoordinador&&h('button',{onClick:()=>setView('qr'),style:{background:'none',border:'1.5px solid var(--navy)',color:'var(--navy)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
           h(Ico,{n:'qrCode',s:14}),' QR Ingreso'
         ),
-        !esBodega&&!esCoordinador&&h('button',{onClick:()=>{setCitasModal(true);setCitasRows([]);setCitasFileN('');setCitasResult(null);setCitasErr('');},title:'Subir el archivo de citas/reservas del día (WMS) para autocompletar el número de orden en el ingreso',style:{background:'none',border:'1.5px solid var(--navy)',color:'var(--navy)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
+        !esBodega&&!esCoordinador&&h('button',{onClick:()=>{setCitasModal(true);setCitasTab('subir');setCitasRows([]);setCitasFileN('');setCitasResult(null);setCitasErr('');setCitaEditId(null);setCitaEditErr('');},title:'Subir el archivo de citas/reservas del día (WMS) para autocompletar el número de orden en el ingreso',style:{background:'none',border:'1.5px solid var(--navy)',color:'var(--navy)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
           h(Ico,{n:'calendar',s:14}),' Citas del día'
         ),
         esBodega&&h('p',{style:{fontSize:12,color:'var(--slate)',alignSelf:'center',margin:'0 0 0 4px'}},h(Ico,{n:'alert',s:12}),' Toca un registro para agregar evidencia de rechazo'),
@@ -3678,40 +3735,135 @@ function ProveedoresPage({user,online,addOffline}){
           h('span',{style:{fontWeight:700,fontSize:15}},'Citas del día (WMS)'),
           h('button',{className:'btn-icon',onClick:()=>setCitasModal(false)},h(Ico,{n:'x',s:16}))
         ),
-        h('p',{style:{fontSize:12,color:'var(--slate)',marginBottom:12}},
-          'Sube el export de reservas del WMS ("Plano_Reservas_de_Recepción") para autocompletar el proveedor y la hora de cita al escribir el número de orden en un nuevo ingreso. La fecha de cada cita se toma de la columna "Fecha Ejec." del archivo (puede traer varios días); se reemplazan las citas cargadas previamente para cada fecha que aparezca.'
-        ),
-        h('label',{className:'upload-zone',style:{marginBottom:10}},
-          h('input',{type:'file',accept:'.xlsx,.xls,.csv',style:{display:'none'},onChange:handleCitasFile}),
-          h(Ico,{n:'upload',s:24,c:'upload-ico'}),
-          h('p',null, citasFileName||'Toca para seleccionar el archivo'),
-          h('span',null,'.xlsx · .xls · .csv')
-        ),
-        citasErr&&h('div',{className:'alert-err',style:{marginBottom:10}},h(Ico,{n:'alert',s:14}),citasErr),
-        citasRows.length>0&&h('div',{style:{marginBottom:10}},
-          h('p',{style:{fontSize:12,fontWeight:700,color:'var(--text)',marginBottom:6}},`${citasRows.length} citas listas para importar`),
-          h('div',{style:{overflowX:'auto',maxHeight:180,overflowY:'auto',border:'1px solid var(--border)',borderRadius:8}},
-            h('table',{className:'preview-table'},
-              h('thead',null,h('tr',null,h('th',null,'Fecha'),h('th',null,'O. Compra'),h('th',null,'Proveedor'),h('th',null,'F. Temporal'))),
-              h('tbody',null,
-                citasRows.slice(0,8).map((r,i)=>h('tr',{key:i},h('td',null,r.fecha||'—'),h('td',null,r.numero_orden_compra),h('td',null,r.proveedor),h('td',null,r.franja_horaria_texto||'—')))
-              )
-            )
+
+        /* Dos tareas con intención y frecuencia distintas dentro del mismo
+           modal: subir el archivo es un lote (una vez en la mañana, o cuando
+           llega un nuevo export), editar una hora es puntual y puede pasar
+           en cualquier momento del turno. Separarlas en pestañas evita que
+           el guarda tenga que hacer scroll pasando la zona de carga cada vez
+           que solo necesita corregir una cita. */
+        h('div',{style:{display:'flex',gap:6,marginBottom:14}},
+          h('button',{onClick:()=>setCitasTab('subir'),style:{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:5,padding:'8px 10px',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:citasTab==='subir'?'var(--navy)':'transparent',color:citasTab==='subir'?'#fff':'var(--slate)',borderColor:citasTab==='subir'?'var(--navy)':'var(--border)'}},
+            h(Ico,{n:'upload',s:13}),'Subir archivo'
           ),
-          citasRows.length>8&&h('p',{style:{fontSize:10,color:'var(--slate)',marginTop:4}},`...y ${citasRows.length-8} más`)
-        ),
-        citasResult&&h('div',{style:{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 10px',marginBottom:10}},
-          h('p',{style:{fontSize:12,color:'#166534',fontWeight:700}},`${citasResult.insertados} citas cargadas`+(citasResult.fechas?.length?` para ${citasResult.fechas.join(', ')}`:'')),
-          citasResult.errores?.length>0&&h('div',{style:{marginTop:6}},
-            citasResult.errores.slice(0,5).map((e,i)=>h('p',{key:i,style:{fontSize:11,color:'var(--red)'}},`Fila ${e.fila}: ${e.error}`)),
-            citasResult.errores.length>5&&h('p',{style:{fontSize:10,color:'var(--slate)'}},`...y ${citasResult.errores.length-5} errores más`)
+          h('button',{onClick:()=>setCitasTab('ver'),style:{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:5,padding:'8px 10px',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:citasTab==='ver'?'var(--navy)':'transparent',color:citasTab==='ver'?'#fff':'var(--slate)',borderColor:citasTab==='ver'?'var(--navy)':'var(--border)'}},
+            h(Ico,{n:'calendar',s:13}),'Ver / editar horas'
           )
         ),
-        h('div',{style:{display:'flex',gap:8,marginTop:4}},
-          h('button',{className:'btn-cancel',onClick:()=>setCitasModal(false),disabled:citasLoading},'Cerrar'),
-          h('button',{className:'btn-primary',style:{flex:1},onClick:handleCitasImport,disabled:citasLoading||citasRows.length===0},
-            citasLoading?h('div',{className:'spinner'}):h(Ico,{n:'upload',s:15}),
-            citasLoading?'Importando...':`Importar ${citasRows.length||''} citas`
+
+        citasTab==='subir'&&h(React.Fragment,null,
+          h('p',{style:{fontSize:12,color:'var(--slate)',marginBottom:12}},
+            'Sube el export de reservas del WMS ("Plano_Reservas_de_Recepción") para autocompletar el proveedor y la hora de cita al escribir el número de orden en un nuevo ingreso. La fecha de cada cita se toma de la columna "Fecha Ejec." del archivo (puede traer varios días); se reemplazan las citas cargadas previamente para cada fecha que aparezca.'
+          ),
+          h('label',{className:'upload-zone',style:{marginBottom:10}},
+            h('input',{type:'file',accept:'.xlsx,.xls,.csv',style:{display:'none'},onChange:handleCitasFile}),
+            h(Ico,{n:'upload',s:24,c:'upload-ico'}),
+            h('p',null, citasFileName||'Toca para seleccionar el archivo'),
+            h('span',null,'.xlsx · .xls · .csv')
+          ),
+          citasErr&&h('div',{className:'alert-err',style:{marginBottom:10}},h(Ico,{n:'alert',s:14}),citasErr),
+          citasRows.length>0&&h('div',{style:{marginBottom:10}},
+            h('p',{style:{fontSize:12,fontWeight:700,color:'var(--text)',marginBottom:6}},`${citasRows.length} citas listas para importar`),
+            h('div',{style:{overflowX:'auto',maxHeight:180,overflowY:'auto',border:'1px solid var(--border)',borderRadius:8}},
+              h('table',{className:'preview-table'},
+                h('thead',null,h('tr',null,h('th',null,'Fecha'),h('th',null,'O. Compra'),h('th',null,'Proveedor'),h('th',null,'F. Temporal'))),
+                h('tbody',null,
+                  citasRows.slice(0,8).map((r,i)=>h('tr',{key:i},h('td',null,r.fecha||'—'),h('td',null,r.numero_orden_compra),h('td',null,r.proveedor),h('td',null,r.franja_horaria_texto||'—')))
+                )
+              )
+            ),
+            citasRows.length>8&&h('p',{style:{fontSize:10,color:'var(--slate)',marginTop:4}},`...y ${citasRows.length-8} más`)
+          ),
+          citasResult&&h('div',{style:{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 10px',marginBottom:10}},
+            h('p',{style:{fontSize:12,color:'#166534',fontWeight:700}},`${citasResult.insertados} citas cargadas`+(citasResult.fechas?.length?` para ${citasResult.fechas.join(', ')}`:'')),
+            citasResult.errores?.length>0&&h('div',{style:{marginTop:6}},
+              citasResult.errores.slice(0,5).map((e,i)=>h('p',{key:i,style:{fontSize:11,color:'var(--red)'}},`Fila ${e.fila}: ${e.error}`)),
+              citasResult.errores.length>5&&h('p',{style:{fontSize:10,color:'var(--slate)'}},`...y ${citasResult.errores.length-5} errores más`)
+            )
+          ),
+          h('div',{style:{display:'flex',gap:8,marginTop:4}},
+            h('button',{className:'btn-cancel',onClick:()=>setCitasModal(false),disabled:citasLoading},'Cerrar'),
+            h('button',{className:'btn-primary',style:{flex:1},onClick:handleCitasImport,disabled:citasLoading||citasRows.length===0},
+              citasLoading?h('div',{className:'spinner'}):h(Ico,{n:'upload',s:15}),
+              citasLoading?'Importando...':`Importar ${citasRows.length||''} citas`
+            )
+          )
+        ),
+
+        citasTab==='ver'&&h(React.Fragment,null,
+          h('p',{style:{fontSize:12,color:'var(--slate)',marginBottom:12}},
+            'Consulta las citas ya cargadas de un día y corrige puntualmente la hora de una si se autorizó un cambio por fuera del WMS (llamada o correo con el proveedor). El motivo queda guardado junto con tu usuario, como respaldo de quién autorizó el cambio.'
+          ),
+          h('div',{style:{display:'flex',gap:8,alignItems:'flex-end',marginBottom:10}},
+            h('div',{className:'fg',style:{flex:1,marginBottom:0}},
+              h('label',null,'Fecha'),
+              h('input',{type:'date',value:citasDiaFecha,onChange:e=>{setCitasDiaFecha(e.target.value);setCitaEditId(null);}})
+            ),
+            h('button',{className:'btn-cancel',onClick:cargarCitasDia,disabled:citasDiaLoading,style:{padding:'0 14px',fontSize:11,height:38}},citasDiaLoading?'Cargando...':'Actualizar')
+          ),
+          citasDiaErr&&h('div',{className:'alert-err',style:{marginBottom:10}},h(Ico,{n:'alert',s:14}),citasDiaErr),
+
+          citasDiaLoading&&h(LoadingDots),
+
+          !citasDiaLoading&&citasDiaItems.length===0&&!citasDiaErr&&h('div',{style:{textAlign:'center',padding:'20px 10px',color:'var(--slate)'}},
+            h(Ico,{n:'calendar',s:28,style:{opacity:.35,display:'block',margin:'0 auto 6px'}}),
+            h('p',{style:{fontSize:12}},'Sin citas guardadas para esta fecha.')
+          ),
+
+          !citasDiaLoading&&citasDiaItems.length>0&&h('div',{style:{maxHeight:340,overflowY:'auto',display:'flex',flexDirection:'column',gap:8}},
+            citasDiaItems.map(c=>{
+              const editing = citaEditId===c.id;
+              const bloqueada = !!c.tiene_llegada;
+              const motivoOk = citaEditForm.motivo.trim().length>=5;
+              const horasOk = !!citaEditForm.hora_cita_inicio && !!citaEditForm.hora_cita_fin && citaEditForm.hora_cita_inicio<citaEditForm.hora_cita_fin;
+              return h('div',{key:c.id,style:{border:'1.5px solid '+(editing?'var(--amber)':'var(--border)'),borderRadius:10,padding:'10px 12px',background:editing?'#fffbeb':'#fff'}},
+                h('div',{style:{display:'flex',justifyContent:'space-between',gap:8,alignItems:'flex-start'}},
+                  h('div',{style:{minWidth:0}},
+                    h('div',{style:{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',marginBottom:3}},
+                      h('span',{style:{fontWeight:700,fontSize:13,color:'var(--text)'}}, `${c.hora_cita_inicio||'—'} – ${c.hora_cita_fin||'—'}`),
+                      c.hora_editada_manualmente&&h('span',{className:'pill pill-amber',title:'Esta hora fue corregida manualmente y no viene tal cual del archivo del WMS',style:{display:'inline-flex',alignItems:'center',gap:3}},h(Ico,{n:'edit',s:9}),'Editada'),
+                      c.tiene_llegada&&h('span',{className:'pill pill-green',title:'El proveedor ya se presentó para esta orden',style:{display:'inline-flex',alignItems:'center',gap:3}},h(Ico,{n:'check',s:9}),'Llegó')
+                    ),
+                    h('div',{style:{fontSize:12,fontWeight:600,color:'var(--text2)'}}, c.proveedor_nombre||'Sin nombre'),
+                    h('div',{style:{fontSize:11,color:'var(--slate)'}}, 'O.C. '+c.numero_orden_compra)
+                  ),
+                  !editing&&(bloqueada
+                    ? h('div',{title:'No editable: el proveedor ya registró su llegada para esta orden',style:{display:'flex',alignItems:'center',gap:4,color:'var(--slate)',fontSize:10,fontWeight:600,flexShrink:0,whiteSpace:'nowrap',paddingTop:3}},
+                        h(Ico,{n:'lock',s:12}),'No editable'
+                      )
+                    : h('button',{className:'btn-icon',title:'Editar hora de esta cita',onClick:()=>empezarEditarCita(c),style:{flexShrink:0}},h(Ico,{n:'edit',s:13}))
+                  )
+                ),
+
+                editing&&h('div',{style:{marginTop:10,paddingTop:10,borderTop:'1px dashed var(--amber2)'}},
+                  h('div',{style:{display:'flex',gap:8,marginBottom:8}},
+                    h('div',{className:'fg',style:{flex:1,marginBottom:0}},h('label',null,'Nueva hora inicio'),h('input',{type:'time',value:citaEditForm.hora_cita_inicio,onChange:e=>setCitaEditForm(p=>({...p,hora_cita_inicio:e.target.value}))})),
+                    h('div',{className:'fg',style:{flex:1,marginBottom:0}},h('label',null,'Nueva hora fin'),h('input',{type:'time',value:citaEditForm.hora_cita_fin,onChange:e=>setCitaEditForm(p=>({...p,hora_cita_fin:e.target.value}))}))
+                  ),
+                  !horasOk&&citaEditForm.hora_cita_inicio&&citaEditForm.hora_cita_fin&&h('p',{style:{fontSize:11,color:'var(--red)',marginTop:-4,marginBottom:8}},'La hora de inicio debe ser anterior a la hora de fin.'),
+                  h('div',{className:'fg',style:{marginBottom:6}},
+                    h('label',null,'Motivo del cambio ',h('span',{className:'req'},'*')),
+                    h('input',{type:'text',placeholder:'Ej: proveedor llamó y pidió adelantar la cita',value:citaEditForm.motivo,onChange:e=>setCitaEditForm(p=>({...p,motivo:e.target.value}))})
+                  ),
+                  h('p',{style:{fontSize:10.5,color:'var(--slate)',display:'flex',alignItems:'flex-start',gap:4,marginBottom:10,lineHeight:1.4}},
+                    h(Ico,{n:'lock',s:11,style:{flexShrink:0,marginTop:1}}),
+                    'Este cambio queda registrado con tu usuario, la hora y el motivo -- es el respaldo de quién autorizó mover la cita.'
+                  ),
+                  citaEditErr&&h('div',{className:'alert-err',style:{marginBottom:8}},h(Ico,{n:'alert',s:14}),citaEditErr),
+                  h('div',{style:{display:'flex',gap:6}},
+                    h('button',{className:'btn-cancel',onClick:cancelarEditarCita,disabled:citaEditSaving,style:{flex:1}},'Cancelar'),
+                    h('button',{className:'btn-primary',onClick:guardarEditarCita,disabled:citaEditSaving||!motivoOk||!horasOk,style:{flex:1}},
+                      citaEditSaving?h('div',{className:'spinner'}):h(Ico,{n:'check',s:14}),
+                      citaEditSaving?'Guardando...':'Guardar cambio'
+                    )
+                  )
+                )
+              );
+            })
+          ),
+
+          h('div',{style:{marginTop:14}},
+            h('button',{className:'btn-cancel',style:{width:'100%'},onClick:()=>setCitasModal(false)},'Cerrar')
           )
         )
       )

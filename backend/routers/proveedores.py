@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
+from pydantic import BaseModel, field_validator, model_validator
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, DataError
@@ -106,6 +107,24 @@ def _raise_error_insercion(db: Session, e: IntegrityError):
     if "idx_proveedores_ordenes_cita_id_unico" in str(getattr(e, "orig", e)):
         raise HTTPException(409, "Esta cita ya tiene una llegada registrada. Si esto es un error, acércate a la caseta para que el guarda lo revise.")
     raise HTTPException(400, "Datos inválidos: revisa las fechas y los campos de selección (tipo de documento, tipo/formato de carga, quién maneja la carga).")
+
+
+def _audit(db, user, accion, tabla, rid, antes, despues):
+    """Copia local del helper de auditoría de flota.py (líneas ~196-201) --
+    a propósito no se comparte entre módulos por ahora (decisión de
+    Alejandro)."""
+    db.execute(text("""
+        INSERT INTO audit_log (usuario_id, usuario_email, accion, tabla, registro_id, datos_antes, datos_despues)
+        VALUES (:uid, :email, :accion, :tabla, :rid, CAST(:antes AS jsonb), CAST(:despues AS jsonb))
+    """), {
+        "uid": user["id"],
+        "email": user["email"],
+        "accion": accion,
+        "tabla": tabla,
+        "rid": str(rid),
+        "antes": json.dumps(antes, default=str) if antes else None,
+        "despues": json.dumps(despues, default=str) if despues else None,
+    })
 
 
 def _attach_ordenes(db, items: list[dict]) -> list[dict]:
@@ -211,6 +230,50 @@ def qr_imagen(
     )
 
 
+@router.get("/citas")
+def listar_citas_dia(
+    fecha: str,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("proveedores", "read")),
+):
+    """Citas programadas de UNA fecha puntual (elegida a mano por el guarda,
+    a diferencia del import por archivo -- ver comentario de handleCitasFile
+    en el frontend) para la lista de "Citas del día (WMS)" del modal, con
+    edición manual de hora. Incluye si ya tiene una llegada registrada con
+    el mismo criterio EXISTS que ya usa GET /citas/alertas."""
+    if not fecha or not _FECHA_RE.match(fecha) or not fecha_valida(fecha):
+        raise HTTPException(400, "Fecha inválida (se espera YYYY-MM-DD)")
+
+    rows = db.execute(
+        text("""
+            SELECT cp.id, cp.numero_orden_compra, cp.proveedor_nombre,
+                   cp.hora_cita_inicio, cp.hora_cita_fin, cp.hora_editada_manualmente,
+                   EXISTS (
+                       SELECT 1 FROM proveedores_ordenes po WHERE po.cita_id = cp.id
+                   ) AS tiene_llegada
+            FROM citas_programadas cp
+            WHERE cp.fecha = :fecha
+            ORDER BY cp.hora_cita_inicio, cp.proveedor_nombre
+        """),
+        {"fecha": fecha},
+    ).fetchall()
+
+    items = []
+    for row in rows:
+        d = dict(row._mapping)
+        hi, hf = d["hora_cita_inicio"], d["hora_cita_fin"]
+        items.append({
+            "id": d["id"],
+            "numero_orden_compra": d["numero_orden_compra"],
+            "proveedor_nombre": d["proveedor_nombre"],
+            "hora_cita_inicio": f"{hi.hour:02d}:{hi.minute:02d}" if hi else None,
+            "hora_cita_fin": f"{hf.hour:02d}:{hf.minute:02d}" if hf else None,
+            "hora_editada_manualmente": d["hora_editada_manualmente"],
+            "tiene_llegada": d["tiene_llegada"],
+        })
+    return {"items": items}
+
+
 @router.get("/{id}")
 def obtener(
     id: str,
@@ -265,6 +328,7 @@ def fecha_valida(v) -> bool:
 
 _FRANJA_RE = _re.compile(r"^\s*(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})\s*$")
 _DIGIT_RUN_RE = _re.compile(r"\d+")
+_HORA_HHMM_RE = _re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 
 
 def _str(v) -> str | None:
@@ -471,6 +535,99 @@ def citas_alertas(
     return {"por_vencer": por_vencer, "atrasadas": atrasadas}
 
 
+class EditarCitaBody(BaseModel):
+    hora_cita_inicio: str
+    hora_cita_fin: str
+    motivo: str
+
+    @field_validator("hora_cita_inicio", "hora_cita_fin")
+    @classmethod
+    def _hora_valida(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not _HORA_HHMM_RE.match(v):
+            raise ValueError('Formato de hora inválido (se espera HH:MM)')
+        return v
+
+    @field_validator("motivo")
+    @classmethod
+    def _motivo_valido(cls, v: str) -> str:
+        v = (v or "").strip()
+        if len(v) < 5:
+            raise ValueError("El motivo es obligatorio (mínimo 5 caracteres)")
+        return v
+
+    @model_validator(mode="after")
+    def _inicio_antes_de_fin(self):
+        # Comparación lexicográfica válida: ambos campos ya están normalizados
+        # a "HH:MM" (2+2 dígitos con cero a la izquierda) por _hora_valida.
+        if self.hora_cita_inicio >= self.hora_cita_fin:
+            raise ValueError("La hora de inicio debe ser anterior a la hora de fin")
+        return self
+
+
+@router.put("/citas/{id}")
+def editar_cita(
+    id: str,
+    body: EditarCitaBody,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permiso("proveedores", "editar_cita")),
+):
+    """Edición manual puntual de hora_cita_inicio/hora_cita_fin de UNA cita
+    (autorizada fuera del WMS, ej. por un ajuste de última hora acordado con
+    el proveedor). Marca hora_editada_manualmente = true para que la fila
+    sobreviva al próximo reemplazo por lote de POST /citas/importar (ver
+    migración 2026-08-06_citas_programadas_hora_editada_manualmente.sql).
+    Permiso separado "editar_cita" (no "write"): mismo patrón que
+    "control_acceso":"anular", para que quede explícito en el código qué
+    acción es -- aunque hoy se otorgue a los mismos roles que ya tienen
+    "write" sobre proveedores (ver migración de permisos)."""
+    antes = db.execute(
+        text("""
+            SELECT cp.hora_cita_inicio, cp.hora_cita_fin,
+                   EXISTS (
+                       SELECT 1 FROM proveedores_ordenes po WHERE po.cita_id = cp.id
+                   ) AS tiene_llegada
+            FROM citas_programadas cp
+            WHERE cp.id = :id
+        """),
+        {"id": id},
+    ).fetchone()
+    if not antes:
+        raise HTTPException(404, "Cita no encontrada")
+    if antes.tiene_llegada:
+        raise HTTPException(409, "Esta cita ya tiene una llegada registrada, no se puede editar la hora.")
+
+    hi_db = f"{body.hora_cita_inicio}:00"
+    hf_db = f"{body.hora_cita_fin}:00"
+
+    db.execute(
+        text("""
+            UPDATE citas_programadas
+            SET hora_cita_inicio = :hi, hora_cita_fin = :hf,
+                hora_editada_manualmente = true, updated_at = NOW()
+            WHERE id = :id
+        """),
+        {"id": id, "hi": hi_db, "hf": hf_db},
+    )
+
+    datos_antes = {
+        "hora_cita_inicio": str(antes.hora_cita_inicio)[:5] if antes.hora_cita_inicio else None,
+        "hora_cita_fin": str(antes.hora_cita_fin)[:5] if antes.hora_cita_fin else None,
+    }
+    datos_despues = {
+        "hora_cita_inicio": body.hora_cita_inicio,
+        "hora_cita_fin": body.hora_cita_fin,
+        "motivo": body.motivo,
+    }
+    _audit(db, current_user, "EDITAR_HORA_CITA", "citas_programadas", id, datos_antes, datos_despues)
+    db.commit()
+    return {
+        "message": "Hora de la cita actualizada",
+        "hora_cita_inicio": body.hora_cita_inicio,
+        "hora_cita_fin": body.hora_cita_fin,
+    }
+
+
 @router.post("/citas/importar")
 def importar_citas(
     body: dict,
@@ -547,6 +704,7 @@ def importar_citas(
     fechas_afectadas = sorted({v["fecha"] for _, v in validas})
     fecha_principal = Counter(v["fecha"] for _, v in validas).most_common(1)
     insertados = 0
+    preservadas: list[dict] = []
 
     try:
         # El archivo debe existir antes que las citas por el FK archivo_id;
@@ -565,10 +723,36 @@ def importar_citas(
             "total_filas": len(filas),
         })
 
+        # Órdenes con hora_editada_manualmente = true para cada fecha afectada:
+        # el DELETE de abajo las protege (no las borra), así que hay que
+        # calcular el set ANTES de filtrar `validas` para no reinsertar un
+        # duplicado de esa misma orden (la tabla no tiene UNIQUE, ver
+        # migración 2026-08-06_citas_programadas_hora_editada_manualmente.sql).
+        protegidas_por_fecha: dict[str, set[str]] = {}
         for fecha in fechas_afectadas:
-            db.execute(text("DELETE FROM citas_programadas WHERE fecha = :fecha"), {"fecha": fecha})
+            rows_prot = db.execute(
+                text("""
+                    SELECT numero_orden_compra FROM citas_programadas
+                    WHERE fecha = :fecha AND hora_editada_manualmente IS TRUE
+                """),
+                {"fecha": fecha},
+            ).fetchall()
+            protegidas_por_fecha[fecha] = {r[0] for r in rows_prot}
+
+            db.execute(
+                text("DELETE FROM citas_programadas WHERE fecha = :fecha AND hora_editada_manualmente IS NOT TRUE"),
+                {"fecha": fecha},
+            )
 
         for fila_num, vals in validas:
+            protegidas = protegidas_por_fecha.get(vals["fecha"], set())
+            if vals["numero_orden_compra"] in protegidas:
+                preservadas.append({
+                    "numero_orden_compra": vals["numero_orden_compra"],
+                    "motivo": "tiene una hora editada manualmente, no se actualizó",
+                })
+                continue
+
             vals["archivo_id"] = archivo_id
             try:
                 sp = db.begin_nested()
@@ -603,7 +787,13 @@ def importar_citas(
         db.rollback()
         raise HTTPException(500, "No se pudo importar el archivo de citas. Intenta de nuevo.")
 
-    return {"insertados": insertados, "errores": errores, "archivo_id": archivo_id, "fechas": fechas_afectadas}
+    return {
+        "insertados": insertados,
+        "errores": errores,
+        "preservadas": preservadas,
+        "archivo_id": archivo_id,
+        "fechas": fechas_afectadas,
+    }
 
 
 def _insert_ordenes(db, proveedor_id: str, ordenes: list[dict]):
