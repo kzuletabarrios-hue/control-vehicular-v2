@@ -2901,6 +2901,41 @@ function ProveedoresPage({user,online,addOffline}){
   // pestaña queda oculta -- si nadie ve el kiosco, nadie va a escanearlo.
   useVisibilityPolling(fetchQr, 90000, [], view==='qr');
 
+  // Traduce el body de error de FastAPI (string simple de HTTPException o
+  // lista de errores 422 de Pydantic) a un texto legible -- mismo criterio
+  // de parseo que textoErrorAnulacion.
+  // Nota: se declara aquí (junto al resto de hooks del componente, arriba de
+  // cualquier return condicional) porque cargarCitasDia -- un hook -- la
+  // referencia; si quedara declarada más abajo, el closure de cargarCitasDia
+  // podría capturarla antes de su inicialización (TDZ) en un render que
+  // retorna temprano (view 'qr'/'form'/'batch').
+  const _textoErrorCita = ex => {
+    let m = ex.message || 'Error';
+    try{
+      const parsed = JSON.parse(m);
+      if(typeof parsed.detail === 'string') m = parsed.detail;
+      else if(Array.isArray(parsed.detail) && parsed.detail[0]) m = String(parsed.detail[0].msg||'').replace(/^Value error,\s*/i,'');
+    }catch(_){}
+    return m;
+  };
+
+  // ── LISTA DE CITAS DEL DÍA (edición manual de hora) ── carga de datos.
+  // IMPORTANTE: este useCallback y el useEffect siguiente deben ir aquí,
+  // junto con el resto de los hooks del componente, y NUNCA después de un
+  // return condicional (ver bug de React error #300: "Rendered fewer hooks
+  // than expected" cuando quedaron declarados más abajo, después de los
+  // returns de las vistas 'qr'/'form').
+  const cargarCitasDia = useCallback(()=>{
+    if(!citasDiaFecha) return;
+    setCitasDiaLoading(true); setCitasDiaErr('');
+    api.get(`/proveedores/citas?fecha=${citasDiaFecha}`)
+      .then(r=>setCitasDiaItems(r.items||[]))
+      .catch(ex=>setCitasDiaErr(_textoErrorCita(ex)))
+      .finally(()=>setCitasDiaLoading(false));
+  },[citasDiaFecha]);
+
+  useEffect(()=>{ if(citasModal) cargarCitasDia(); },[citasModal,cargarCitasDia]);
+
   if(view==='qr') return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{className:'header'},
       h('div',{className:'header-inner'},
@@ -3309,30 +3344,6 @@ function ProveedoresPage({user,online,addOffline}){
       setCitasErr(m);
     }finally{ setCitasLoading(false); }
   };
-
-  // Traduce el body de error de FastAPI (string simple de HTTPException o
-  // lista de errores 422 de Pydantic) a un texto legible -- mismo criterio
-  // de parseo que textoErrorAnulacion.
-  const _textoErrorCita = ex => {
-    let m = ex.message || 'Error';
-    try{
-      const parsed = JSON.parse(m);
-      if(typeof parsed.detail === 'string') m = parsed.detail;
-      else if(Array.isArray(parsed.detail) && parsed.detail[0]) m = String(parsed.detail[0].msg||'').replace(/^Value error,\s*/i,'');
-    }catch(_){}
-    return m;
-  };
-
-  const cargarCitasDia = useCallback(()=>{
-    if(!citasDiaFecha) return;
-    setCitasDiaLoading(true); setCitasDiaErr('');
-    api.get(`/proveedores/citas?fecha=${citasDiaFecha}`)
-      .then(r=>setCitasDiaItems(r.items||[]))
-      .catch(ex=>setCitasDiaErr(_textoErrorCita(ex)))
-      .finally(()=>setCitasDiaLoading(false));
-  },[citasDiaFecha]);
-
-  useEffect(()=>{ if(citasModal) cargarCitasDia(); },[citasModal,cargarCitasDia]);
 
   const empezarEditarCita = c => {
     setCitaEditId(c.id);
