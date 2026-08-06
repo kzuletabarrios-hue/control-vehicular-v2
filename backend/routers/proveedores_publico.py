@@ -13,7 +13,7 @@ from database import get_db
 from routers.proveedores import (
     CAMPOS_VEHICULO, CAMPOS_ORDEN, _clean, _insert_ordenes,
     validar_token_ingreso_qr, crear_token_sesion_registro, validar_token_sesion_registro,
-    fecha_valida,
+    fecha_valida, _extraer_numero_orden,
 )
 from sqlalchemy.exc import IntegrityError, DataError
 
@@ -76,6 +76,58 @@ def conductor_frecuente(
     }
 
 
+def _buscar_cita_hoy(db: Session, numero_orden_compra) -> dict | None:
+    """Busca la cita programada de HOY (fecha calculada en el SERVIDOR con
+    _BOG -- nunca se confía en una fecha que mande el cliente) para un número
+    de orden de compra. Es la fuente de verdad tanto del lookup público
+    (GET /citas/buscar, usado para la UX del formulario) como de
+    POST /autorregistro (que la vuelve a consultar como autoridad real de
+    seguridad): este flujo es público y sin autenticación, así que un POST
+    directo sin pasar por el formulario debe ser rechazado igual que si
+    hubiera pasado por el lookup. Mismo criterio de normalización que usa
+    el guarda en GET /proveedores/citas/buscar (routers/proveedores.py)."""
+    numero = _extraer_numero_orden(numero_orden_compra)
+    if not numero:
+        return None
+    hoy = datetime.now(_BOG).date().isoformat()
+    row = db.execute(
+        text("""
+            SELECT proveedor_nombre, hora_cita_inicio
+            FROM citas_programadas
+            WHERE fecha = :fecha AND numero_orden_compra = :numero
+            LIMIT 1
+        """),
+        {"fecha": hoy, "numero": numero},
+    ).fetchone()
+    if not row:
+        return None
+    r = dict(row._mapping)
+    return {
+        "proveedor_nombre": r["proveedor_nombre"],
+        "hora_cita_inicio": str(r["hora_cita_inicio"])[:5] if r["hora_cita_inicio"] else None,
+    }
+
+
+@router.get("/citas/buscar")
+def buscar_cita_publico(
+    numero_orden_compra: str,
+    token: str,
+    db: Session = Depends(get_db),
+):
+    """Lookup público para el autocompletado del formulario del conductor.
+    Protegido con el token de sesión de registro (mismo mecanismo que
+    /conductor-frecuente) para no dejarlo completamente abierto a cualquiera.
+    A diferencia del lookup del guarda (GET /proveedores/citas/buscar), aquí
+    NO hay fallback manual: si no hay match el conductor no puede agregar esa
+    orden -- ver reglas más estrictas en POST /autorregistro, que es la
+    autoridad real (este GET es solo UX)."""
+    validar_token_sesion_registro(token)
+    cita = _buscar_cita_hoy(db, numero_orden_compra)
+    if not cita:
+        return {"encontrado": False}
+    return {"encontrado": True, **cita}
+
+
 @router.post("/autorregistro", status_code=201)
 def autorregistro(
     body: dict,
@@ -130,14 +182,35 @@ def autorregistro(
         raise HTTPException(400, "Selecciona quién maneja la carga")
     if not ordenes:
         raise HTTPException(400, "Agrega al menos un proveedor/orden a la que vienes a entregar")
+
+    # El proveedor NUNCA lo escribe el conductor a mano: para cada orden se
+    # vuelve a buscar la cita de HOY en el servidor (defensa en profundidad
+    # -- este endpoint es público y sin autenticación, un POST directo puede
+    # saltarse el formulario y el lookup GET /citas/buscar por completo) y se
+    # pisa `empresa` con el valor autoritativo de la BD, sin importar lo que
+    # venga en el body. Si una orden no tiene cita registrada hoy se rechaza
+    # toda la petición: a diferencia del guarda, aquí no hay fallback manual.
+    hora_cita_autoritativa = None
     for o in ordenes:
-        if not (o.get("empresa") or "").strip():
-            raise HTTPException(400, "Cada proveedor/orden debe tener nombre")
         numero_oc = (o.get("numero_orden_compra") or "").strip()
         if not numero_oc:
             raise HTTPException(400, "Cada proveedor/orden debe tener número de orden de compra")
         if not _ORDEN_RE.match(numero_oc):
             raise HTTPException(400, f"El número de orden \"{numero_oc}\" debe empezar en 4 y tener 10 dígitos (ej. 4001234567)")
+        cita = _buscar_cita_hoy(db, numero_oc)
+        if not cita or not (cita.get("proveedor_nombre") or "").strip():
+            raise HTTPException(
+                400,
+                f"La orden \"{numero_oc}\" no aparece en las citas programadas de hoy. "
+                "Acércate a la caseta para que el guarda registre tu ingreso.",
+            )
+        o["empresa"] = cita["proveedor_nombre"]
+        # hora_cita es un campo único a nivel de vehículo (no por orden): la
+        # PRIMERA orden con match de la lista fija la hora autoritativa; si
+        # una orden posterior trae una hora de cita distinta no se pisa (el
+        # frontend solo la muestra como aviso informativo junto a esa orden).
+        if hora_cita_autoritativa is None and cita.get("hora_cita_inicio"):
+            hora_cita_autoritativa = cita["hora_cita_inicio"]
 
     ahora = datetime.now(_BOG)
     rid = str(uuid.uuid4())
@@ -145,6 +218,10 @@ def autorregistro(
     vals["id"] = rid
     vals["placa_vehiculo"] = placa
     vals["nombre_conductor"] = conductor
+    # Autoritativo desde citas_programadas (ver loop de ordenes arriba) --
+    # sobreescribe lo que haya mandado el cliente en vehiculo.hora_cita,
+    # mismo criterio que con `empresa` en cada orden.
+    vals["hora_cita"] = hora_cita_autoritativa
     vals["epp_cumple"] = bool(epp)
     vals["fecha"] = ahora.date().isoformat()
     vals["hora_ingreso"] = ahora.strftime("%H:%M:%S")
