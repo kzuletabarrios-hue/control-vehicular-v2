@@ -1,7 +1,9 @@
 # backend/routers/proveedores.py
 import io
+import json
 import os
 import uuid
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -219,6 +221,258 @@ def fecha_valida(v) -> bool:
         return False
     anio = int(m.group(1))
     return 2000 <= anio <= 2100
+
+
+# ── Citas/reservas diarias de proveedores (carga desde WMS) ───────
+# Repuntado 2026-08-05: NO usa una tabla propia. citas_programadas +
+# archivos_citas ya existían en producción desde el 2026-07-10 (drift
+# documentado en
+# backend/migrations_manual/2026-08-05_documenta_citas_programadas_existente.sql)
+# y las consume activamente una app externa a este repo -- este endpoint
+# solo lee/escribe el esquema real, no lo modifica.
+#
+# numero_orden_compra en citas_programadas tiene CHECK ^4[0-9]{9}$ (10
+# dígitos, empieza en 4) -- EXACTAMENTE la misma regla que ya usa
+# proveedores_ordenes.numero_orden_compra (ver _ORDEN_RE en
+# proveedores_publico.py, el campo que llena el conductor en el
+# autorregistro QR). Por eso el número que aparece en la columna "O.
+# Compra" del WMS (ej. "PT - 4602898240 - 2") se limpia extrayendo ese
+# patrón de 10 dígitos tanto al importar el archivo como al buscar lo que
+# teclea el guarda -- así el mismo número identifica la cita y la orden.
+
+_FRANJA_RE = _re.compile(r"^\s*(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})\s*$")
+_DIGIT_RUN_RE = _re.compile(r"\d+")
+
+
+def _str(v) -> str | None:
+    """Normaliza celdas de Excel/JSON a texto limpio (o None si vacío)."""
+    if v is None:
+        return None
+    s = str(v).strip()
+    return s or None
+
+
+def _extraer_numero_orden(v) -> str | None:
+    """Busca dentro del texto (no asume posición fija) un tramo de EXACTAMENTE
+    10 dígitos que empiece en 4 -- el mismo formato exigido por el CHECK de
+    citas_programadas.numero_orden_compra y por proveedores_ordenes (regex
+    ^4\\d{9}$). Sirve tanto para limpiar "O. Compra" del WMS ("PT -
+    4602898240 - 2" -> "4602898240") como para limpiar lo que teclea el
+    guarda en el campo "Número de orden" antes de comparar contra la BD.
+    """
+    s = _str(v)
+    if not s:
+        return None
+    for grupo in _DIGIT_RUN_RE.findall(s):
+        if len(grupo) == 10 and grupo[0] == "4":
+            return grupo
+    return None
+
+
+def _parsear_franja_horaria(franja: str | None) -> tuple[str, str]:
+    """Convierte 'HH:MM-HH:MM' en (hora_inicio, hora_fin) para las columnas
+    TIME hora_cita_inicio/hora_cita_fin -- NOT NULL en la tabla real, así que
+    a diferencia del diseño descartado de hoy (proveedores_citas_dia) ya NO
+    se puede devolver (None, None).
+
+    Decisión de negocio (bloqueante documentado por Jorge en la migración de
+    2026-08-05): el WMS trae el placeholder "00:00-23:59" en algunas filas
+    para indicar "todo el día / sin franja puntual". Se decidió (a) insertar
+    ese literal 00:00:00-23:59:00 en vez de (b) excluir la fila del batch:
+    como el patrón HH:MM-HH:MM ya matchea ese placeholder tal cual, no hace
+    falta un caso especial -- se guarda como una franja de "todo el día" y
+    la orden sigue disponible para autocompletar (proveedor + orden), solo
+    sin acotar una hora específica. Excluir la fila perdería por completo
+    esa orden de compra del lote de citas del día, que es peor para el
+    guarda que una franja amplia.
+
+    Filas sin franja reconocible (vacías o con un formato que no matchea)
+    SÍ se excluyen -- no hay literal razonable que inventar ahí -- y se
+    reportan en `errores` con ValueError.
+    """
+    if not franja:
+        raise ValueError("Falta la franja horaria (columna F. Temporal)")
+    m = _FRANJA_RE.match(franja)
+    if not m:
+        raise ValueError(f'Formato de franja horaria no reconocido (se esperaba HH:MM-HH:MM): "{franja}"')
+    h1, m1, h2, m2 = m.groups()
+    h1n, m1n, h2n, m2n = int(h1), int(m1), int(h2), int(m2)
+    if not (0 <= h1n <= 23 and 0 <= m1n <= 59 and 0 <= h2n <= 23 and 0 <= m2n <= 59):
+        raise ValueError(f'Franja horaria fuera de rango: "{franja}"')
+    return f"{h1n:02d}:{m1n:02d}:00", f"{h2n:02d}:{m2n:02d}:00"
+
+
+@router.get("/citas/buscar")
+def buscar_cita(
+    fecha: str,
+    numero_orden_compra: str,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("proveedores", "write")),
+):
+    """Lookup puntual para el autocompletado del formulario de ingreso.
+    numero_orden_compra se limpia con la misma extracción de 10 dígitos que
+    se usa al importar (ver _extraer_numero_orden) -- comparar contra texto
+    crudo con espacios/prefijos nunca haría match contra el valor real
+    guardado en citas_programadas (que cumple el CHECK ^4[0-9]{9}$).
+    Nunca lanza error si no hay match: el guarda siempre puede seguir
+    llenando el formulario a mano.
+    """
+    numero = _extraer_numero_orden(numero_orden_compra)
+    if not fecha or not numero:
+        return {"encontrado": False}
+    row = db.execute(
+        text("""
+            SELECT proveedor_nombre, hora_cita_inicio, hora_cita_fin
+            FROM citas_programadas
+            WHERE fecha = :fecha AND numero_orden_compra = :numero
+            LIMIT 1
+        """),
+        {"fecha": fecha, "numero": numero},
+    ).fetchone()
+    if not row:
+        return {"encontrado": False}
+    r = dict(row._mapping)
+    return {
+        "encontrado": True,
+        "proveedor_nombre": r["proveedor_nombre"],
+        "hora_cita_inicio": str(r["hora_cita_inicio"])[:5] if r["hora_cita_inicio"] else None,
+        "hora_cita_fin": str(r["hora_cita_fin"])[:5] if r["hora_cita_fin"] else None,
+    }
+
+
+@router.post("/citas/importar")
+def importar_citas(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permiso("proveedores", "write")),
+):
+    """Carga por lote del archivo de citas del WMS contra las tablas reales
+    citas_programadas/archivos_citas (mismo patrón del sistema original,
+    recuperable en git como c4b2a2a~1:backend/routers/citas.py):
+
+    1) Cada fila se valida en Python ANTES de tocar la base de datos (número
+       de orden de 10 dígitos que empiece en 4, fecha YYYY-MM-DD, franja
+       horaria) -- las filas inválidas se reportan en `errores` sin abortar
+       el resto del archivo.
+    2) "Fecha Ejec." viene por fila, no una sola fecha elegida a mano: se
+       calcula el conjunto de fechas distintas entre las filas válidas y se
+       hace DELETE FROM citas_programadas WHERE fecha = :fecha por cada una
+       antes de insertar -- restaura "la foto completa del día" para cada
+       fecha que trae el archivo (no hay UNIQUE en la tabla real que lo
+       garantice, ver migración de Jorge).
+    3) Además, cada INSERT válido usa su propio SAVEPOINT: si una fila pasa
+       las validaciones de Python pero aun así choca contra un CHECK/FK de
+       la base de datos (defensa en profundidad), se reporta en `errores`
+       sin perder las filas ya insertadas.
+    4) Se registra siempre una fila en archivos_citas con el resumen final
+       del lote (igual patrón que el sistema original), incluso si terminó
+       sin ninguna fila importada.
+    """
+    filas = body.get("filas") or []
+    nombre_archivo = _str(body.get("nombre_archivo") or body.get("archivo_origen"))
+    if not filas:
+        raise HTTPException(400, "Sin filas para importar")
+
+    validas: list[tuple[int, dict]] = []
+    errores: list[dict] = []
+    vistos: dict[str, int] = {}  # "fecha|numero_orden" -> primera fila donde apareció
+
+    for i, fila in enumerate(filas):
+        fila_num = i + 2  # fila 1 = encabezados del Excel
+
+        numero = _extraer_numero_orden(fila.get("numero_orden_compra"))
+        if not numero:
+            crudo = _str(fila.get("numero_orden_compra")) or "(vacío)"
+            errores.append({"fila": fila_num, "error": f'Número de orden inválido (se esperan 10 dígitos que empiecen en 4 dentro de "O. Compra"): "{crudo}"'})
+            continue
+
+        fecha = _str(fila.get("fecha"))
+        if not fecha or not _FECHA_RE.match(fecha) or not fecha_valida(fecha):
+            errores.append({"fila": fila_num, "error": f'Fecha de la cita (Fecha Ejec.) vacía o inválida: "{fecha or ""}"'})
+            continue
+
+        try:
+            hora_inicio, hora_fin = _parsear_franja_horaria(_str(fila.get("franja_horaria_texto")))
+        except ValueError as e:
+            errores.append({"fila": fila_num, "error": str(e)})
+            continue
+
+        clave = f"{fecha}|{numero}"
+        if clave in vistos:
+            errores.append({"fila": fila_num, "error": f'Orden "{numero}" repetida en el archivo para el {fecha} (ya está en la fila {vistos[clave]})'})
+            continue
+        vistos[clave] = fila_num
+
+        validas.append((fila_num, {
+            "id": str(uuid.uuid4()),
+            "fecha": fecha,
+            "numero_orden_compra": numero,
+            "proveedor_nombre": _str(fila.get("proveedor")),
+            "hora_cita_inicio": hora_inicio,
+            "hora_cita_fin": hora_fin,
+        }))
+
+    archivo_id = str(uuid.uuid4())
+    fechas_afectadas = sorted({v["fecha"] for _, v in validas})
+    fecha_principal = Counter(v["fecha"] for _, v in validas).most_common(1)
+    insertados = 0
+
+    try:
+        # El archivo debe existir antes que las citas por el FK archivo_id;
+        # se registra con contadores en 0 y se actualiza al final con el
+        # resumen real (incluye también los rechazos del SAVEPOINT).
+        db.execute(text("""
+            INSERT INTO archivos_citas
+                (id, fecha, nombre_archivo, subido_por, total_filas, filas_importadas, filas_error, detalle_errores)
+            VALUES
+                (:id, :fecha, :nombre_archivo, :subido_por, :total_filas, 0, 0, CAST('[]' AS jsonb))
+        """), {
+            "id": archivo_id,
+            "fecha": fecha_principal[0][0] if fecha_principal else None,
+            "nombre_archivo": nombre_archivo,
+            "subido_por": current_user["id"],
+            "total_filas": len(filas),
+        })
+
+        for fecha in fechas_afectadas:
+            db.execute(text("DELETE FROM citas_programadas WHERE fecha = :fecha"), {"fecha": fecha})
+
+        for fila_num, vals in validas:
+            vals["archivo_id"] = archivo_id
+            try:
+                sp = db.begin_nested()
+                db.execute(text("""
+                    INSERT INTO citas_programadas
+                        (id, archivo_id, fecha, numero_orden_compra, proveedor_nombre,
+                         hora_cita_inicio, hora_cita_fin)
+                    VALUES
+                        (:id, :archivo_id, :fecha, :numero_orden_compra, :proveedor_nombre,
+                         :hora_cita_inicio, :hora_cita_fin)
+                """), vals)
+                sp.commit()
+                insertados += 1
+            except (IntegrityError, DataError):
+                sp.rollback()
+                errores.append({"fila": fila_num, "error": f'Orden "{vals["numero_orden_compra"]}" rechazada por la base de datos para el {vals["fecha"]}'})
+
+        db.execute(text("""
+            UPDATE archivos_citas
+            SET filas_importadas = :filas_importadas, filas_error = :filas_error,
+                detalle_errores = CAST(:detalle_errores AS jsonb)
+            WHERE id = :id
+        """), {
+            "id": archivo_id,
+            "filas_importadas": insertados,
+            "filas_error": len(errores),
+            "detalle_errores": json.dumps(errores, default=str),
+        })
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(500, "No se pudo importar el archivo de citas. Intenta de nuevo.")
+
+    return {"insertados": insertados, "errores": errores, "archivo_id": archivo_id, "fechas": fechas_afectadas}
 
 
 def _insert_ordenes(db, proveedor_id: str, ordenes: list[dict]):

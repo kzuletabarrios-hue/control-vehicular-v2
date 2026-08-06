@@ -2798,12 +2798,23 @@ function ProveedoresPage({user,online,addOffline}){
   const [addingOrd,setAddingOrd]     = useState(false);
 
   /* ── NUEVO INGRESO STATE ── */
-  const emptyVeh = ()=>({fecha:today(),placa_vehiculo:'',tipo_documento:'CC',cedula_conductor:'',nombre_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),muelle_descargue:'',fecha_pago_arl:'',epp_cumple:'',tipo_carga:'',formato_carga:'',cantidad_pallets:'',manejo_carga:'',observaciones:'',foto_url:null});
-  const emptyOrd = {empresa:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''};
+  const emptyVeh = ()=>({fecha:today(),placa_vehiculo:'',tipo_documento:'CC',cedula_conductor:'',nombre_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),hora_cita:'',muelle_descargue:'',fecha_pago_arl:'',epp_cumple:'',tipo_carga:'',formato_carga:'',cantidad_pallets:'',manejo_carga:'',observaciones:'',foto_url:null});
+  const emptyOrd = {empresa:'',numero_orden_compra:'',carga_compartida:false,actividad_a_desarrollar:'',dependencia_autoriza:''};
   const [vehiculoForm,setVehiculoForm]     = useState(emptyVeh);
   const [ordenes,setOrdenes]               = useState([]);
   const [ordenDraft,setOrdenDraft]         = useState(emptyOrd);
   const [ordenEditingIdx,setOrdenEditingIdx] = useState(null);
+  const [citaOrdenInfo,setCitaOrdenInfo]   = useState(null); // {estado:'encontrado'|'no_encontrado'}
+
+  /* ── CARGA DIARIA DE CITAS (WMS) ──
+     Sin fecha global: "Fecha Ejec." viene por fila en el archivo, el backend
+     calcula las fechas distintas presentes y reemplaza cada una. */
+  const [citasModal,setCitasModal]     = useState(false);
+  const [citasRows,setCitasRows]       = useState([]);
+  const [citasFileName,setCitasFileN]  = useState('');
+  const [citasLoading,setCitasLoading] = useState(false);
+  const [citasResult,setCitasResult]   = useState(null);
+  const [citasErr,setCitasErr]         = useState('');
 
   const load = useCallback(()=>{
     api.get('/proveedores').then(r=>setRecords(r.items||r)).catch(()=>setAlert({type:'err',msg:'Error cargando datos'})).finally(()=>setLoading(false));
@@ -2961,6 +2972,40 @@ function ProveedoresPage({user,online,addOffline}){
       setOrdenes(p=>[...p,{...ordenDraft}]);
     }
     setOrdenDraft({...emptyOrd});
+    setCitaOrdenInfo(null);
+  };
+
+  /* citas_programadas.numero_orden_compra exige 10 dígitos que empiecen en 4
+     (mismo CHECK/regex ^4\d{9}$ que ya usa proveedores_ordenes en el
+     autorregistro QR del conductor). El guarda puede teclear el número tal
+     cual aparece en el WMS ("PT - 4602898240 - 2"); se extrae el patrón de
+     10 dígitos de adentro del texto (no se asume posición fija) antes de
+     comparar contra la BD -- comparar el texto crudo nunca haría match. */
+  const _extraerNumeroOrden = (v)=>{
+    const s = String(v||'').trim();
+    if(!s) return '';
+    const grupos = s.match(/\d+/g) || [];
+    const encontrado = grupos.find(g=>g.length===10 && g[0]==='4');
+    return encontrado || '';
+  };
+
+  /* Autocompletado desde las citas del día cargadas por el guarda (WMS).
+     Nunca bloquea: si no hay match, el guarda sigue llenando a mano. Solo
+     pisa Empresa/Proveedor y Hora de cita si esos campos están vacíos, para
+     no sobrescribir algo que el guarda ya haya escrito. */
+  const buscarCitaOrden = async(valor)=>{
+    const numero = _extraerNumeroOrden(valor);
+    if(!numero){ setCitaOrdenInfo(null); return; }
+    try{
+      const res = await api.get(`/proveedores/citas/buscar?fecha=${encodeURIComponent(vehiculoForm.fecha)}&numero_orden_compra=${encodeURIComponent(numero)}`);
+      if(res && res.encontrado){
+        setCitaOrdenInfo({estado:'encontrado',proveedor:res.proveedor_nombre,hora:res.hora_cita_inicio});
+        setOrdenDraft(p=>({...p,empresa:p.empresa.trim()?p.empresa:(res.proveedor_nombre||p.empresa)}));
+        if(res.hora_cita_inicio) setVehiculoForm(p=>({...p,hora_cita:p.hora_cita?p.hora_cita:res.hora_cita_inicio}));
+      }else{
+        setCitaOrdenInfo({estado:'no_encontrado'});
+      }
+    }catch(e){ setCitaOrdenInfo(null); } // silencioso: nunca bloquea el registro manual
   };
 
   /* guardar nuevo ingreso completo (vehículo + órdenes) */
@@ -2988,6 +3033,7 @@ function ProveedoresPage({user,online,addOffline}){
         setSaveFrModal(true);
       }
       setFrecuenteInfo(null);
+      setCitaOrdenInfo(null);
       setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);
       load();
     }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
@@ -3166,11 +3212,79 @@ function ProveedoresPage({user,online,addOffline}){
     )
   );
 
+  /* ── CARGA DIARIA DE CITAS (WMS) — helpers ──
+     El parseo del Excel se hace en el navegador con SheetJS (mismo patrón
+     que CargaMasivaPage) y se manda al backend ya como JSON. Columnas reales
+     del export ("Fecha Ejec.", "O. Compra", "Proveedor", "F. Temporal");
+     matching de encabezados tolerante a mayúsculas/espacios porque el
+     archivo .xls trae variaciones de codificación en otras columnas que no
+     usamos. "Transportador" no se envía: citas_programadas (tabla real,
+     compartida con una app externa) no tiene columna para guardarlo.
+     "Fecha Ejec." viene por fila (YYYYMMDD) -- un mismo archivo puede traer
+     más de un día, así que la fecha ya NO se elige a mano, se calcula por
+     fila y el backend hace DELETE+INSERT por cada fecha distinta que
+     encuentre entre las filas válidas. */
+  const _citasFindVal = (row, variantes) => {
+    for(const k of Object.keys(row)){
+      const kk = String(k).toLowerCase().trim();
+      if(variantes.some(v=>kk===v||kk.startsWith(v))) return row[k];
+    }
+    return '';
+  };
+
+  const handleCitasFile = e => {
+    const file = e.target.files[0];
+    if(!file) return;
+    if(!window.XLSX){ setCitasErr('Librería Excel no cargada, recarga la página'); return; }
+    setCitasFileN(file.name); setCitasResult(null); setCitasErr('');
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try{
+        const wb = window.XLSX.read(ev.target.result,{type:'array'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = window.XLSX.utils.sheet_to_json(ws,{defval:''});
+        const parsed = raw.map(row=>{
+          const fechaEjec = String(_citasFindVal(row,['fecha ejec.','fecha ejec','fechaejec'])||'').trim();
+          const fecha = /^\d{8}$/.test(fechaEjec) ? `${fechaEjec.slice(0,4)}-${fechaEjec.slice(4,6)}-${fechaEjec.slice(6,8)}` : '';
+          return {
+            fecha,
+            numero_orden_compra: _extraerNumeroOrden(_citasFindVal(row,['o. compra','o.compra','orden compra','orden de compra'])),
+            proveedor: String(_citasFindVal(row,['proveedor'])||'').trim(),
+            franja_horaria_texto: String(_citasFindVal(row,['f. temporal','f.temporal','franja horaria','franja'])||'').trim(),
+          };
+        }).filter(r=>r.numero_orden_compra && r.proveedor);
+        setCitasRows(parsed);
+        if(parsed.length===0){
+          setCitasErr('No se encontraron filas válidas. Revisa que el archivo tenga las columnas "O. Compra" (con un número de 10 dígitos que empiece en 4) y "Proveedor".');
+        }
+      }catch(ex){ setCitasErr('Error al leer archivo: '+ex.message); }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value='';
+  };
+
+  const handleCitasImport = async()=>{
+    if(!citasRows.length) return setCitasErr('No hay datos para importar');
+    setCitasLoading(true); setCitasErr(''); setCitasResult(null);
+    try{
+      const res = await api.post('/proveedores/citas/importar',{
+        nombre_archivo:citasFileName,
+        filas:citasRows,
+      });
+      setCitasResult(res);
+      setCitasRows([]); setCitasFileN('');
+      load(); // por si hay ordenes ya en pantalla que ahora pueden autocompletarse
+    }catch(ex){
+      let m=ex.message||'Error'; try{m=JSON.parse(m).detail||m;}catch{}
+      setCitasErr(m);
+    }finally{ setCitasLoading(false); }
+  };
+
   /* ── VISTA: NUEVO INGRESO ── */
   if(view==='batch') return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{className:'header'},
       h('div',{className:'header-inner'},
-        h('button',{onClick:()=>{setView('list');setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);setFrecuenteInfo(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
+        h('button',{onClick:()=>{setView('list');setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);setFrecuenteInfo(null);setCitaOrdenInfo(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
           h(Ico,{n:'arrowLeft',s:18}),' Volver'
         ),
         h('div',{className:'header-brand'},h('h1',null,'Nuevo ingreso'),h('span',null,'Proveedores'))
@@ -3221,7 +3335,10 @@ function ProveedoresPage({user,online,addOffline}){
           )
         ),
         h('div',{className:'fg'},h('label',null,'Fecha pago ARL'),h('input',{type:'date',min:'2000-01-01',max:'2100-12-31',value:vehiculoForm.fecha_pago_arl,onChange:e=>{if(fechaValida(e.target.value))setVehiculoForm(p=>({...p,fecha_pago_arl:e.target.value}));}})),
-        h('div',{className:'fg'},h('label',null,'Muelle descargue'),h('input',{type:'text',value:vehiculoForm.muelle_descargue,onChange:e=>setVehiculoForm(p=>({...p,muelle_descargue:e.target.value})),placeholder:'N° muelle (opcional)'}))
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Muelle descargue'),h('input',{type:'text',value:vehiculoForm.muelle_descargue,onChange:e=>setVehiculoForm(p=>({...p,muelle_descargue:e.target.value})),placeholder:'N° muelle (opcional)'})),
+          h('div',{className:'fg'},h('label',null,'Hora de cita'),h('input',{type:'time',value:vehiculoForm.hora_cita||'',onChange:e=>setVehiculoForm(p=>({...p,hora_cita:e.target.value})),placeholder:'Opcional'}))
+        )
       ),
 
       h('div',{className:'fcard'},
@@ -3263,6 +3380,19 @@ function ProveedoresPage({user,online,addOffline}){
           h(Ico,{n:'plus',s:12}),' ',ordenEditingIdx!==null?`Editar orden ${ordenEditingIdx+1}`:'Agregar proveedor'
         ),
         h('div',{className:'fg'},
+          h('label',null,'Número de orden'),
+          h('input',{type:'text',value:ordenDraft.numero_orden_compra||'',
+            onChange:e=>{setOrdenDraft(p=>({...p,numero_orden_compra:e.target.value}));setCitaOrdenInfo(null);},
+            onBlur:e=>buscarCitaOrden(e.target.value),
+            placeholder:'Como aparece en la reserva del WMS, ej. 4602898240 (opcional)'}),
+          citaOrdenInfo?.estado==='encontrado'&&h('div',{style:{marginTop:5,padding:'5px 9px',borderRadius:7,fontSize:11,fontWeight:700,display:'flex',alignItems:'center',gap:5,background:'#d1fae5',color:'#065f46',border:'1px solid #6ee7b7'}},
+            h(Ico,{n:'check',s:12}),'Cita encontrada — proveedor'+(citaOrdenInfo.hora?' y hora':'')+' autocompletados desde el archivo del día'
+          ),
+          citaOrdenInfo?.estado==='no_encontrado'&&h('div',{style:{marginTop:5,padding:'5px 9px',borderRadius:7,fontSize:11,color:'var(--slate)',display:'flex',alignItems:'center',gap:5}},
+            h(Ico,{n:'alert',s:12}),'Sin cita registrada para este número — continúa llenando a mano'
+          )
+        ),
+        h('div',{className:'fg'},
           h('label',null,'Empresa / Proveedor',h('span',{className:'req'},'*')),
           h('input',{type:'text',list:'bd-prov-batch',value:ordenDraft.empresa,onChange:e=>setOrdenDraft(p=>({...p,empresa:e.target.value})),placeholder:'Selecciona o escribe'}),
           h('datalist',{id:'bd-prov-batch'},bdProv.filter(p=>p.activo!==false).map(p=>h('option',{key:p.id,value:p.nombre})))
@@ -3302,7 +3432,7 @@ function ProveedoresPage({user,online,addOffline}){
       )
     ),
     h('div',{className:'sticky-cta'},
-      h('button',{className:'btn-cancel',onClick:()=>{setView('list');setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);setFrecuenteInfo(null);}},h(Ico,{n:'x',s:15})),
+      h('button',{className:'btn-cancel',onClick:()=>{setView('list');setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);setFrecuenteInfo(null);setCitaOrdenInfo(null);}},h(Ico,{n:'x',s:15})),
       h('button',{className:'btn-primary',onClick:guardarIngreso,disabled:saving||ordenes.length===0,style:{opacity:ordenes.length===0?.5:1}},
         saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),
         saving?'Guardando...':ordenes.length>0?`Guardar ingreso (${ordenes.length} orden${ordenes.length>1?'es':''})`:'Guardar'
@@ -3339,11 +3469,14 @@ function ProveedoresPage({user,online,addOffline}){
           h('button',{onClick:()=>setFiltro('dentro'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='dentro'?'var(--navy)':'transparent',color:filtro==='dentro'?'#fff':'var(--slate)',borderColor:filtro==='dentro'?'var(--navy)':'var(--border)'}},`Dentro (${nDentro})`),
           h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
         ),
-        !esBodega&&!esCoordinador&&h('button',{onClick:()=>{setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);setFrecuenteInfo(null);setView('batch');},style:{background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+        !esBodega&&!esCoordinador&&h('button',{onClick:()=>{setVehiculoForm(emptyVeh());setOrdenes([]);setOrdenDraft({...emptyOrd});setOrdenEditingIdx(null);setFrecuenteInfo(null);setCitaOrdenInfo(null);setView('batch');},style:{background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
           h(Ico,{n:'plus',s:15}),' Nuevo'
         ),
         !esBodega&&!esCoordinador&&h('button',{onClick:()=>setView('qr'),style:{background:'none',border:'1.5px solid var(--navy)',color:'var(--navy)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
           h(Ico,{n:'qrCode',s:14}),' QR Ingreso'
+        ),
+        !esBodega&&!esCoordinador&&h('button',{onClick:()=>{setCitasModal(true);setCitasRows([]);setCitasFileN('');setCitasResult(null);setCitasErr('');},title:'Subir el archivo de citas/reservas del día (WMS) para autocompletar el número de orden en el ingreso',style:{background:'none',border:'1.5px solid var(--navy)',color:'var(--navy)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
+          h(Ico,{n:'calendar',s:14}),' Citas del día'
         ),
         esBodega&&h('p',{style:{fontSize:12,color:'var(--slate)',alignSelf:'center',margin:'0 0 0 4px'}},h(Ico,{n:'alert',s:12}),' Toca un registro para agregar evidencia de rechazo'),
         esCoordinador&&h('p',{style:{fontSize:12,color:'var(--slate)',alignSelf:'center',margin:'0 0 0 4px'}},'Solo lectura')
@@ -3489,6 +3622,50 @@ function ProveedoresPage({user,online,addOffline}){
               setSaveFrModal(false);setAlert({type:'ok',msg:'Conductor guardado en catálogo de frecuentes'});
             }catch(e){setSaveFrModal(false);setAlert({type:'err',msg:'No se pudo guardar como frecuente'});}
           }},h(Ico,{n:'save',s:16}),' Guardar en catálogo')
+        )
+      )
+    ),
+    citasModal&&h('div',{className:'overlay',onClick:()=>setCitasModal(false)},
+      h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
+        h('div',{className:'sheet-header'},
+          h('span',{style:{fontWeight:700,fontSize:15}},'Citas del día (WMS)'),
+          h('button',{className:'btn-icon',onClick:()=>setCitasModal(false)},h(Ico,{n:'x',s:16}))
+        ),
+        h('p',{style:{fontSize:12,color:'var(--slate)',marginBottom:12}},
+          'Sube el export de reservas del WMS ("Plano_Reservas_de_Recepción") para autocompletar el proveedor y la hora de cita al escribir el número de orden en un nuevo ingreso. La fecha de cada cita se toma de la columna "Fecha Ejec." del archivo (puede traer varios días); se reemplazan las citas cargadas previamente para cada fecha que aparezca.'
+        ),
+        h('label',{className:'upload-zone',style:{marginBottom:10}},
+          h('input',{type:'file',accept:'.xlsx,.xls,.csv',style:{display:'none'},onChange:handleCitasFile}),
+          h(Ico,{n:'upload',s:24,c:'upload-ico'}),
+          h('p',null, citasFileName||'Toca para seleccionar el archivo'),
+          h('span',null,'.xlsx · .xls · .csv')
+        ),
+        citasErr&&h('div',{className:'alert-err',style:{marginBottom:10}},h(Ico,{n:'alert',s:14}),citasErr),
+        citasRows.length>0&&h('div',{style:{marginBottom:10}},
+          h('p',{style:{fontSize:12,fontWeight:700,color:'var(--text)',marginBottom:6}},`${citasRows.length} citas listas para importar`),
+          h('div',{style:{overflowX:'auto',maxHeight:180,overflowY:'auto',border:'1px solid var(--border)',borderRadius:8}},
+            h('table',{className:'preview-table'},
+              h('thead',null,h('tr',null,h('th',null,'Fecha'),h('th',null,'O. Compra'),h('th',null,'Proveedor'),h('th',null,'F. Temporal'))),
+              h('tbody',null,
+                citasRows.slice(0,8).map((r,i)=>h('tr',{key:i},h('td',null,r.fecha||'—'),h('td',null,r.numero_orden_compra),h('td',null,r.proveedor),h('td',null,r.franja_horaria_texto||'—')))
+              )
+            )
+          ),
+          citasRows.length>8&&h('p',{style:{fontSize:10,color:'var(--slate)',marginTop:4}},`...y ${citasRows.length-8} más`)
+        ),
+        citasResult&&h('div',{style:{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 10px',marginBottom:10}},
+          h('p',{style:{fontSize:12,color:'#166534',fontWeight:700}},`${citasResult.insertados} citas cargadas`+(citasResult.fechas?.length?` para ${citasResult.fechas.join(', ')}`:'')),
+          citasResult.errores?.length>0&&h('div',{style:{marginTop:6}},
+            citasResult.errores.slice(0,5).map((e,i)=>h('p',{key:i,style:{fontSize:11,color:'var(--red)'}},`Fila ${e.fila}: ${e.error}`)),
+            citasResult.errores.length>5&&h('p',{style:{fontSize:10,color:'var(--slate)'}},`...y ${citasResult.errores.length-5} errores más`)
+          )
+        ),
+        h('div',{style:{display:'flex',gap:8,marginTop:4}},
+          h('button',{className:'btn-cancel',onClick:()=>setCitasModal(false),disabled:citasLoading},'Cerrar'),
+          h('button',{className:'btn-primary',style:{flex:1},onClick:handleCitasImport,disabled:citasLoading||citasRows.length===0},
+            citasLoading?h('div',{className:'spinner'}):h(Ico,{n:'upload',s:15}),
+            citasLoading?'Importando...':`Importar ${citasRows.length||''} citas`
+          )
         )
       )
     )
