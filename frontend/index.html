@@ -133,6 +133,7 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 .m-nov   {background:linear-gradient(135deg,#7c2d12,#ea580c)}
 .m-rondapanel {background:linear-gradient(135deg,#1e293b,#0f766e)}
 .m-visitavh {background:linear-gradient(135deg,#0c4a6e,#0284c7)}
+.m-muelles {background:linear-gradient(135deg,#0e7490,#0891b2)}
 
 /* ── CARGA MASIVA ── */
 .upload-zone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:2px dashed var(--border);border-radius:var(--radius-sm);padding:24px 16px;cursor:pointer;background:var(--bg);text-align:center;transition:border-color .2s;width:100%}
@@ -182,6 +183,19 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 .pill-amber{background:#fef3c7;color:#92400e}
 .pill-red  {background:#fee2e2;color:#991b1b}
 .pill-slate{background:#f1f5f9;color:#475569}
+
+/* ── TABLERO DE MUELLES (solo lectura) ──
+   Grid con auto-fill en vez de columnas fijas (a diferencia de .mgrid/.sgrid)
+   porque el número de muelles depende de cuántos estén dados de alta en BD,
+   no de un total fijo -- se acomoda igual con 3 muelles que con 20. */
+.muelle-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.muelle-card{background:var(--white);border-radius:var(--radius-sm);padding:13px;box-shadow:0 1px 4px rgba(0,0,0,0.05);border:1.5px solid var(--border)}
+/* Borde/fondo ámbar = tiempo de ocupación excedido (>=90 min). Es la señal
+   más urgente de la tarjeta, por eso no se reutiliza este mismo tono para
+   ninguna otra advertencia dentro de la card (ver .muelle-discordancia). */
+.muelle-card.alerta{border-color:#fbbf24;background:#fffbeb}
+.muelle-discordancia{display:flex;align-items:flex-start;gap:5px;margin-top:8px;font-size:10px;font-weight:600;color:#1d4ed8}
+.muelle-discordancia svg{width:12px;height:12px;flex-shrink:0;margin-top:1px}
 
 /* ── SECTION TITLE ── */
 .sec-ttl{font-size:10px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.8px;margin:14px 0 8px;display:flex;align-items:center;gap:6px}
@@ -687,6 +701,20 @@ function CameraField({value,onChange}){
 }
 
 /* ── COMPONENTS ── */
+// TipoCargaBadge no existía en esta app -- se replica desde
+// citas-muelles-cedi-r10/frontend (mismo criterio de color) porque las dos
+// apps son archivos HTML independientes sin build/import compartido; para
+// mantener el mismo lenguaje visual en ambas hay que declararlo en cada una.
+// Estilo del badge de tipo de carga: Refrigerada resalta en frío (azul) por su
+// sensibilidad logística; Seca y Mixta usan tonos neutros/de atención ya
+// presentes en la paleta de pills.
+const TIPO_CARGA_CLS = { Refrigerada:'pill-blue', Seca:'pill-slate', Mixta:'pill-amber' };
+function TipoCargaBadge({tipo,style}){
+  if(!tipo) return null;
+  return h('span',{className:`pill ${TIPO_CARGA_CLS[tipo]||'pill-slate'}`,style:{display:'inline-block',...style}},
+    (tipo==='Refrigerada'?'❄ ':'')+tipo
+  );
+}
 function LoadingDots(){ return h('div',{className:'loading-dots'},h('span'),h('span'),h('span')); }
 function Alert({type,msg,onClose}){
   if(!msg)return null;
@@ -1051,8 +1079,12 @@ function HomePage({setPage,user}){
     {id:'ronda',     label:'Ronda',       desc:'Marcación de puntos',    cls:'m-ronda',icon:'mapPin',   roles:['admin','supervisor','recorredor_externo'],cnt:null},
     {id:'novedades', label:'Novedades',   desc:'Registro de incidencias',cls:'m-nov',  icon:'bell',     roles:['admin','supervisor','recorredor_externo','operador'],cnt:null},
     {id:'rondapanel',label:'Panel Rondero',desc:'Seguimiento de rondas y apoyos', cls:'m-rondapanel',icon:'clock', roles:['admin','supervisor'],cnt:null},
+    // Primer tile que gatea por permiso (puede(user,'muelles','read')) en vez de
+    // un array `roles` estático -- los demás tiles arriba NO se tocan, siguen
+    // gateando por rol. Fase 2 (solo lectura) del tablero real de muelles.
+    {id:'muelles',label:'Muelles',desc:'Tablero de ocupación',cls:'m-muelles',icon:'mapPin',permiso:['muelles','read'],cnt:null},
   ];
-  const mods = allMods.filter(m=>m.roles.includes(rol));
+  const mods = allMods.filter(m=>m.permiso ? puede(user,m.permiso[0],m.permiso[1]) : m.roles.includes(rol));
 
   const flotaPend  = resumen?.flota?.en_ruta||0;
   const accesoPend = resumen?.control_acceso?.activos_sin_salida||0;
@@ -2810,17 +2842,6 @@ function ProveedoresPage({user,online,addOffline}){
   // suele descargar en muelles 1-6, Seca en 13-18. Mixta no tiene patrón
   // claro, por eso no aparece acá -- ver aviso no bloqueante más abajo.
   const MUELLES_HABITUALES = {Refrigerada:[1,6], Seca:[13,18]};
-  const TOTAL_MUELLES = 18;
-  // Abreviatura para mostrar en la grilla de muelles (celda pequeña, no cabe
-  // el nombre completo). Mismo origen de dato que el aviso del formulario.
-  const ABREV_CARGA = {Refrigerada:'Ref', Seca:'Seca'};
-  const MUELLE_TIPO_HABITUAL = (()=>{
-    const map = {};
-    Object.entries(MUELLES_HABITUALES).forEach(([tipo,[ini,fin]])=>{
-      for(let i=ini;i<=fin;i++) map[i]=tipo;
-    });
-    return map;
-  })();
 
   /* ── EDIT FORM STATE ── */
   const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',tipo_documento:'CC',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),hora_ingreso_confirmado:'',hora_salida:'',muelle_descargue:'',fecha_pago_arl:'',epp_cumple:'',tipo_carga:'',formato_carga:'',cantidad_pallets:'',manejo_carga:'',observaciones:'',foto_url:null};
@@ -2847,11 +2868,6 @@ function ProveedoresPage({user,online,addOffline}){
      Sin fecha global: "Fecha Ejec." viene por fila en el archivo, el backend
      calcula las fechas distintas presentes y reemplaza cada una. */
   const [citasModal,setCitasModal]     = useState(false);
-  // Panel de disponibilidad de muelles (1 a 18): no trae datos propios, se
-  // calcula en vivo a partir de `records` (mismo array del GET /proveedores
-  // ya cargado). Sin llamada de red adicional. Laura rediseña el render
-  // después -- esto solo deja el cálculo y la vista funcional.
-  const [muellesModal,setMuellesModal] = useState(false);
   const [citasTab,setCitasTab]         = useState('subir'); // 'subir' | 'ver' -- dos usos distintos del mismo modal (ver comentario en el render)
   const [citasRows,setCitasRows]       = useState([]);
   const [citasFileName,setCitasFileN]  = useState('');
@@ -3579,22 +3595,6 @@ function ProveedoresPage({user,online,addOffline}){
 
   const nPorConfirmar = records.filter(r=>r.estado_confirmacion==='pendiente').length;
   const nDentro = records.filter(r=>r.estado_confirmacion!=='pendiente'&&!r.hora_salida).length;
-  // Ocupación de muelles (1 a TOTAL_MUELLES): un muelle está ocupado si hay
-  // al menos un registro con hora_ingreso y sin hora_salida cuyo
-  // muelle_descargue normalizado coincide con ese número. Se agrupan por
-  // número de muelle (podría haber más de un registro apuntando al mismo
-  // muelle por error de digitación -- se muestran todos, no se oculta el
-  // conflicto).
-  const ocupacionMuelles = (() => {
-    const map = {};
-    records.forEach(r=>{
-      if(!r.hora_ingreso || r.hora_salida) return;
-      const m = normalizarMuelle(r.muelle_descargue);
-      if(m===null || m<1 || m>TOTAL_MUELLES) return;
-      (map[m] = map[m]||[]).push(r);
-    });
-    return map;
-  })();
   const empresaDe = r => {
     const emps = (r.ordenes||[]).map(o=>o.empresa).filter(Boolean);
     return emps.length===0?(r.empresa||'Sin empresa'):emps.length<=2?emps.join(' · '):emps.slice(0,2).join(' · ')+` +${emps.length-2}`;
@@ -3634,9 +3634,6 @@ function ProveedoresPage({user,online,addOffline}){
         ),
         !esBodega&&!esCoordinador&&h('button',{onClick:()=>{setCitasModal(true);setCitasTab('subir');setCitasRows([]);setCitasFileN('');setCitasResult(null);setCitasErr('');setCitaEditId(null);setCitaEditErr('');},title:'Subir el archivo de citas/reservas del día (WMS) para autocompletar el número de orden en el ingreso',style:{background:'none',border:'1.5px solid var(--navy)',color:'var(--navy)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
           h(Ico,{n:'calendar',s:14}),' Citas del día'
-        ),
-        !esBodega&&h('button',{onClick:()=>setMuellesModal(true),title:'Ver qué muelles (1 a 18) están ocupados en este momento',style:{background:'none',border:'1.5px solid var(--navy)',color:'var(--navy)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
-          h(Ico,{n:'mapPin',s:14}),' Muelles'
         ),
         esBodega&&h('p',{style:{fontSize:12,color:'var(--slate)',alignSelf:'center',margin:'0 0 0 4px'}},h(Ico,{n:'alert',s:12}),' Toca un registro para agregar evidencia de rechazo'),
         esCoordinador&&h('p',{style:{fontSize:12,color:'var(--slate)',alignSelf:'center',margin:'0 0 0 4px'}},'Solo lectura')
@@ -3957,88 +3954,7 @@ function ProveedoresPage({user,online,addOffline}){
           )
         )
       )
-    ),
-    // Panel de disponibilidad de muelles: mismo patrón visual que el modal
-    // "Citas del día" (overlay + sheet). Grilla de 6 columnas para que los
-    // 18 muelles se lean de un vistazo, sin scroll -- el detalle de quién
-    // ocupa cada uno va debajo, aparte, porque ese texto sí necesita espacio
-    // y no todos los muelles lo requieren.
-    muellesModal&&(()=>{
-      const nOcupados = Object.keys(ocupacionMuelles).length;
-      const nConflicto = Object.values(ocupacionMuelles).filter(l=>l.length>1).length;
-      const nLibres = TOTAL_MUELLES - nOcupados;
-      const ocupadosOrdenados = Object.keys(ocupacionMuelles).map(Number).sort((a,b)=>a-b);
-      const dot = c => h('span',{style:{width:8,height:8,borderRadius:'50%',background:c,flexShrink:0,display:'inline-block'}});
-      return h('div',{className:'overlay',onClick:()=>setMuellesModal(false)},
-        h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
-          h('div',{className:'sheet-header'},
-            h('span',{style:{fontWeight:700,fontSize:15}},'Muelles'),
-            h('button',{className:'btn-icon',onClick:()=>setMuellesModal(false)},h(Ico,{n:'x',s:16}))
-          ),
-          h('div',{style:{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}},
-            h('span',{className:'pill pill-green'},nLibres+' libres'),
-            h('span',{className:'pill pill-amber'},(nOcupados-nConflicto)+' ocupados'),
-            nConflicto>0&&h('span',{className:'pill pill-red'},nConflicto+' con conflicto')
-          ),
-          h('div',{style:{display:'flex',gap:12,flexWrap:'wrap',fontSize:10.5,color:'var(--slate)',marginBottom:4}},
-            h('span',{style:{display:'inline-flex',alignItems:'center',gap:4}},dot('#16a34a'),'Libre'),
-            h('span',{style:{display:'inline-flex',alignItems:'center',gap:4}},dot('#d97706'),'Ocupado'),
-            h('span',{style:{display:'inline-flex',alignItems:'center',gap:4}},dot('#dc2626'),'2+ registros — revisar')
-          ),
-          h('p',{style:{fontSize:10,color:'var(--slate)',margin:'0 0 12px',opacity:.8}},'La etiqueta bajo el número es el tipo de carga que habitualmente descarga ahí (histórico, no una regla fija).'),
-          h('div',{style:{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:7,marginBottom:16}},
-            Array.from({length:TOTAL_MUELLES},(_,i)=>i+1).map(n=>{
-              const ocupantes = ocupacionMuelles[n]||[];
-              const conflicto = ocupantes.length>1;
-              const ocupado = ocupantes.length>0;
-              const bg = conflicto?'#fee2e2':ocupado?'#fef3c7':'var(--white)';
-              const border = conflicto?'#fca5a5':ocupado?'#fcd34d':'var(--border)';
-              const color = conflicto?'#991b1b':ocupado?'#92400e':'var(--text2)';
-              const tipoHabitual = MUELLE_TIPO_HABITUAL[n];
-              const tagTxt = tipoHabitual?ABREV_CARGA[tipoHabitual]:null;
-              const tagColor = conflicto?'#b91c1c':ocupado?'#92400e':'#64748b';
-              return h('div',{key:n,title:(ocupado?(conflicto?`${ocupantes.length} registros apuntan al muelle ${n}`:empresaDe(ocupantes[0])+' · '+(ocupantes[0].placa_vehiculo||'')):`Muelle ${n} disponible`)+(tipoHabitual?` · Suele usarse para carga ${tipoHabitual.toLowerCase()}`:''),
-                style:{position:'relative',aspectRatio:'1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:1,borderRadius:9,border:'1.5px solid '+border,background:bg,color,fontWeight:800,fontSize:15}},
-                conflicto&&h('span',{style:{position:'absolute',top:-6,right:-6,background:'#dc2626',color:'#fff',fontSize:9,fontWeight:800,borderRadius:20,minWidth:16,height:16,padding:'0 3px',display:'flex',alignItems:'center',justifyContent:'center',border:'1.5px solid #fff'}},ocupantes.length),
-                n,
-                tagTxt&&h('span',{style:{fontSize:8,fontWeight:700,letterSpacing:'.03em',textTransform:'uppercase',color:tagColor,opacity:.85,lineHeight:1}},tagTxt)
-              );
-            })
-          ),
-          nOcupados===0
-            ? h('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'8px 10px',borderRadius:8,background:'#f0fdf4',border:'1px solid #bbf7d0',fontSize:12,fontWeight:600,color:'#166534'}},
-                h(Ico,{n:'check',s:14}),'Todos los muelles están disponibles'
-              )
-            : h('div',{style:{display:'flex',flexDirection:'column',gap:6}},
-                ocupadosOrdenados.map(n=>{
-                  const ocupantes = ocupacionMuelles[n];
-                  const conflicto = ocupantes.length>1;
-                  if(conflicto) return h('div',{key:n,style:{borderRadius:10,border:'1px solid #fecaca',overflow:'hidden'}},
-                    h('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'6px 10px',background:'#fef2f2',borderBottom:'1px solid #fecaca'}},
-                      h(Ico,{n:'alert',s:13,style:{color:'var(--red)',flexShrink:0}}),
-                      h('span',{style:{fontSize:12,fontWeight:700,color:'#9f1239'}},`Muelle ${n} — ${ocupantes.length} registros distintos`)
-                    ),
-                    h('div',{style:{padding:'6px 10px 8px'}},
-                      h('p',{style:{fontSize:10.5,fontWeight:600,color:'#9f1239',margin:'0 0 4px'}},'Probable error de digitación entre dos ingresos. Verifica cuál vehículo está realmente aquí.'),
-                      ocupantes.map((r,idx)=>h('div',{key:idx,style:{fontSize:11.5,fontWeight:600,color:'var(--text)',padding:'2px 0'}},`${r.placa_vehiculo||'Sin placa'} · ${empresaDe(r)}`))
-                    )
-                  );
-                  const r = ocupantes[0];
-                  return h('div',{key:n,style:{display:'flex',alignItems:'center',gap:9,padding:'6px 10px',borderRadius:8,border:'1px solid #fde68a',background:'#fffbeb'}},
-                    h('span',{style:{fontWeight:800,fontSize:12,color:'#92400e',minWidth:20,textAlign:'center',flexShrink:0}},n),
-                    h('div',{style:{flex:1,minWidth:0}},
-                      h('div',{style:{fontSize:11.5,fontWeight:700,color:'#92400e'}},r.placa_vehiculo||'Sin placa'),
-                      h('div',{style:{fontSize:10.5,color:'#b45309',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},empresaDe(r))
-                    )
-                  );
-                })
-              ),
-          h('div',{style:{marginTop:14}},
-            h('button',{className:'btn-cancel',style:{width:'100%'},onClick:()=>setMuellesModal(false)},'Cerrar')
-          )
-        )
-      );
-    })()
+    )
   );
 }
 
@@ -5728,6 +5644,96 @@ function ProveedorAutorregistroPage({token}){
   );
 }
 
+/* ── MUELLES (tablero de ocupación, solo lectura) ──
+   Fase 2 de la consolidación con citas-muelles-cedi-r10: esta pantalla NO
+   tiene ningún control de escritura (asignar/liberar/crear/editar muelle) a
+   propósito -- decisión del arquitecto para no abrir una segunda vía de
+   escritura sobre el mismo estado operativo que hoy gestionan los guardas
+   en la otra app. Si se necesita accionar sobre un muelle, eso se hace
+   desde Citas y Muelles, no desde acá. */
+function MuelleCard({muelle:m}){
+  const ocupado = m.estado==='ocupado';
+  // Discordancia = el proveedor que ocupa el muelle trae un tipo de carga
+  // distinto al habitual de ese muelle. Es solo informativo (no bloquea
+  // nada, la vista es de solo lectura) y se pinta en azul/info a propósito
+  // para no competir con el ámbar de .alerta (tiempo excedido), que debe
+  // seguir siendo la señal más urgente de la tarjeta.
+  const discordancia = ocupado && m.tipo_carga_habitual && m.tipo_carga && m.tipo_carga_habitual!==m.tipo_carga;
+  return h('div',{className:`muelle-card${m.alerta_tiempo?' alerta':''}`},
+    h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8,marginBottom:6}},
+      h('div',{style:{minWidth:0}},
+        h('p',{style:{fontWeight:800,fontSize:16,fontFamily:'Syne,sans-serif',lineHeight:1.15}},'Muelle '+m.numero),
+        m.zona&&h('p',{style:{fontSize:11,color:'var(--slate)',marginTop:2}},m.zona)
+      ),
+      h('span',{className:'pill',style:ocupado
+        ?{background:'#cffafe',color:'#0e7490',flexShrink:0}
+        :{background:'#d1fae5',color:'#065f46',flexShrink:0}
+      },ocupado?'Ocupado':'Libre')
+    ),
+    m.tipo_carga_habitual&&h('div',{style:{marginBottom:8}},h(TipoCargaBadge,{tipo:m.tipo_carga_habitual})),
+    !ocupado
+      ? h('p',{style:{fontSize:12,color:'var(--slate)'}},'Disponible')
+      : h('div',null,
+          h('p',{style:{fontSize:13,fontWeight:700}},m.placa_vehiculo||'Sin placa'),
+          m.nombre_conductor&&h('p',{style:{fontSize:12,color:'var(--text2)',marginTop:1}},m.nombre_conductor),
+          m.empresas&&h('p',{style:{fontSize:11,color:'#0e7490',fontWeight:600,marginTop:3}},m.empresas),
+          m.tipo_carga&&h('div',{style:{marginTop:6}},h(TipoCargaBadge,{tipo:m.tipo_carga})),
+          h('div',{style:{display:'flex',alignItems:'center',flexWrap:'wrap',gap:6,marginTop:8}},
+            h('span',{style:{display:'inline-flex',alignItems:'center',gap:4,color:m.alerta_tiempo?'#b45309':'var(--text2)'}},
+              h(Ico,{n:'clock',s:12}),
+              h('span',{style:{fontSize:11,fontWeight:700}},m.minutos_ocupado!=null?`${m.minutos_ocupado} min ocupado`:'—')
+            ),
+            m.alerta_tiempo&&h('span',{className:'pill pill-amber'},'Tiempo excedido')
+          ),
+          discordancia&&h('div',{className:'muelle-discordancia'},
+            h(Ico,{n:'alert',s:12}),
+            h('span',null,'Carga distinta a la habitual de este muelle')
+          )
+        )
+  );
+}
+
+function MuellesPage({user}){
+  const [muelles,setMuelles] = useState([]);
+  const [loading,setLoading] = useState(true);
+  const [error,setError]     = useState(null);
+
+  const load = useCallback(()=>{
+    api.get('/muelles')
+      .then(r=>{ setMuelles(Array.isArray(r)?r:(r.items||[])); setError(null); })
+      .catch(()=>setError('No se pudo cargar el estado de los muelles'))
+      .finally(()=>setLoading(false));
+  },[]);
+  // Igual que Flota/Proveedores: es un tablero operativo (guardas y
+  // coordinador lo miran para saber qué muelle está libre), así que se
+  // refresca cada minuto y se pausa en background.
+  useVisibilityPolling(load, 60000, [load]);
+
+  const ocupados = muelles.filter(m=>m.estado==='ocupado').length;
+
+  return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{className:'header'},
+      h('div',{className:'header-inner'},
+        h('div',{className:'header-brand'},h('h1',null,'Muelles'),h('span',null,'Vista de consulta'))
+      )
+    ),
+    h('div',{style:{padding:'10px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)'}},
+      h('p',{style:{fontSize:11,color:'var(--slate)'}},
+        'La asignación de muelles se gestiona desde el sistema de Citas y Muelles — aquí solo puedes consultar el estado actual.'
+      ),
+      !loading&&!error&&muelles.length>0&&h('p',{style:{fontSize:11,color:'var(--text2)',fontWeight:700,marginTop:6}},
+        `${ocupados} ocupado${ocupados===1?'':'s'} de ${muelles.length}`
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
+      error&&h(Alert,{type:'err',msg:error,onClose:()=>setError(null)}),
+      loading?h(LoadingDots):
+      muelles.length===0?h('div',{className:'empty'},h(Ico,{n:'mapPin',s:44}),h('p',null,'No hay muelles configurados todavía')):
+      h('div',{className:'muelle-grid'},muelles.map(m=>h(MuelleCard,{key:m.id,muelle:m})))
+    )
+  );
+}
+
 /* ── APP ROOT ── */
 function App(){
   const qs = new URLSearchParams(window.location.search);
@@ -5813,6 +5819,15 @@ function App(){
       {id:'reg',   label:'Reportes',icon:'fileText'},
     ];
 
+  // Módulo Muelles (Fase 2, solo lectura): a diferencia del resto de
+  // navItems -- fijos por rol en el bloque de arriba, que NO se toca --
+  // este se agrega dinámicamente para cualquier rol con permiso
+  // muelles:read (hoy: coordinador y guarda_bodega), sin tener que
+  // enumerar roles a mano en cada rama del ternario.
+  if(puede(user,'muelles','read') && !navItems.some(it=>it.id==='muelles')){
+    navItems.push({id:'muelles',label:'Muelles',icon:'mapPin'});
+  }
+
   const pageContent = {
     home:   h(HomePage,{setPage:navigate,user}),
     flota:  h(FlotaPage,{user,online,addOffline,openId:openFlotaId,onOpened:()=>setOpenFlotaId(null)}),
@@ -5828,6 +5843,7 @@ function App(){
     ronda:     h(RondaPage,{user}),
     novedades: h(NovedadesPage,{user}),
     rondapanel: h(RondaPanelPage,{user}),
+    muelles: h(MuellesPage,{user}),
   };
 
   return h('div',{className:'app-wrap'},
