@@ -127,6 +127,39 @@ def _audit(db, user, accion, tabla, rid, antes, despues):
     })
 
 
+def _attach_muelle(db, items: list[dict]) -> list[dict]:
+    """Adjunta el ultimo evento de muelle de cada proveedor (asignado y/o ya
+    liberado) para poder mostrar la linea de tiempo completa: cita, llegada,
+    ingreso confirmado, salida de muelle y salida final. Copiado tal cual de
+    citas-muelles-cedi-r10/backend/routers/proveedores.py (misma base de
+    datos compartida vía Supabase) -- lectura pura, sin INSERT/UPDATE."""
+    if not items:
+        return items
+    ids = [r["id"] for r in items]
+    placeholders = ", ".join(f":id{i}" for i in range(len(ids)))
+    params = {f"id{i}": v for i, v in enumerate(ids)}
+    rows = db.execute(
+        text(f"""
+            SELECT DISTINCT ON (e.proveedor_id)
+                e.proveedor_id, m.numero AS muelle_numero,
+                (e.hora_asignado AT TIME ZONE 'America/Bogota')::time AS hora_muelle_asignado,
+                (e.hora_liberado AT TIME ZONE 'America/Bogota')::time AS hora_muelle_liberado
+            FROM muelle_eventos e JOIN muelles m ON m.id = e.muelle_id
+            WHERE e.proveedor_id IN ({placeholders})
+            ORDER BY e.proveedor_id, e.hora_asignado DESC
+        """),
+        params,
+    ).fetchall()
+    muelle_map = {str(r.proveedor_id): r for r in rows}
+    for item in items:
+        info = muelle_map.get(str(item["id"]))
+        item["muelle_actual"] = info.muelle_numero if (info and info.hora_muelle_liberado is None) else None
+        item["muelle_numero"] = info.muelle_numero if info else None
+        item["hora_muelle_asignado"] = info.hora_muelle_asignado if info else None
+        item["hora_muelle_liberado"] = info.hora_muelle_liberado if info else None
+    return items
+
+
 def _attach_ordenes(db, items: list[dict]) -> list[dict]:
     if not items:
         return items
@@ -197,6 +230,7 @@ def listar(
 
     items = [dict(r._mapping) for r in rows]
     _attach_ordenes(db, items)
+    _attach_muelle(db, items)
     return {"total": total, "items": items}
 
 
@@ -287,6 +321,7 @@ def obtener(
         raise HTTPException(404, "Registro no encontrado")
     item = dict(row._mapping)
     _attach_ordenes(db, [item])
+    _attach_muelle(db, [item])
     return item
 
 

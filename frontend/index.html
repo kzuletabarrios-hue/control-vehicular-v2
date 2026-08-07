@@ -715,6 +715,50 @@ function TipoCargaBadge({tipo,style}){
     (tipo==='Refrigerada'?'❄ ':'')+tipo
   );
 }
+// Línea de tiempo de 5 pasos del ciclo de un proveedor: cita -> llegada ->
+// ingreso confirmado -> salida de muelle -> salida del CEDI. Puramente
+// informativo/solo lectura -- se inserta dentro de la vista de detalle de
+// ProveedoresPage como un agregado, sin tocar el formulario editable ni sus
+// acciones. Reutiliza .fcard/.sec-ttl/.pill y las variables de color ya
+// establecidas en la hoja de estilos (nada de paleta nueva).
+function DetalleTiempos({registro}){
+  const r = registro||{};
+  const hhmmT = t => t ? String(t).slice(0,5) : null;
+  const pasos = [
+    {icon:'calendar',    titulo:'Cita',              hora:hhmmT(r.hora_cita),               desc:'Hora que digitó el conductor'},
+    {icon:'qrCode',      titulo:'Llegada',            hora:hhmmT(r.hora_ingreso),            desc:'Autorregistro por QR en portería'},
+    {icon:'checkCircle', titulo:'Ingreso confirmado', hora:hhmmT(r.hora_ingreso_confirmado), desc:'Confirmado por el guarda vehicular'},
+    {icon:'truck',       titulo:'Salida de muelle',   hora:hhmmT(r.hora_muelle_liberado),    desc:r.muelle_numero?`Liberado por el guarda de bodega — Muelle ${r.muelle_numero}`:'Liberado por el guarda de bodega'},
+    {icon:'logOut',      titulo:'Salida',             hora:hhmmT(r.hora_salida),             desc:'Salida del CEDI confirmada por el guarda vehicular'},
+  ];
+  return h('div',{className:'fcard'},
+    h('p',{className:'sec-ttl'},h(Ico,{n:'clock',s:12}),' Línea de tiempo'),
+    h('div',{style:{display:'flex',flexDirection:'column'}},
+      pasos.map((p,i)=>{
+        const hecho = !!p.hora;
+        const esUltimo = i===pasos.length-1;
+        return h('div',{key:p.titulo,style:{display:'flex',gap:10}},
+          h('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0}},
+            h('div',{style:{
+              width:26,height:26,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,
+              background:hecho?'#d1fae5':'#f1f5f9',
+              border:'1.5px solid '+(hecho?'var(--green)':'var(--border)'),
+              color:hecho?'var(--green)':'var(--slate)'
+            }},h(Ico,{n:p.icon,s:13})),
+            !esUltimo&&h('div',{style:{width:2,flex:1,minHeight:18,background:hecho?'var(--green)':'var(--border)',margin:'2px 0'}})
+          ),
+          h('div',{style:{flex:1,paddingBottom:esUltimo?0:14,minWidth:0}},
+            h('div',{style:{display:'flex',alignItems:'baseline',justifyContent:'space-between',gap:8,flexWrap:'wrap'}},
+              h('span',{style:{fontWeight:700,fontSize:12.5,color:hecho?'var(--text)':'var(--slate)'}},p.titulo),
+              h('span',{className:'pill '+(hecho?'pill-green':'pill-slate'),style:{fontWeight:700}},p.hora||'—')
+            ),
+            h('p',{style:{fontSize:11,color:'var(--slate)',marginTop:2}},p.desc)
+          )
+        );
+      })
+    )
+  );
+}
 function LoadingDots(){ return h('div',{className:'loading-dots'},h('span'),h('span'),h('span')); }
 function Alert({type,msg,onClose}){
   if(!msg)return null;
@@ -3167,6 +3211,7 @@ function ProveedoresPage({user,online,addOffline}){
     ),
     h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      h(DetalleTiempos,{registro:form}),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'package',s:12}),' Proveedor'),
         h('div',{className:'fg'},h('label',null,'Empresa(s)'),h('p',{style:{fontWeight:600,padding:'4px 0',color:'var(--text)'}},
@@ -3213,6 +3258,7 @@ function ProveedoresPage({user,online,addOffline}){
     ),
     h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      h(DetalleTiempos,{registro:form}),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'truck',s:12}),' Vehículo y conductor'),
         h('div',{className:'fgrid2'},
@@ -5762,6 +5808,23 @@ function CitasPage({user}){
   // Igual que Muelles: tablero operativo que el coordinador consulta
   // seguido, así que se refresca cada minuto y se pausa en background.
   useVisibilityPolling(load, 60000, [load]);
+
+  // Suena una alerta cuando a una cita programada le falten <=5 min para su
+  // hora de inicio (alertasCitas.por_iniciar). Una sola vez por orden de
+  // compra -- mismo patrón que MuellesPage en citas-muelles-cedi-r10.
+  const avisadosInicio = useRef(new Set());
+  useEffect(()=>{
+    if(!alertasCitas) return;
+    const vistosIds = new Set();
+    (alertasCitas.por_iniciar||[]).forEach(c=>{
+      vistosIds.add(c.numero_orden_compra);
+      if(!avisadosInicio.current.has(c.numero_orden_compra)){
+        avisadosInicio.current.add(c.numero_orden_compra);
+        playAlertSound();
+      }
+    });
+    avisadosInicio.current.forEach(id=>{ if(!vistosIds.has(id)) avisadosInicio.current.delete(id); });
+  },[alertasCitas]);
 
   const hhmm = t => t ? String(t).slice(0,5) : '—';
 
