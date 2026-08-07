@@ -1,14 +1,16 @@
 # backend/routers/citas.py
 #
-# Fase 3 (solo lectura) del plan de consolidación con citas-muelles-cedi-r10.
-# Decisión del arquitecto: este router expone ÚNICAMENTE consulta del estado
-# de citas de proveedores (validación contra el archivo de logística del
-# WMS). NO se agrega aquí la carga del archivo (POST) ni la edición de la
-# tolerancia (PUT) -- esas operaciones siguen siendo exclusivas de
-# citas-muelles-cedi-r10, por la misma razón que en muelles.py: escribir
-# sobre citas_programadas/configuracion desde dos apps distintas abriría una
-# segunda vía de modificar el mismo estado operativo que ya gestiona esa
-# app en producción.
+# Fase 3 (solo lectura) + Fase 5.2 (primera escritura autorizada) del plan
+# de consolidación con citas-muelles-cedi-r10. control-vehicular-v2 YA tiene
+# capacidad de carga del archivo del WMS (POST /proveedores/citas/importar,
+# ver routers/proveedores.py) desde antes de este módulo, y desde Fase 5.2
+# también expone aquí PUT /config para editar la tolerancia -- este router
+# deja de ser exclusivamente de lectura. control-vehicular-v2 va camino a
+# ser el ÚNICO escritor de citas_programadas/configuracion (auditoría de
+# colisiones reales entre las dos apps, 2026-08-07); citas-muelles-cedi-r10
+# sigue activa por ahora y conserva sus propios POST /citas/cargar y
+# PUT /citas/config, que se desactivan en una fase posterior, después de
+# validar que este importador y este endpoint funcionan igual en producción.
 #
 # Lógica de alertas() copiada literal de la de referencia en
 # C:\citas-muelles-cedi-r10\backend\routers\citas.py -- incluyendo el
@@ -18,7 +20,7 @@
 # misma tabla citas_programadas y deben mostrar los mismos conteos.
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -46,6 +48,53 @@ def obtener_config(
     _: dict = Depends(require_permiso("citas", "read")),
 ):
     return {"tolerancia_min_default": _tolerancia_default(db)}
+
+
+@router.put("/config")
+def actualizar_config(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permiso("citas", "write")),
+):
+    """Mismo contrato que PUT /citas/config del sistema original
+    (citas-muelles-cedi-r10/backend/routers/citas.py) -- primer endpoint de
+    ESCRITURA de este router (autorizado explícitamente en Fase 5.2, ver
+    comentario de cabecera del módulo).
+
+    `configuracion` es una tabla clave-valor genérica sin trigger que
+    refresque `updated_at` (confirmado por Jorge, 2026-08-07) y sin CHECK de
+    formato sobre `valor` (TEXT libre) -- por eso updated_at/updated_por se
+    setean a mano en la sentencia, y la validación de rango (0-240 minutos)
+    es responsabilidad exclusiva de este endpoint, no del esquema.
+
+    Sobre el permiso "citas":"write": verificado hoy contra la tabla
+    `roles` real (SELECT nombre, permisos->'citas' FROM roles) -- SOLO
+    `admin` y `coordinador` lo tienen hoy. `coordinador` está en
+    ROLES_SOLO_LECTURA_EN_ESTA_APP (ver routers/auth.py): su token se
+    'clampea' a solo ["read"] dentro de control-vehicular-v2 aunque la fila
+    compartida de `roles` diga "write" (necesario para no quitarle
+    escritura en la app hermana, donde sí opera con ese permiso). En la
+    práctica, hoy en control-vehicular-v2 SOLO el rol `admin` puede llamar
+    este endpoint con éxito -- el resto de roles recibe 403. No se asume
+    resuelto ni se cambia `roles` aquí: si Karen quiere que otro rol
+    (ej. guarda_bodega/supervisor) pueda ajustar la tolerancia, es una
+    decisión de negocio pendiente, no una omisión de este código.
+    """
+    tolerancia = body.get("tolerancia_min_default")
+    try:
+        tolerancia = int(tolerancia)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "La tolerancia debe ser un número de minutos")
+    if tolerancia < 0 or tolerancia > 240:
+        raise HTTPException(400, "La tolerancia debe estar entre 0 y 240 minutos")
+
+    db.execute(text("""
+        INSERT INTO configuracion (clave, valor, updated_at, updated_por)
+        VALUES ('tolerancia_min_default', :v, NOW(), :uid)
+        ON CONFLICT (clave) DO UPDATE SET valor = :v, updated_at = NOW(), updated_por = :uid
+    """), {"v": str(tolerancia), "uid": current_user["id"]})
+    db.commit()
+    return {"tolerancia_min_default": tolerancia}
 
 
 @router.get("")

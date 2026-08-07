@@ -391,6 +391,49 @@ def _extraer_numero_orden(v) -> str | None:
     return None
 
 
+def _tolerancia_min_default(db) -> int:
+    """Copia idéntica de _tolerancia_default() en routers/citas.py (misma
+    tabla clave-valor `configuracion`, sin CHECK de formato en `valor` --
+    confirmado por Jorge en 2026-08-07_auditoria_fase51_unificacion_citas_qr.sql).
+    Se llama UNA vez por corrida de importar_citas(), no por fila: la
+    tolerancia vigente al momento de la carga se estampa igual en todo el
+    lote, igual que hacía el sistema original de citas-muelles-cedi-r10."""
+    row = db.execute(text("SELECT valor FROM configuracion WHERE clave = 'tolerancia_min_default'")).fetchone()
+    try:
+        return int(row.valor) if row else 30
+    except (TypeError, ValueError):
+        return 30
+
+
+def _limpiar_pallets(v) -> str | None:
+    """cantidad_pallets es TEXT en la BD real, SIN CHECK numérico (confirmado
+    por Jorge: valores muestreados '26','7','24','22', pero la base de datos
+    no garantiza ese formato para futuras cargas). Cast defensivo, no
+    bloqueante: si el Excel entrega el número como float (celda numérica
+    "26.0"), se normaliza a "26"; cualquier otro valor (incluido texto no
+    numérico) se guarda tal cual, limpio de espacios -- nunca se descarta la
+    fila completa por esto, a diferencia de numero_orden_compra/fecha/franja
+    horaria, que sí son obligatorios."""
+    if isinstance(v, float) and v.is_integer():
+        return str(int(v))
+    s = _str(v)
+    if not s:
+        return None
+    m = _re.fullmatch(r"(\d+)\.0+", s)
+    return m.group(1) if m else s
+
+
+def _fecha_documento_opcional(v) -> str | None:
+    """fecha_documento_compra es metadata informativa (a diferencia de
+    `fecha`, que sí es obligatoria y parte de la clave de negocio): si viene
+    vacía o con un formato que no matchea YYYY-MM-DD, se guarda NULL en vez
+    de rechazar la fila entera."""
+    s = _str(v)
+    if not s or not _FECHA_RE.match(s) or not fecha_valida(s):
+        return None
+    return s
+
+
 def _parsear_franja_horaria(franja: str | None) -> tuple[str, str]:
     """Convierte 'HH:MM-HH:MM' en (hora_inicio, hora_fin) para las columnas
     TIME hora_cita_inicio/hora_cita_fin -- NOT NULL en la tabla real, así que
@@ -671,23 +714,44 @@ def importar_citas(
 ):
     """Carga por lote del archivo de citas del WMS contra las tablas reales
     citas_programadas/archivos_citas (mismo patrón del sistema original,
-    recuperable en git como c4b2a2a~1:backend/routers/citas.py):
+    recuperable en git como c4b2a2a~1:backend/routers/citas.py), ampliado en
+    Fase 5.2 para traer TODAS las columnas que trae el archivo (paridad con
+    cargar_archivo() de citas-muelles-cedi-r10/backend/routers/citas.py) y
+    tolerancia configurable:
 
     1) Cada fila se valida en Python ANTES de tocar la base de datos (número
        de orden de 10 dígitos que empiece en 4, fecha YYYY-MM-DD, franja
        horaria) -- las filas inválidas se reportan en `errores` sin abortar
-       el resto del archivo.
+       el resto del archivo. Los campos adicionales (proveedor_codigo,
+       flujo, descripcion_carga, fecha_documento_compra, cantidad_pallets)
+       son metadata: si vienen vacíos o mal formados NO tumban la fila,
+       simplemente se guardan como NULL/texto limpio (ver
+       _fecha_documento_opcional / _limpiar_pallets).
     2) "Fecha Ejec." viene por fila, no una sola fecha elegida a mano: se
        calcula el conjunto de fechas distintas entre las filas válidas y se
-       hace DELETE FROM citas_programadas WHERE fecha = :fecha por cada una
-       antes de insertar -- restaura "la foto completa del día" para cada
-       fecha que trae el archivo (no hay UNIQUE en la tabla real que lo
-       garantice, ver migración de Jorge).
+       hace DELETE FROM citas_programadas WHERE fecha = :fecha (protegiendo
+       hora_editada_manualmente) por cada una antes de insertar -- restaura
+       "la foto completa del día" para cada fecha que trae el archivo. El
+       UNIQUE(fecha, numero_orden_compra) YA existe en producción
+       (confirmado por Jorge, 2026-08-07) pero se mantiene DELETE+INSERT en
+       vez de UPSERT (ON CONFLICT DO UPDATE): el DELETE previo por fecha ya
+       limpia el terreno para toda fila no protegida, y las filas
+       protegidas se excluyen del INSERT antes de llegar a la base de datos
+       (no compiten con el DELETE por la misma clave) -- así que dentro de
+       una misma corrida no debería haber ningún conflicto real contra ese
+       UNIQUE. Si dos cargas concurrentes chocaran igual (carrera entre dos
+       requests), el SAVEPOINT por fila de abajo ya lo captura como
+       IntegrityError y lo reporta en `errores` -- preferible a un UPSERT
+       silencioso, que ocultaría la carrera en vez de dejarla visible para
+       reintentar la carga.
     3) Además, cada INSERT válido usa su propio SAVEPOINT: si una fila pasa
        las validaciones de Python pero aun así choca contra un CHECK/FK de
        la base de datos (defensa en profundidad), se reporta en `errores`
        sin perder las filas ya insertadas.
-    4) Se registra siempre una fila en archivos_citas con el resumen final
+    4) tolerancia_min se lee UNA sola vez por corrida (no por fila) de
+       configuracion.tolerancia_min_default y se estampa igual en todas las
+       filas del lote -- mismo criterio que usaba el sistema original.
+    5) Se registra siempre una fila en archivos_citas con el resumen final
        del lote (igual patrón que el sistema original), incluso si terminó
        sin ninguna fila importada.
     """
@@ -730,7 +794,12 @@ def importar_citas(
             "id": str(uuid.uuid4()),
             "fecha": fecha,
             "numero_orden_compra": numero,
-            "proveedor_nombre": _str(fila.get("proveedor")),
+            "proveedor_codigo": _str(fila.get("proveedor_codigo")),
+            "proveedor_nombre": _str(fila.get("proveedor")) or _str(fila.get("proveedor_nombre")),
+            "flujo": _str(fila.get("flujo")),
+            "descripcion_carga": _str(fila.get("descripcion_carga")),
+            "fecha_documento_compra": _fecha_documento_opcional(fila.get("fecha_documento_compra")),
+            "cantidad_pallets": _limpiar_pallets(fila.get("cantidad_pallets")),
             "hora_cita_inicio": hora_inicio,
             "hora_cita_fin": hora_fin,
         }))
@@ -738,6 +807,7 @@ def importar_citas(
     archivo_id = str(uuid.uuid4())
     fechas_afectadas = sorted({v["fecha"] for _, v in validas})
     fecha_principal = Counter(v["fecha"] for _, v in validas).most_common(1)
+    tolerancia_min = _tolerancia_min_default(db)
     insertados = 0
     preservadas: list[dict] = []
 
@@ -789,15 +859,18 @@ def importar_citas(
                 continue
 
             vals["archivo_id"] = archivo_id
+            vals["tolerancia_min"] = tolerancia_min
             try:
                 sp = db.begin_nested()
                 db.execute(text("""
                     INSERT INTO citas_programadas
-                        (id, archivo_id, fecha, numero_orden_compra, proveedor_nombre,
-                         hora_cita_inicio, hora_cita_fin)
+                        (id, archivo_id, fecha, numero_orden_compra, proveedor_codigo, proveedor_nombre,
+                         flujo, descripcion_carga, fecha_documento_compra, cantidad_pallets,
+                         hora_cita_inicio, hora_cita_fin, tolerancia_min)
                     VALUES
-                        (:id, :archivo_id, :fecha, :numero_orden_compra, :proveedor_nombre,
-                         :hora_cita_inicio, :hora_cita_fin)
+                        (:id, :archivo_id, :fecha, :numero_orden_compra, :proveedor_codigo, :proveedor_nombre,
+                         :flujo, :descripcion_carga, :fecha_documento_compra, :cantidad_pallets,
+                         :hora_cita_inicio, :hora_cita_fin, :tolerancia_min)
                 """), vals)
                 sp.commit()
                 insertados += 1

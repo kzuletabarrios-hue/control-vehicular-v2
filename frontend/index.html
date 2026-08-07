@@ -3435,21 +3435,39 @@ function ProveedoresPage({user,online,addOffline}){
   /* ── CARGA DIARIA DE CITAS (WMS) — helpers ──
      El parseo del Excel se hace en el navegador con SheetJS (mismo patrón
      que CargaMasivaPage) y se manda al backend ya como JSON. Columnas reales
-     del export ("Fecha Ejec.", "O. Compra", "Proveedor", "F. Temporal");
-     matching de encabezados tolerante a mayúsculas/espacios porque el
-     archivo .xls trae variaciones de codificación en otras columnas que no
-     usamos. "Transportador" no se envía: citas_programadas (tabla real,
-     compartida con una app externa) no tiene columna para guardarlo.
+     del export ("Fecha Ejec.", "O. Compra", "Proveedor", "F. Temporal", y
+     desde Fase 5.2 también código de proveedor, flujo, descripción de
+     carga, fecha del documento de compra y cantidad de pallets -- paridad
+     con cargar_archivo() de citas-muelles-cedi-r10); matching de
+     encabezados tolerante a mayúsculas/espacios porque el archivo .xls
+     trae variaciones de codificación en otras columnas que no usamos.
+     "Transportador" no se envía: citas_programadas (tabla real, compartida
+     con una app externa) no tiene columna para guardarlo.
      "Fecha Ejec." viene por fila (YYYYMMDD) -- un mismo archivo puede traer
      más de un día, así que la fecha ya NO se elige a mano, se calcula por
      fila y el backend hace DELETE+INSERT por cada fecha distinta que
-     encuentre entre las filas válidas. */
+     encuentre entre las filas válidas.
+     IMPORTANTE: NO se activa `cellDates:true` en XLSX.read (a diferencia
+     de citas-muelles-cedi-r10) -- "Fecha Ejec." ya funciona en producción
+     asumiendo que la celda llega como texto/numero YYYYMMDD, no como Date;
+     activar cellDates globalmente arriesgaba romper ese parseo que ya
+     funciona. Por eso "Fecha doc." (fecha_documento_compra) se normaliza
+     con el mismo criterio YYYYMMDD/YYYY-MM-DD por texto en vez de asumir
+     un objeto Date -- si no calza ningún formato reconocido se manda tal
+     cual y el backend la descarta a NULL sin tumbar la fila (ver
+     _fecha_documento_opcional en proveedores.py). */
   const _citasFindVal = (row, variantes) => {
     for(const k of Object.keys(row)){
       const kk = String(k).toLowerCase().trim();
       if(variantes.some(v=>kk===v||kk.startsWith(v))) return row[k];
     }
     return '';
+  };
+  const _citasNormalizarFecha = v => {
+    const s = String(v||'').trim();
+    if(/^\d{8}$/.test(s)) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+    if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+    return s;
   };
 
   const handleCitasFile = e => {
@@ -3471,6 +3489,16 @@ function ProveedoresPage({user,online,addOffline}){
             numero_orden_compra: _extraerNumeroOrden(_citasFindVal(row,['o. compra','o.compra','orden compra','orden de compra'])),
             proveedor: String(_citasFindVal(row,['proveedor'])||'').trim(),
             franja_horaria_texto: String(_citasFindVal(row,['f. temporal','f.temporal','franja horaria','franja'])||'').trim(),
+            // Campos ampliados en Fase 5.2 (paridad con cargar_archivo() de
+            // citas-muelles-cedi-r10) -- todos opcionales: si no calzan con
+            // ningún encabezado del archivo, el backend los guarda como NULL
+            // sin descartar la fila (a diferencia de los 4 campos de arriba,
+            // que sí son obligatorios para que la fila sea válida).
+            proveedor_codigo: String(_citasFindVal(row,['proveedor_codigo','codigo proveedor','código proveedor','cod. proveedor','cod proveedor','numero de cuenta del proveedor','número de cuenta del proveedor'])||'').trim(),
+            flujo: String(_citasFindVal(row,['flujo'])||'').trim(),
+            descripcion_carga: String(_citasFindVal(row,['descripcion_carga','descripcion','descripción','descripcion carga','descripción carga','desc. carga'])||'').trim(),
+            fecha_documento_compra: _citasNormalizarFecha(_citasFindVal(row,['fecha_documento_compra','fecha doc.','fecha doc','fecha documento compra','fecha docto','fecha documento'])),
+            cantidad_pallets: String(_citasFindVal(row,['cantidad_pallets','ekko-yypal','ekko yypal','pallets','cantidad pallets','cantidad de pallets'])||'').trim(),
           };
         }).filter(r=>r.numero_orden_compra && r.proveedor);
         setCitasRows(parsed);
@@ -5952,7 +5980,7 @@ function CitasPage({user}){
     ),
     h('div',{style:{padding:'10px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)'}},
       h('p',{style:{fontSize:11,color:'var(--slate)'}},
-        'La carga del archivo del WMS y la tolerancia de citas se gestionan desde el sistema de Citas y Muelles — aquí solo puedes consultar el estado del día.'
+        'La carga del archivo del WMS se hace desde Proveedores → Citas del día. La tolerancia de citas se configura desde este módulo, solo para roles con permiso de escritura (hoy, administración) — aquí puedes consultar el estado del día.'
       ),
       !loading&&!error&&config&&h('span',{className:'pill pill-slate',style:{marginTop:6,display:'inline-block'}},
         `Tolerancia vigente: ${config.tolerancia_min_default} min`
