@@ -9,8 +9,61 @@
 # de modificar el mismo estado operativo que ya gestiona citas-muelles-
 # cedi-r10 en producción. Esa fase queda pendiente y explícita a futuro.
 #
-# Query réplica exacta de la de referencia en
-# C:\citas-muelles-cedi-r10\backend\routers\muelles.py (función tablero()).
+# ── CAMBIO TEMPORAL DE FUENTE DE DATOS (2026-08-07, decisión de Alejandro) ──
+# muelles/muelle_eventos están vacías en producción -- nadie las usa
+# operativamente todavía. proveedores.muelle_descargue (texto libre,
+# diligenciado hoy por los guardas) SÍ tiene datos reales, y es la misma
+# fuente que ya usa dashboard.py para derivar "en_muelle" con éxito.
+# Mientras muelles/muelle_eventos no tengan uso operativo real, este
+# endpoint deriva el tablero de proveedores.muelle_descargue en su lugar.
+#
+# TODO: revertir a esto cuando esas tablas tengan uso operativo real:
+#
+# from datetime import datetime, timedelta, timezone
+# from fastapi import APIRouter, Depends
+# from sqlalchemy.orm import Session
+# from sqlalchemy import text
+# from database import get_db
+# from routers.auth import require_permiso
+#
+# router = APIRouter()
+# _BOG = timezone(timedelta(hours=-5))
+# ALERTA_MUELLE_MIN = 90  # mismo umbral que citas-muelles-cedi-r10
+#
+# @router.get("")
+# def tablero(
+#     db: Session = Depends(get_db),
+#     _: dict = Depends(require_permiso("muelles", "read")),
+# ):
+#     rows = db.execute(text("""
+#         SELECT
+#             m.id, m.numero, m.zona, m.tipo_carga_habitual,
+#             e.id AS evento_id, e.hora_asignado,
+#             p.id AS proveedor_id, p.placa_vehiculo, p.nombre_conductor, p.tipo_carga,
+#             (SELECT string_agg(
+#                 po.empresa || CASE WHEN po.numero_orden_compra IS NOT NULL THEN ' (OC ' || po.numero_orden_compra || ')' ELSE '' END,
+#                 ' · '
+#             ) FROM proveedores_ordenes po WHERE po.proveedor_id = p.id) AS empresas
+#         FROM muelles m
+#         LEFT JOIN muelle_eventos e ON e.muelle_id = m.id AND e.hora_liberado IS NULL
+#         LEFT JOIN proveedores p ON p.id = e.proveedor_id
+#         WHERE m.activo = TRUE
+#         ORDER BY m.numero
+#     """)).fetchall()
+#
+#     ahora = datetime.now(_BOG)
+#     items = []
+#     for r in rows:
+#         d = dict(r._mapping)
+#         d["estado"] = "ocupado" if d["evento_id"] else "libre"
+#         if d["evento_id"]:
+#             minutos = int((ahora - d["hora_asignado"]).total_seconds() // 60)
+#             d["minutos_ocupado"] = minutos
+#             d["alerta_tiempo"] = minutos >= ALERTA_MUELLE_MIN
+#         items.append(d)
+#     return items
+
+import re
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
@@ -25,36 +78,104 @@ router = APIRouter()
 _BOG = timezone(timedelta(hours=-5))
 ALERTA_MUELLE_MIN = 90  # mismo umbral que citas-muelles-cedi-r10
 
+# Universo fijo de muelles 1-18. De muelle_descargue (texto libre) solo se
+# puede derivar quién está ocupando un muelle, nunca quién está libre --
+# sin esta lista fija no habría forma de mostrar "libre" en el tablero.
+MUELLES_NUMEROS = list(range(1, 19))
+
+# TODO: retirar este mapeo y volver al JOIN contra
+# muelles.tipo_carga_habitual en cuanto esa tabla tenga datos operativos
+# reales (hoy está vacía, el JOIN devolvería NULL siempre). Rango exacto
+# portado de MUELLES_HABITUALES en frontend/index.html (~línea 2934).
+MUELLES_HABITUALES = {"Refrigerada": (1, 6), "Seca": (13, 18)}
+
+
+def _tipo_carga_habitual(numero: int):
+    for tipo, (desde, hasta) in MUELLES_HABITUALES.items():
+        if desde <= numero <= hasta:
+            return tipo
+    return None
+
+
+# Mismo criterio que normalizarMuelle en frontend/index.html (~línea 615):
+# extrae el primer número de un texto libre ("Muelle 7", "7", " 07 "),
+# descarta si no hay ninguno.
+def _normalizar_muelle(valor):
+    if valor is None or valor == "":
+        return None
+    m = re.search(r"\d+", str(valor))
+    if not m:
+        return None
+    return int(m.group(0))
+
 
 @router.get("")
 def tablero(
     db: Session = Depends(get_db),
     _: dict = Depends(require_permiso("muelles", "read")),
 ):
+    # Mismo criterio exacto que backend/routers/dashboard.py (~líneas 85-93)
+    # para "en_muelle" -- Muelles e Inicio nunca deben contradecirse sobre
+    # si un vehículo está o no en muelle.
     rows = db.execute(text("""
-        SELECT
-            m.id, m.numero, m.zona, m.tipo_carga_habitual,
-            e.id AS evento_id, e.hora_asignado,
-            p.id AS proveedor_id, p.placa_vehiculo, p.nombre_conductor, p.tipo_carga,
-            (SELECT string_agg(
-                po.empresa || CASE WHEN po.numero_orden_compra IS NOT NULL THEN ' (OC ' || po.numero_orden_compra || ')' ELSE '' END,
-                ' · '
-            ) FROM proveedores_ordenes po WHERE po.proveedor_id = p.id) AS empresas
-        FROM muelles m
-        LEFT JOIN muelle_eventos e ON e.muelle_id = m.id AND e.hora_liberado IS NULL
-        LEFT JOIN proveedores p ON p.id = e.proveedor_id
-        WHERE m.activo = TRUE
-        ORDER BY m.numero
+        SELECT p.id, p.placa_vehiculo, p.nombre_conductor, p.muelle_descargue,
+               p.hora_ingreso, p.tipo_carga,
+               string_agg(DISTINCT po.empresa, ', ') AS empresas
+        FROM proveedores p
+        LEFT JOIN proveedores_ordenes po ON po.proveedor_id = p.id
+        WHERE p.estado_confirmacion = 'confirmado' AND p.hora_salida IS NULL
+        GROUP BY p.id, p.placa_vehiculo, p.nombre_conductor, p.muelle_descargue,
+                 p.hora_ingreso, p.tipo_carga
+        ORDER BY p.hora_ingreso ASC
     """)).fetchall()
 
-    ahora = datetime.now(_BOG)
-    items = []
+    # Un solo ocupante por número de muelle. Si dos registros distintos
+    # normalizan al mismo número (colisión/typo del guarda), se queda con
+    # el de hora_ingreso más antiguo (ya viene ordenado ASC) y se descarta
+    # el resto en silencio -- no bloquea nada.
+    ocupantes = {}
     for r in rows:
-        d = dict(r._mapping)
-        d["estado"] = "ocupado" if d["evento_id"] else "libre"
-        if d["evento_id"]:
-            minutos = int((ahora - d["hora_asignado"]).total_seconds() // 60)
-            d["minutos_ocupado"] = minutos
-            d["alerta_tiempo"] = minutos >= ALERTA_MUELLE_MIN
-        items.append(d)
+        numero = _normalizar_muelle(r.muelle_descargue)
+        if numero is None or numero in ocupantes:
+            continue
+        ocupantes[numero] = r
+
+    ahora = datetime.now(_BOG)
+    hoy = ahora.date()
+
+    items = []
+    for numero in MUELLES_NUMEROS:
+        r = ocupantes.get(numero)
+        item = {
+            "id": str(numero),
+            "numero": numero,
+            "zona": None,
+            "tipo_carga_habitual": _tipo_carga_habitual(numero),
+            "estado": "ocupado" if r is not None else "libre",
+            "placa_vehiculo": None,
+            "nombre_conductor": None,
+            "empresas": None,
+            "tipo_carga": None,
+            "minutos_ocupado": None,
+            "alerta_tiempo": False,
+        }
+        if r is not None:
+            item["placa_vehiculo"] = r.placa_vehiculo
+            item["nombre_conductor"] = r.nombre_conductor
+            item["empresas"] = r.empresas
+            item["tipo_carga"] = r.tipo_carga
+            if r.hora_ingreso is not None:
+                # hora_ingreso es TIME sin fecha -- se combina con la fecha
+                # de hoy en zona Bogotá para calcular el tiempo transcurrido.
+                ingreso_dt = datetime.combine(hoy, r.hora_ingreso, tzinfo=_BOG)
+                minutos = int((ahora - ingreso_dt).total_seconds() // 60)
+                if minutos < 0:
+                    # Cruce de medianoche (ingreso registrado el día anterior
+                    # con el mismo campo TIME) -- no se puede saber cuántos
+                    # días exactos pasaron, se evita mostrar un negativo.
+                    minutos = 0
+                item["minutos_ocupado"] = minutos
+                item["alerta_tiempo"] = minutos >= ALERTA_MUELLE_MIN
+        items.append(item)
+
     return items

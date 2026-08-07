@@ -5845,7 +5845,7 @@ function MuellesPage({user}){
     ),
     h('div',{style:{padding:'10px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)'}},
       h('p',{style:{fontSize:11,color:'var(--slate)'}},
-        'La asignación de muelles se gestiona desde el sistema de Citas y Muelles — aquí solo puedes consultar el estado actual.'
+        'Estado de ocupación derivado del registro de ingreso de Proveedores — vista de solo consulta.'
       ),
       !loading&&!error&&muelles.length>0&&h('p',{style:{fontSize:11,color:'var(--text2)',fontWeight:700,marginTop:6}},
         `${ocupados} ocupado${ocupados===1?'':'s'} de ${muelles.length}`
