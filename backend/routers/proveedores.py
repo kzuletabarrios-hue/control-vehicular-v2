@@ -820,9 +820,11 @@ def crear(
     vals = {c: _clean(vehiculo.get(c)) for c in CAMPOS_VEHICULO}
     vals["id"] = rid
     vals["creado_por"] = current_user["id"]
-    # El registro creado directamente por un guarda ya queda con ingreso
-    # autorizado de inmediato (estado_confirmacion='confirmado' por defecto).
-    vals["hora_ingreso_confirmado"] = vals.get("hora_ingreso")
+    # El alta manual del guarda ("Nuevo ingreso") sigue el mismo ciclo
+    # llegada -> confirmación que el autorregistro QR: nace 'pendiente' y
+    # sin hora_ingreso_confirmado hasta que se pulse "Confirmar" (endpoint
+    # /proveedores/{id}/confirmar-ingreso), que es el único que la puebla.
+    vals["estado_confirmacion"] = "pendiente"
     cols = ", ".join(vals.keys())
     placeholders = ", ".join(f":{k}" for k in vals.keys())
     try:
@@ -986,6 +988,9 @@ def crear_batch(
             vals = {c: _clean(reg.get(c)) for c in CAMPOS_VEHICULO}
             vals["id"] = rid
             vals["creado_por"] = current_user["id"]
+            # Mismo ciclo que crear(): nace 'pendiente', sin hora_ingreso_confirmado
+            # (se puebla solo vía /proveedores/{id}/confirmar-ingreso).
+            vals["estado_confirmacion"] = "pendiente"
             cols = ", ".join(vals.keys())
             placeholders = ", ".join(f":{k}" for k in vals.keys())
             db.execute(text(f"INSERT INTO proveedores ({cols}) VALUES ({placeholders})"), vals)
