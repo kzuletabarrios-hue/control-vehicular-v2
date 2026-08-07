@@ -1,0 +1,221 @@
+-- ================================================================
+-- Auditoría de solo lectura (Fase 5.1 del plan de Alejandro para
+-- unificar control-vehicular-v2 como único escritor de
+-- citas_programadas, incluyendo el autorregistro QR de conductores
+-- que hoy vive en citas-muelles-cedi-r10 -- 344 registros en 7 días,
+-- 43 el mismo 2026-08-07). Este archivo NO hace ningún ALTER TABLE,
+-- UPDATE, INSERT ni DELETE sobre datos operativos. Todo lo que sigue
+-- se verificó de cero contra Supabase (psql directo vía DATABASE_URL
+-- de backend/.env), no se infiere del código ni de migraciones
+-- previas.
+--
+-- ── HALLAZGO 1 (el más importante): el UNIQUE diferido YA EXISTE ──
+--
+-- El 2026-08-05 (2026-08-05_documenta_citas_programadas_existente.sql)
+-- se documentó, a propósito, la AUSENCIA de
+-- UNIQUE(fecha, numero_orden_compra) en citas_programadas -- se
+-- decidió no agregarlo porque no se podía confirmar que la app
+-- externa cumpliera esa unicidad. La última migración de este repo
+-- aplicada antes de hoy (2026-08-06_permiso_editar_cita.sql, aplicada
+-- 2026-08-06 16:08 UTC) tampoco lo agregó.
+--
+-- Verificación de hoy (2026-08-07) vía pg_constraint:
+--
+--   ('citas_programadas_fecha_numero_orden_compra_key', 'u',
+--    'UNIQUE (fecha, numero_orden_compra)')
+--
+-- ESE CONSTRAINT YA ESTÁ EN PRODUCCIÓN. No fue agregado por ninguna
+-- migración de este repo (no hay archivo .sql en
+-- backend/migrations_manual entre el 08-06 y hoy que lo cree) ni hay
+-- ningún archivo .sql en citas-muelles-cedi-r10 (se buscó en todo el
+-- repo, no existe carpeta de migraciones ahí). Es decir: alguien lo
+-- aplicó directo en Supabase (dashboard o similar), fuera de git, en
+-- algún momento entre el 2026-08-06 16:08 UTC y ahora -- drift nuevo,
+-- de la misma naturaleza que el resto de la tabla, pero en sentido
+-- contrario al de siempre: esta vez el drift AYUDA en vez de faltar
+-- documentar una columna.
+--
+-- Consulta de verificación ejecutada (0 filas devueltas -- SIN
+-- duplicados, consistente con que el UNIQUE ya está activo y los
+-- INSERT que lo violarían ya fallarían en el origen):
+--
+--   SELECT fecha, numero_orden_compra, COUNT(*)
+--   FROM citas_programadas
+--   GROUP BY 1,2 HAVING COUNT(*) > 1;
+--   -- 0 filas
+--
+-- CONCLUSIÓN para Fase 5.5: el ALTER TABLE ... ADD CONSTRAINT UNIQUE
+-- que estaba pendiente ya NO hace falta aplicarlo -- ya existe y ya
+-- está activo. Lo que SÍ falta, y es tarea de esta migración, es
+-- DOCUMENTARLO (no había ningún COMMENT ni migración en git que lo
+-- reflejara) para que nadie en Fase 5.5 intente un
+-- "ADD CONSTRAINT UNIQUE (fecha, numero_orden_compra)" y se
+-- sorprenda con el error de "constraint ya existe", ni asuma que
+-- sigue pendiente. Además, si el importador ampliado de María
+-- (Fase 5.2) va a pasar de DELETE+INSERT por fecha a upsert por fila,
+-- ya puede apoyarse en ON CONFLICT (fecha, numero_orden_compra) DO
+-- UPDATE sin esperar ningún ALTER previo.
+--
+-- ── HALLAZGO 2: columnas del importador ampliado (Fase 5.2), sin
+--    cambios desde el 2026-08-05 ──────────────────────────────────
+--
+-- Confirmado columna por columna contra information_schema.columns
+-- (2026-08-07), igual a lo documentado el 08-05 -- nada cambió:
+--
+--   proveedor_codigo         text,  nullable
+--   flujo                    text,  nullable   (valores reales: 'FLUX01', 'FLUX03', 'FLUX12', formato libre corto)
+--   descripcion_carga        text,  nullable
+--   fecha_documento_compra   date,  nullable
+--   cantidad_pallets         text,  nullable   (¡OJO: es TEXT, no integer/numeric! valores reales muestreados: '26','7','24','22' -- todo numérico como string, pero SIN CHECK que lo garantice a nivel de BD. Si María necesita sumar/ordenar por cantidad, debe castear con cuidado (::int) y contemplar que un futuro valor no numérico del WMS no sería rechazado por la base de datos)
+--   tolerancia_min           integer, NOT NULL, default 30
+--
+-- Sin cambios de tipo, nulabilidad ni default en ninguna de las seis
+-- desde el diagnóstico anterior. Fase 5.2 puede avanzar sobre este
+-- esquema con confianza.
+--
+-- ── HALLAZGO 3: configuracion.tolerancia_min_default (para el nuevo
+--    PUT /citas/config) ──────────────────────────────────────────
+--
+-- `configuracion` es una tabla clave-valor genérica, no una tabla
+-- dedicada a esta config:
+--
+--   clave        text NOT NULL, PRIMARY KEY
+--   valor        text NOT NULL   -- ¡TEXT, no integer! sin CHECK que valide formato numérico
+--   updated_at   timestamptz, default now() (solo aplica en INSERT, no hay trigger que lo refresque en UPDATE)
+--   updated_por  uuid, FK -> usuarios.id
+--
+-- Fila real hoy: clave='tolerancia_min_default', valor='60',
+-- updated_at=2026-07-15 16:58 UTC, updated_por=88da89ed-...
+-- (1 sola fila con esa clave, como se espera de una PK sobre `clave`).
+--
+-- No hay ningún trigger sobre `configuracion` (verificado vía
+-- pg_trigger, 0 filas) y no hay CHECK sobre `valor`. Dos cosas que
+-- María debe saber antes de escribir el nuevo PUT /citas/config:
+--
+--   a) El UPDATE debe setear updated_at = now() y updated_por
+--      EXPLÍCITAMENTE en la sentencia -- no hay trigger que lo haga
+--      automático, y el default de la columna solo corre en INSERT
+--      (esta fila ya existe, así que el flujo real siempre será
+--      UPDATE, nunca INSERT, salvo que se borre la clave).
+--   b) `valor` es texto libre: la base de datos NO rechaza un valor
+--      no numérico (p. ej. "" o "abc"). La validación de que sea un
+--      entero razonable (minutos de tolerancia, > 0) es
+--      responsabilidad exclusiva de la aplicación en este endpoint --
+--      no hay red de seguridad a nivel de esquema. Si dos apps
+--      (control-vehicular-v2 y, en teoría, la externa) llegaran a
+--      escribir esta clave con formatos distintos, cualquier lector
+--      que haga ::int sin validar rompería. Recomiendo a María un
+--      CAST defensivo (try/except o validación de patrón numérico)
+--      tanto al leer como al escribir esta clave.
+--
+-- No se detectó ningún otro consumidor de esta tabla además de este
+-- repo (no aparece en la búsqueda de archivos .sql de
+-- citas-muelles-cedi-r10, que no tiene carpeta de migraciones), pero
+-- como es clave-valor y no hay forma de saber desde el esquema quién
+-- más la lee en runtime, no se puede descartar con la misma certeza
+-- que con una tabla dedicada.
+--
+-- ── HALLAZGO 4: proveedores.origen y proveedores_ordenes.cita_id --
+--    ¿algo bloquea que el volumen de autorregistro QR (344/7 días)
+--    fluya por control-vehicular-v2 sin cambios de esquema? ────────
+--
+-- proveedores.origen: text NOT NULL, default 'guarda', CHECK
+-- (origen = ANY (ARRAY['guarda','autorregistro'])). Valores reales
+-- hoy: autorregistro=1578, guarda=126 (total 1704 filas). El valor
+-- 'autorregistro' que usará el QR migrado YA es un valor válido y ya
+-- es, de hecho, el mayoritario -- nada que ajustar en el CHECK.
+--
+-- proveedores_ordenes.cita_id: FK -> citas_programadas.id ON DELETE
+-- SET NULL, nullable. Tiene DOS índices sobre la misma columna:
+--   - idx_proveedores_ordenes_cita_id (btree simple, no único)
+--   - idx_proveedores_ordenes_cita_id_unico (UNIQUE parcial WHERE
+--     cita_id IS NOT NULL, creado por
+--     2026-08-06_indice_proveedores_ordenes_cita_id.sql)
+-- El índice único parcial ya cubre el caso de uso (una cita = una
+-- llegada) y también sirve para lookups por cita_id, por lo que el
+-- índice simple es redundante (mismo propósito de lectura, doble
+-- costo de escritura/mantenimiento en cada INSERT/UPDATE de
+-- proveedores_ordenes). No lo elimino aquí -- no es bloqueante y
+-- tocar índices de una tabla con escritura activa (proveedores_ordenes,
+-- ~80 filas/día) queda fuera del alcance de "solo auditoría" de esta
+-- fase; lo dejo anotado como limpieza de bajo riesgo para una
+-- migración futura (DROP INDEX idx_proveedores_ordenes_cita_id,
+-- CONCURRENTLY, coordinado, no urgente).
+--
+-- Volumen: proveedores_ordenes crea entre 66 y 107 filas/día en los
+-- últimos 10 días (promedio ~80), proveedores entre 56 y 75/día
+-- (promedio ~62) -- cifras consistentes con los 344/7días (~49/día)
+-- reportados para el QR, que es un subconjunto de ese total (también
+-- incluye alta manual por guarda). citas_programadas es mucho más
+-- chica (49 filas totales hoy) porque se recicla por fecha en cada
+-- import del WMS.
+--
+-- No hay ningún LIMIT, CHECK de conteo, ni particionado en ninguna de
+-- las tres tablas (proveedores, proveedores_ordenes,
+-- citas_programadas) que pudiera bloquear o degradar ese volumen --
+-- son cifras de decenas/cientos por día, muy por debajo de cualquier
+-- umbral donde btree normal empiece a sufrir. No se requiere
+-- particionado ni cambio de índices para soportar la migración del
+-- QR a este endpoint. Índices existentes relevantes para el matching
+-- QR -> cita (por numero_orden_compra) ya están en su lugar:
+-- idx_citas_programadas_orden (numero_orden_compra) e
+-- idx_proveedores_ordenes_proveedor (proveedor_id).
+--
+-- ── RESUMEN: ¿algo bloquea avanzar a Fase 5.2? ─────────────────────
+-- No. Ningún hallazgo de esta auditoría bloquea que María empiece el
+-- importador ampliado ni el endpoint QR/PUT config. Los dos puntos a
+-- tener presentes al escribir ese código (no de esquema, de
+-- aplicación) son: (a) cantidad_pallets y configuracion.valor son
+-- TEXT sin validación de formato a nivel de BD -- casteo defensivo
+-- en la aplicación; (b) el UNIQUE(fecha, numero_orden_compra) ya
+-- existe, así que un upsert por fila con ON CONFLICT ya es viable
+-- hoy, no hace falta esperar a Fase 5.5 para ese cambio de esquema en
+-- particular (aunque el cambio de DELETE+INSERT a upsert sigue siendo
+-- decisión/código de Fase 5.2-5.4, no de esta fase).
+--
+-- Consultas de verificación ejecutadas hoy (informativas, no
+-- modifican datos -- se dejan aquí para que cualquiera pueda
+-- reproducir esta auditoría sin depender de este comentario):
+--
+--   SELECT fecha, numero_orden_compra, COUNT(*) FROM citas_programadas
+--     GROUP BY 1,2 HAVING COUNT(*) > 1;                              -- 0 filas
+--   SELECT conname, contype, pg_get_constraintdef(oid) FROM pg_constraint
+--     WHERE conrelid = 'public.citas_programadas'::regclass;
+--   SELECT column_name, data_type, is_nullable, column_default
+--     FROM information_schema.columns
+--     WHERE table_schema='public' AND table_name='citas_programadas';
+--   SELECT * FROM configuracion WHERE clave = 'tolerancia_min_default';
+--   SELECT origen, COUNT(*) FROM proveedores GROUP BY origen;
+--   SELECT indexname, indexdef FROM pg_indexes
+--     WHERE schemaname='public' AND tablename='proveedores_ordenes';
+--
+-- Idempotente: solo documentación (COMMENT ON), no cambia estructura
+-- ni datos operativos. Se puede re-ejecutar sin efecto.
+-- Fecha: 2026-08-07
+-- ================================================================
+
+COMMENT ON CONSTRAINT citas_programadas_fecha_numero_orden_compra_key ON public.citas_programadas IS
+  'UNIQUE (fecha, numero_orden_compra). NO fue agregado por ninguna migración versionada en este repo ni en citas-muelles-cedi-r10 (que no tiene carpeta de migraciones) -- drift detectado el 2026-08-07, apareció en algún momento entre el 2026-08-06 16:08 UTC (última migración previa aplicada) y esta fecha, aplicado directo en Supabase fuera de git. Su ausencia se había documentado explícitamente como pendiente el 2026-08-05 (ver 2026-08-05_documenta_citas_programadas_existente.sql, sección "Sugerencia NO aplicada"); ese pendiente queda resuelto de hecho, no hace falta un ALTER TABLE para Fase 5.5. Verificado el 2026-08-07 que no hay violaciones (0 grupos duplicados), consistente con que el constraint ya está activo y rechazando duplicados en el origen.';
+
+COMMENT ON COLUMN public.citas_programadas.cantidad_pallets IS
+  'TEXT, nullable. Viene tal cual del archivo del WMS. Sin CHECK a nivel de BD que valide formato numérico -- valores muestreados el 2026-08-07 son todos numéricos como string (''26'',''7'',''24'',''22''), pero la base de datos no lo garantiza para futuras cargas. Cualquier consumidor que necesite sumar/ordenar debe castear defensivamente (::int con validación), no asumir formato.';
+
+COMMENT ON TABLE public.configuracion IS
+  'Tabla clave-valor genérica de configuración del sistema (clave text PK, valor text, updated_at, updated_por FK->usuarios). Contiene hoy 1 fila relevante para citas: clave=''tolerancia_min_default'', valor=''60'' (verificado 2026-08-07). NO tiene trigger que refresque updated_at en UPDATE (confirmado vía pg_trigger, 0 triggers) -- quien escriba aquí (ej. PUT /citas/config de control-vehicular-v2) debe setear updated_at/updated_por explícitamente en la sentencia. `valor` es TEXT sin CHECK de formato: la validación de que sea un entero de minutos válido es responsabilidad de la aplicación, no del esquema.';
+
+COMMENT ON COLUMN public.proveedores.origen IS
+  'NOT NULL, default ''guarda''. CHECK: origen = ANY ([''guarda'',''autorregistro'']). Distribución real 2026-08-07: autorregistro=1578, guarda=126 (de 1704 filas totales). El valor ''autorregistro'' -- el que usará el flujo QR al migrarse desde citas-muelles-cedi-r10 -- ya es válido y ya es el mayoritario; no requiere ajuste de esquema para recibir ese volumen (~344 registros/7 días, ~80/día de proveedores_ordenes en promedio, sin ningún LIMIT/CHECK de conteo ni particionado que lo restrinja).';
+
+COMMENT ON INDEX public.idx_proveedores_ordenes_cita_id IS
+  'Índice btree simple sobre cita_id. Redundante desde el 2026-08-06 con idx_proveedores_ordenes_cita_id_unico (UNIQUE parcial WHERE cita_id IS NOT NULL, ver 2026-08-06_indice_proveedores_ordenes_cita_id.sql), que ya cubre el mismo patrón de lectura además de la restricción de integridad. No se elimina en esta migración (fuera de alcance de una auditoría de solo lectura) -- limpieza de bajo riesgo pendiente: DROP INDEX CONCURRENTLY cuando se coordine, no es bloqueante para ninguna fase.';
+
+-- No-op / solo documentación: no hay ALTER, UPDATE, INSERT ni DELETE
+-- sobre datos operativos en este archivo. Se registra en
+-- schema_migrations para trazabilidad de que la auditoría de Fase
+-- 5.1 se hizo y qué encontró.
+INSERT INTO schema_migrations (filename, nota)
+VALUES (
+  '2026-08-07_auditoria_fase51_unificacion_citas_qr.sql',
+  'NO-OP deliberado: solo documentación (COMMENT ON constraint/tabla/columna/índice). Auditoría Fase 5.1: (1) UNIQUE(fecha, numero_orden_compra) en citas_programadas YA EXISTE en producción -- drift detectado hoy, no aplicado por ninguna migración de este repo ni de citas-muelles-cedi-r10; 0 duplicados confirmados; ya no hace falta el ALTER TABLE pendiente de Fase 5.5. (2) Columnas proveedor_codigo/flujo/descripcion_carga/fecha_documento_compra/cantidad_pallets/tolerancia_min de citas_programadas sin cambios desde 2026-08-05; cantidad_pallets sigue siendo TEXT sin CHECK numérico. (3) configuracion.tolerancia_min_default: valor=''60'' hoy, tabla clave-valor sin trigger de updated_at ni CHECK de formato en valor -- responsabilidad de aplicación. (4) proveedores.origen=''autorregistro'' ya válido y mayoritario (1578/1704); proveedores_ordenes.cita_id con índice único parcial ya soporta el volumen del QR (~344/7días) sin cambios de esquema; se detectó un índice redundante (idx_proveedores_ordenes_cita_id) de limpieza futura no bloqueante. Ningún hallazgo bloquea avanzar a Fase 5.2.'
+)
+ON CONFLICT (filename) DO NOTHING;
