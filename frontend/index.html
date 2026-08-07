@@ -5734,6 +5734,98 @@ function MuellesPage({user}){
   );
 }
 
+/* ── CITAS (Fase 3, solo lectura) ──
+   Misma estructura que MuellesPage: useVisibilityPolling cada 60s, mismo
+   header con subtítulo "Vista de consulta" y el mismo aviso fijo de que la
+   carga del archivo del WMS y la tolerancia se gestionan desde
+   citas-muelles-cedi-r10. */
+function CitasPage({user}){
+  const [citas,setCitas]   = useState([]);
+  const [config,setConfig] = useState(null);
+  const [alertasCitas,setAlertasCitas] = useState(null);
+  const [loading,setLoading] = useState(true);
+  const [error,setError]     = useState(null);
+
+  const load = useCallback(()=>{
+    Promise.all([
+      api.get(`/citas?fecha=${today()}`),
+      api.get('/citas/config'),
+      api.get('/citas/alertas'),
+    ]).then(([listado,cfg,al])=>{
+      setCitas(Array.isArray(listado)?listado:(listado.items||[]));
+      setConfig(cfg);
+      setAlertasCitas(al);
+      setError(null);
+    }).catch(()=>setError('No se pudo cargar el estado de las citas'))
+      .finally(()=>setLoading(false));
+  },[]);
+  // Igual que Muelles: tablero operativo que el coordinador consulta
+  // seguido, así que se refresca cada minuto y se pausa en background.
+  useVisibilityPolling(load, 60000, [load]);
+
+  const hhmm = t => t ? String(t).slice(0,5) : '—';
+
+  return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{className:'header'},
+      h('div',{className:'header-inner'},
+        h('div',{className:'header-brand'},h('h1',null,'Citas'),h('span',null,'Vista de consulta'))
+      )
+    ),
+    h('div',{style:{padding:'10px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)'}},
+      h('p',{style:{fontSize:11,color:'var(--slate)'}},
+        'La carga del archivo del WMS y la tolerancia de citas se gestionan desde el sistema de Citas y Muelles — aquí solo puedes consultar el estado del día.'
+      ),
+      !loading&&!error&&config&&h('span',{className:'pill pill-slate',style:{marginTop:6,display:'inline-block'}},
+        `Tolerancia vigente: ${config.tolerancia_min_default} min`
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
+      error&&h(Alert,{type:'err',msg:error,onClose:()=>setError(null)}),
+      loading?h(LoadingDots):h(React.Fragment,null,
+
+        alertasCitas&&h('div',{style:{display:'flex',flexDirection:'column',gap:8,marginBottom:14}},
+          h('div',{className:'alert alert-err',style:{marginBottom:0}},
+            h(Ico,{n:'alert',s:14}),
+            h('span',null,`${alertasCitas.vencidas.length} cita${alertasCitas.vencidas.length===1?'':'s'} vencida${alertasCitas.vencidas.length===1?'':'s'}`)
+          ),
+          h('div',{className:'alert alert-warn',style:{marginBottom:0}},
+            h(Ico,{n:'alert',s:14}),
+            h('span',null,`${alertasCitas.por_vencer.length} por vencer (≤10 min)`)
+          ),
+          h('div',{className:'alert',style:{marginBottom:0,background:'#dbeafe',color:'#1d4ed8',border:'1px solid #93c5fd'}},
+            h(Ico,{n:'calendar',s:14}),
+            h('span',null,`${alertasCitas.por_iniciar.length} por iniciar (≤5 min)`)
+          ),
+          h('p',{style:{fontSize:10,color:'var(--slate)'}},
+            alertasCitas.archivo_hoy
+              ? `Archivo del WMS cargado hoy${alertasCitas.hora_carga?` — ${fmtDateHora(alertasCitas.hora_carga)}`:''}.`
+              : 'Todavía no se ha cargado el archivo del WMS para hoy.'
+          )
+        ),
+
+        citas.length===0
+          ? h('div',{className:'empty'},h(Ico,{n:'calendar',s:44}),h('p',null,'No hay citas cargadas para hoy'))
+          : h('div',{style:{overflowX:'auto'}},
+              h('table',{className:'preview-table'},
+                h('thead',null,h('tr',null,
+                  h('th',null,'Hora'),h('th',null,'O. Compra'),h('th',null,'Proveedor'),h('th',null,'Carga'),h('th',null,'Pallets')
+                )),
+                h('tbody',null,
+                  citas.map(c=>h('tr',{key:c.id},
+                    h('td',null,`${hhmm(c.hora_cita_inicio)} – ${hhmm(c.hora_cita_fin)}`),
+                    h('td',null,c.numero_orden_compra||'—'),
+                    h('td',null,c.proveedor_nombre||'—'),
+                    h('td',null,c.descripcion_carga||'—'),
+                    h('td',null,c.cantidad_pallets||'—')
+                  ))
+                )
+              )
+            )
+      )
+    )
+  );
+}
+
 /* ── APP ROOT ── */
 function App(){
   const qs = new URLSearchParams(window.location.search);
@@ -5828,6 +5920,13 @@ function App(){
     navItems.push({id:'muelles',label:'Muelles',icon:'mapPin'});
   }
 
+  // Módulo Citas (Fase 3, solo lectura): mismo patrón que Muelles arriba --
+  // se agrega dinámicamente para cualquier rol con permiso citas:read, sin
+  // enumerar roles a mano en el ternario fijo de navItems.
+  if(puede(user,'citas','read') && !navItems.some(it=>it.id==='citas')){
+    navItems.push({id:'citas',label:'Citas',icon:'calendar'});
+  }
+
   const pageContent = {
     home:   h(HomePage,{setPage:navigate,user}),
     flota:  h(FlotaPage,{user,online,addOffline,openId:openFlotaId,onOpened:()=>setOpenFlotaId(null)}),
@@ -5844,6 +5943,7 @@ function App(){
     novedades: h(NovedadesPage,{user}),
     rondapanel: h(RondaPanelPage,{user}),
     muelles: h(MuellesPage,{user}),
+    citas:   h(CitasPage,{user}),
   };
 
   return h('div',{className:'app-wrap'},
