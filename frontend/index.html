@@ -2805,6 +2805,16 @@ function ProveedoresPage({user,online,addOffline}){
   // claro, por eso no aparece acá -- ver aviso no bloqueante más abajo.
   const MUELLES_HABITUALES = {Refrigerada:[1,6], Seca:[13,18]};
   const TOTAL_MUELLES = 18;
+  // Abreviatura para mostrar en la grilla de muelles (celda pequeña, no cabe
+  // el nombre completo). Mismo origen de dato que el aviso del formulario.
+  const ABREV_CARGA = {Refrigerada:'Ref', Seca:'Seca'};
+  const MUELLE_TIPO_HABITUAL = (()=>{
+    const map = {};
+    Object.entries(MUELLES_HABITUALES).forEach(([tipo,[ini,fin]])=>{
+      for(let i=ini;i<=fin;i++) map[i]=tipo;
+    });
+    return map;
+  })();
 
   /* ── EDIT FORM STATE ── */
   const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',tipo_documento:'CC',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),hora_ingreso_confirmado:'',hora_salida:'',muelle_descargue:'',fecha_pago_arl:'',epp_cumple:'',tipo_carga:'',formato_carga:'',cantidad_pallets:'',manejo_carga:'',observaciones:'',foto_url:null};
@@ -3964,11 +3974,12 @@ function ProveedoresPage({user,online,addOffline}){
             h('span',{className:'pill pill-amber'},(nOcupados-nConflicto)+' ocupados'),
             nConflicto>0&&h('span',{className:'pill pill-red'},nConflicto+' con conflicto')
           ),
-          h('div',{style:{display:'flex',gap:12,flexWrap:'wrap',fontSize:10.5,color:'var(--slate)',marginBottom:12}},
+          h('div',{style:{display:'flex',gap:12,flexWrap:'wrap',fontSize:10.5,color:'var(--slate)',marginBottom:4}},
             h('span',{style:{display:'inline-flex',alignItems:'center',gap:4}},dot('#16a34a'),'Libre'),
             h('span',{style:{display:'inline-flex',alignItems:'center',gap:4}},dot('#d97706'),'Ocupado'),
             h('span',{style:{display:'inline-flex',alignItems:'center',gap:4}},dot('#dc2626'),'2+ registros — revisar')
           ),
+          h('p',{style:{fontSize:10,color:'var(--slate)',margin:'0 0 12px',opacity:.8}},'La etiqueta bajo el número es el tipo de carga que habitualmente descarga ahí (histórico, no una regla fija).'),
           h('div',{style:{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:7,marginBottom:16}},
             Array.from({length:TOTAL_MUELLES},(_,i)=>i+1).map(n=>{
               const ocupantes = ocupacionMuelles[n]||[];
@@ -3977,10 +3988,14 @@ function ProveedoresPage({user,online,addOffline}){
               const bg = conflicto?'#fee2e2':ocupado?'#fef3c7':'var(--white)';
               const border = conflicto?'#fca5a5':ocupado?'#fcd34d':'var(--border)';
               const color = conflicto?'#991b1b':ocupado?'#92400e':'var(--text2)';
-              return h('div',{key:n,title:ocupado?(conflicto?`${ocupantes.length} registros apuntan al muelle ${n}`:empresaDe(ocupantes[0])+' · '+(ocupantes[0].placa_vehiculo||'')):`Muelle ${n} disponible`,
-                style:{position:'relative',aspectRatio:'1',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:9,border:'1.5px solid '+border,background:bg,color,fontWeight:800,fontSize:15}},
+              const tipoHabitual = MUELLE_TIPO_HABITUAL[n];
+              const tagTxt = tipoHabitual?ABREV_CARGA[tipoHabitual]:null;
+              const tagColor = conflicto?'#b91c1c':ocupado?'#92400e':'#64748b';
+              return h('div',{key:n,title:(ocupado?(conflicto?`${ocupantes.length} registros apuntan al muelle ${n}`:empresaDe(ocupantes[0])+' · '+(ocupantes[0].placa_vehiculo||'')):`Muelle ${n} disponible`)+(tipoHabitual?` · Suele usarse para carga ${tipoHabitual.toLowerCase()}`:''),
+                style:{position:'relative',aspectRatio:'1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:1,borderRadius:9,border:'1.5px solid '+border,background:bg,color,fontWeight:800,fontSize:15}},
                 conflicto&&h('span',{style:{position:'absolute',top:-6,right:-6,background:'#dc2626',color:'#fff',fontSize:9,fontWeight:800,borderRadius:20,minWidth:16,height:16,padding:'0 3px',display:'flex',alignItems:'center',justifyContent:'center',border:'1.5px solid #fff'}},ocupantes.length),
-                n
+                n,
+                tagTxt&&h('span',{style:{fontSize:8,fontWeight:700,letterSpacing:'.03em',textTransform:'uppercase',color:tagColor,opacity:.85,lineHeight:1}},tagTxt)
               );
             })
           ),
