@@ -212,7 +212,7 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 .muelle-celda.libre{background:#d1fae5;cursor:default}
 /* Ocupado: mismo cian que el pill "Ocupado" de antes. Sí es interactiva. */
 .muelle-celda.ocupado{background:#cffafe;cursor:pointer}
-/* Ámbar = tiempo de ocupación excedido (>=90 min), igual que antes en
+/* Ámbar = tiempo de ocupación excedido (>=2 horas), igual que antes en
    .muelle-card.alerta. Es la señal más urgente del tablero, por eso pisa al
    color de "ocupado" en vez de combinarse con él, y por lo mismo el punto de
    discordancia (ver .muelle-celda-dot) nunca usa este mismo tono ámbar. */
@@ -233,6 +233,18 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 .muelle-detalle{background:var(--white);border-radius:var(--radius-sm);padding:14px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.05);border:1.5px solid var(--border)}
 .muelle-discordancia{display:flex;align-items:flex-start;gap:5px;margin-top:8px;font-size:10px;font-weight:600;color:#1d4ed8}
 .muelle-discordancia svg{width:12px;height:12px;flex-shrink:0;margin-top:1px}
+/* Leyenda del tablero (MuellesPage): un chip por cada estado visual que
+   existe hoy en la grilla. Los colores del swatch son los mismos hex que
+   .muelle-celda.libre/.ocupado/.alerta y el punto azul de discordancia --
+   nunca se inventan tonos nuevos aquí, para que la leyenda sea 100% fiel
+   a lo que se ve en las celdas. */
+.muelle-leyenda{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px}
+.muelle-leyenda-item{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;color:var(--text2)}
+.muelle-leyenda-swatch{width:10px;height:10px;border-radius:3px;flex-shrink:0;border:1.5px solid transparent}
+.muelle-leyenda-swatch.libre{background:#d1fae5}
+.muelle-leyenda-swatch.ocupado{background:#cffafe}
+.muelle-leyenda-swatch.alerta{background:#fffbeb;border-color:#fbbf24}
+.muelle-leyenda-dot{width:6px;height:6px;border-radius:50%;background:#1d4ed8;flex-shrink:0}
 
 /* ── SECTION TITLE ── */
 .sec-ttl{font-size:10px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.8px;margin:14px 0 8px;display:flex;align-items:center;gap:6px}
@@ -5849,6 +5861,25 @@ function MuellesPage({user}){
       ),
       !loading&&!error&&muelles.length>0&&h('p',{style:{fontSize:11,color:'var(--text2)',fontWeight:700,marginTop:6}},
         `${ocupados} ocupado${ocupados===1?'':'s'} de ${muelles.length}`
+      ),
+      // Leyenda del tablero: solo los 4 estados/indicadores que existen hoy
+      // en la grilla (ver comentario de .muelle-leyenda en la hoja de
+      // estilos). No incluye REF/SEC/MIX -- esa etiqueta ya se explica sola
+      // dentro de cada celda y agregarla aquí solo suma ruido a una leyenda
+      // que debe leerse de un vistazo.
+      !loading&&!error&&muelles.length>0&&h('div',{className:'muelle-leyenda'},
+        h('span',{className:'muelle-leyenda-item'},
+          h('span',{className:'muelle-leyenda-swatch libre','aria-hidden':'true'}),'Libre'
+        ),
+        h('span',{className:'muelle-leyenda-item'},
+          h('span',{className:'muelle-leyenda-swatch ocupado','aria-hidden':'true'}),'Ocupado'
+        ),
+        h('span',{className:'muelle-leyenda-item'},
+          h('span',{className:'muelle-leyenda-swatch alerta','aria-hidden':'true'}),'Tiempo excedido'
+        ),
+        h('span',{className:'muelle-leyenda-item'},
+          h('span',{className:'muelle-leyenda-dot','aria-hidden':'true'}),'Carga distinta a la habitual'
+        )
       )
     ),
     h('div',{className:'scroll-body',style:{padding:'12px 14px'}},

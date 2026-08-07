@@ -28,7 +28,7 @@
 #
 # router = APIRouter()
 # _BOG = timezone(timedelta(hours=-5))
-# ALERTA_MUELLE_MIN = 90  # mismo umbral que citas-muelles-cedi-r10
+# ALERTA_MUELLE_MIN = 120  # ajustado por Karen (2026-08-07): 2h, antes 90 min
 #
 # @router.get("")
 # def tablero(
@@ -76,7 +76,7 @@ from routers.auth import require_permiso
 router = APIRouter()
 
 _BOG = timezone(timedelta(hours=-5))
-ALERTA_MUELLE_MIN = 90  # mismo umbral que citas-muelles-cedi-r10
+ALERTA_MUELLE_MIN = 120  # ajustado por Karen: 2 horas (antes 90 min / citas-muelles-cedi-r10 sigue en 90)
 
 # Universo fijo de muelles 1-18. De muelle_descargue (texto libre) solo se
 # puede derivar quién está ocupando un muelle, nunca quién está libre --
