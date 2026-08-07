@@ -1074,6 +1074,26 @@ def confirmar_autorregistro(
         """),
         {"id": id, "hora": hora},
     )
+    # citas_programadas es una tabla compartida con citas-muelles-cedi-r10 (Fase 5.3
+    # de la migración a escritor único). Esa app lee su columna `estado` para saber
+    # si una cita ya fue usada (dashboard ci_usadas, validaciones propias), pero ya
+    # no la escribe: control-vehicular-v2 es ahora el único escritor. Sin este UPDATE
+    # en cascada, `estado` se quedaba en 'pendiente' para siempre aunque el guarda ya
+    # hubiera confirmado la llegada aquí. El WHERE estado != 'usada' evita escrituras
+    # innecesarias si ya estaba marcada; el IN (SELECT ...) no afecta filas (no
+    # lanza error) cuando ninguna orden del proveedor tiene cita_id asociado.
+    db.execute(
+        text("""
+            UPDATE citas_programadas
+            SET estado = 'usada', updated_at = NOW()
+            WHERE id IN (
+                SELECT cita_id FROM proveedores_ordenes
+                WHERE proveedor_id = :id AND cita_id IS NOT NULL
+            )
+            AND estado != 'usada'
+        """),
+        {"id": id},
+    )
     db.commit()
     return {"message": "Ingreso confirmado"}
 
