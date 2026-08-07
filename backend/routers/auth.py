@@ -63,6 +63,12 @@ def decode_token(token: str) -> dict:
 
 # ── DEPENDENCY: usuario autenticado ──────────────────────────────
 
+# Roles que en control-vehicular-v2 son solo-lectura aunque el mismo
+# rol tenga escritura en la tabla `roles` compartida con
+# citas-muelles-cedi-r10 (coordinador escribe allá, no aquí).
+ROLES_SOLO_LECTURA_EN_ESTA_APP = {"coordinador"}
+
+
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> dict:
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
@@ -84,7 +90,13 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> dict:
     if not user or not user.activo:
         raise HTTPException(status_code=401, detail="Usuario inactivo o no encontrado")
 
-    return dict(user._mapping)
+    user_dict = dict(user._mapping)
+
+    if user_dict["rol"] in ROLES_SOLO_LECTURA_EN_ESTA_APP:
+        permisos = user_dict.get("permisos") or {}
+        user_dict["permisos"] = {m: [a for a in acs if a == "read"] for m, acs in permisos.items()}
+
+    return user_dict
 
 
 def require_permiso(modulo: str, accion: str):
@@ -133,6 +145,10 @@ def login(body: dict, request: Request, db: Session = Depends(get_db)):
     access_token  = create_access_token({"sub": str(user.id), "rol": user.rol})
     refresh_token = create_refresh_token()
 
+    permisos = user.permisos or {}
+    if user.rol in ROLES_SOLO_LECTURA_EN_ESTA_APP:
+        permisos = {m: [a for a in acs if a == "read"] for m, acs in permisos.items()}
+
     expires = datetime.now(timezone.utc) + timedelta(days=REFRESH_EXPIRE)
     db.execute(
         text("""
@@ -160,10 +176,11 @@ def login(body: dict, request: Request, db: Session = Depends(get_db)):
         "token_type":    "bearer",
         "expires_in":    ACCESS_EXPIRE * 60,
         "usuario": {
-            "id":     str(user.id),
-            "nombre": user.nombre,
-            "email":  user.email,
-            "rol":    user.rol,
+            "id":       str(user.id),
+            "nombre":   user.nombre,
+            "email":    user.email,
+            "rol":      user.rol,
+            "permisos": permisos,
         }
     }
 
@@ -220,8 +237,8 @@ def logout(body: dict, db: Session = Depends(get_db)):
 
 @router.get("/me")
 def me(current_user: dict = Depends(get_current_user)):
-    """Retorna los datos del usuario autenticado."""
-    current_user.pop("permisos", None)
+    """Retorna los datos del usuario autenticado (incluye permisos ya
+    'clamped' a solo-lectura para roles de ROLES_SOLO_LECTURA_EN_ESTA_APP)."""
     return current_user
 
 

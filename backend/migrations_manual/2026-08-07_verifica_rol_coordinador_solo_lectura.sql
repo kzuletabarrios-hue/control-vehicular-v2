@@ -1,0 +1,152 @@
+-- ================================================================
+-- Verificación (SOLO DOCUMENTACIÓN, sin UPDATE/INSERT sobre roles ni
+-- usuarios) del estado real del rol `coordinador` antes de implementar
+-- "acceso de solo lectura a Proveedores/Muelles/Citas dentro de
+-- control-vehicular-v2" para ese rol.
+--
+-- Contexto de negocio (Karen, 2026-08-07): el coordinador debe ver
+-- Proveedores/Muelles/Citas en modo SOLO LECTURA dentro de esta app
+-- (control-vehicular-v2). En la app hermana citas-muelles-cedi-r10 el
+-- mismo rol SÍ necesita escritura -- por eso no se le pueden quitar los
+-- permisos "write"/"asignar"/"editar_cita" de la fila `roles` real: es
+-- una tabla compartida entre ambos repos contra la misma base Supabase,
+-- y esa otra app sigue en producción.
+--
+-- Este archivo NO resuelve el requisito de negocio. Deja constancia de
+-- que el modelo de datos NO permite (ni debe forzarse a permitir) un
+-- permiso distinto por app para el mismo rol compartido -- el clamp a
+-- solo-lectura para esta app es responsabilidad del BACKEND de
+-- control-vehicular-v2 (María), no de la fila `roles` en la base de
+-- datos. Ver sección "CONCLUSIÓN" al final.
+--
+-- ── 1) Verificación INDEPENDIENTE de roles.nombre='coordinador' ────
+-- Ejecutada el 2026-08-07 directo contra producción (Supabase, misma
+-- base que citas-muelles-cedi-r10), sin partir del reporte de
+-- Alejandro -- se corrió la query de cero:
+--
+--   SELECT id, nombre, descripcion, permisos
+--   FROM roles
+--   WHERE nombre = 'coordinador';
+--
+-- Resultado (1 sola fila, coincide con lo reportado por Alejandro):
+--
+--   id = 9, nombre = 'coordinador', descripcion = NULL,
+--   permisos = {
+--     "citas":       ["read","write"],
+--     "flota":       ["read"],
+--     "muelles":     ["read","asignar"],
+--     "maestros":    ["read"],
+--     "dashboard":   ["read"],
+--     "proveedores": ["editar_cita","read","write"]
+--   }
+--
+-- No hay filas duplicadas ni homónimas: `roles_nombre_key` es un
+-- UNIQUE (nombre) real sobre la tabla (confirmado leyendo
+-- pg_constraint), y el listado completo de `roles` (9 filas: admin,
+-- supervisor, operador, consulta, guarda_bodega, guarda_peatonal,
+-- guarda_vehicular, recorredor_externo, coordinador) no tiene ninguna
+-- variante de mayúsculas/espacios de "coordinador" -- imposible que
+-- exista un duplicado con otro `id` para ese nombre mientras el
+-- constraint UNIQUE siga presente.
+--
+-- ── 2) Verificación INDEPENDIENTE de usuarios con ese rol ──────────
+--
+--   SELECT u.id, u.nombre, u.email, u.activo, u.rol_id, r.nombre
+--   FROM usuarios u
+--   JOIN roles r ON u.rol_id = r.id
+--   WHERE r.nombre = 'coordinador'
+--   ORDER BY u.email;
+--
+-- Resultado: 1 sola fila -- coorcedi@cedi.com, activo = TRUE,
+-- rol_id = 9. Coincide con lo reportado por Alejandro (ni más
+-- usuarios con ese rol, ni el usuario inactivo, ni un rol_id
+-- distinto).
+--
+-- ── 3) Doble verificación INDEPENDIENTE: ¿existe otra fuente
+--       normalizada de permisos aparte de roles.permisos jsonb? ──────
+--
+-- a) Columnas reales de `roles` (information_schema.columns):
+--    id (integer), nombre (text), descripcion (text),
+--    permisos (jsonb). No hay ninguna columna adicional de permisos
+--    (ni "permisos_v2", ni "scopes", ni similar).
+--
+-- b) Búsqueda de tablas candidatas a catálogo de permisos/módulos
+--    separado (information_schema.tables, nombre ILIKE
+--    '%permiso%'/'%modulo%'/'%role%'/'%rol%'): solo aparecen
+--    `roles`, `control_acceso` y `bd_control_acceso` -- estas dos
+--    últimas son tablas de negocio (bitácora de acceso vehicular en
+--    la caseta), sin relación con autorización/RBAC. No existe
+--    ninguna tabla `modulos`, `permisos`, `roles_permisos` ni
+--    similar.
+--
+-- c) `database/auth_schema.sql` (definición original del módulo de
+--    autenticación) confirma el mismo diseño: la única función que
+--    resuelve autorización es `tiene_permiso(p_usuario_id, p_modulo,
+--    p_accion)`, y su cuerpo lee exclusivamente
+--    `roles.permisos -> p_modulo ? p_accion` -- no hay join a ninguna
+--    tabla de permisos separada, ni lógica de "permiso por app".
+--
+-- CONCLUSIÓN de (3): `roles.permisos` jsonb es la ÚNICA fuente de
+-- verdad de autorización en el modelo de datos, y es una tabla
+-- compartida a nivel de fila entre control-vehicular-v2 y
+-- citas-muelles-cedi-r10 -- no existe (ni en el esquema ni en
+-- auth_schema.sql) ningún mecanismo de "permiso condicionado por
+-- aplicación cliente". Confirma de forma independiente lo que ya
+-- había señalado Alejandro.
+--
+-- ── 4) Por qué esta migración NO hace ningún UPDATE/INSERT ─────────
+--
+-- El rol `coordinador` (id=9) ya tiene "read" en los 6 módulos
+-- relevantes para ambas apps (citas, flota, muelles, maestros,
+-- dashboard, proveedores) -- el requisito de "lectura en
+-- Proveedores/Muelles/Citas" ya está cubierto por los permisos
+-- actuales, sin necesidad de tocar la fila.
+--
+-- El resto de acciones de esa misma fila ("write" en citas,
+-- "asignar" en muelles, "write"/"editar_cita" en proveedores)
+-- pertenecen al flujo REAL en producción de citas-muelles-cedi-r10
+-- (esa app sigue activa; quitarlos rompería su funcionalidad para el
+-- único usuario coordinador, coorcedi@cedi.com). Como
+-- `roles.permisos` es compartido a nivel de fila y no hay forma de
+-- diferenciar "solo lectura en la app A, lectura+escritura en la
+-- app B" dentro del modelo de datos actual sin partir el rol en dos
+-- filas distintas (fuera de alcance de esta fase, y una decisión de
+-- negocio/arquitectura que no corresponde a esta migración), esta
+-- fase NO modifica `roles` ni `usuarios`.
+--
+-- RIESGO PERMANENTE A DEJAR ANOTADO: el rol `coordinador` es
+-- compartido entre dos aplicaciones contra la misma base de datos.
+-- Cualquier futuro cambio directo sobre `roles.permisos` para el
+-- nombre 'coordinador' (UPDATE manual, script, panel de admin, etc.)
+-- afecta a AMBAS apps simultáneamente. El control de "solo lectura
+-- dentro de control-vehicular-v2" para citas/muelles/proveedores debe
+-- vivir como un CLAMP a nivel de aplicación en el backend de este
+-- repo (p. ej. ignorar/objetar "write"/"asignar"/"editar_cita" del
+-- token de este rol al autorizar requests en control-vehicular-v2),
+-- nunca quitando esas acciones de la fila compartida en `roles`. Esa
+-- implementación de backend queda a cargo de María, por separado.
+--
+-- Idempotente: este archivo es de solo documentación (COMMENT ON /
+-- lectura), no cambia estructura ni datos; se puede re-ejecutar sin
+-- efecto.
+-- Fecha: 2026-08-07
+-- ================================================================
+
+COMMENT ON COLUMN public.roles.permisos IS
+  'Única fuente de verdad de autorización (RBAC) del sistema -- jsonb {modulo: [acciones]}, consumido por la función tiene_permiso(usuario_id, modulo, accion). No existe tabla modulos/permisos separada (ver database/auth_schema.sql). ADVERTENCIA: la fila nombre=''coordinador'' (id=9) es COMPARTIDA con la app externa citas-muelles-cedi-r10, que requiere sus acciones de escritura (citas:write, muelles:asignar, proveedores:write/editar_cita) para el usuario coorcedi@cedi.com -- verificado 2026-08-07. NO reducir esas acciones vía UPDATE directo sobre esta fila: rompería esa app en producción. Cualquier restricción de "solo lectura" para un rol dentro de UNA sola app debe implementarse como clamp en el backend de esa app, no editando este jsonb compartido. Ver backend/migrations_manual/2026-08-07_verifica_rol_coordinador_solo_lectura.sql para el detalle completo de la verificación.';
+
+-- No-op / solo documentación: no hay UPDATE ni INSERT sobre roles ni
+-- usuarios en este archivo. Se registra igual en schema_migrations
+-- para trazabilidad de que la verificación se hizo y de qué fecha.
+INSERT INTO schema_migrations (filename, nota)
+VALUES (
+  '2026-08-07_verifica_rol_coordinador_solo_lectura.sql',
+  'NO-OP deliberado: solo documentación (COMMENT ON COLUMN roles.permisos). Verificación independiente confirmó el reporte de Alejandro sobre roles.nombre=''coordinador'' (id=9, 1 sola fila, 1 solo usuario coorcedi@cedi.com activo) y confirmó que no existe otra fuente normalizada de permisos aparte de roles.permisos jsonb. No se modificó ningún permiso: el clamp a solo-lectura para coordinador dentro de control-vehicular-v2 se implementa en el backend de esta app (María), no en la tabla roles compartida con citas-muelles-cedi-r10.'
+)
+ON CONFLICT (filename) DO NOTHING;
+
+-- ── VERIFICACIÓN (informativo, no modifica datos) ───────────────
+-- SELECT id, nombre, descripcion, permisos FROM roles WHERE nombre = 'coordinador';
+-- SELECT u.id, u.nombre, u.email, u.activo, u.rol_id
+-- FROM usuarios u JOIN roles r ON u.rol_id = r.id
+-- WHERE r.nombre = 'coordinador' ORDER BY u.email;

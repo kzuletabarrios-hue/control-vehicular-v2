@@ -518,6 +518,12 @@ const fmtDateHora = iso => { if(!iso) return '—'; const d=new Date(iso); retur
 const ROLES_ANULAR_CONTROL_ACCESO = ['admin','supervisor','operador','guarda_peatonal'];
 const puedeAnularAcceso = user => !!user?.rol && ROLES_ANULAR_CONTROL_ACCESO.includes(user.rol);
 
+// Helper de permisos granulares (UX): usa `permisos` tal como llega de /auth/login
+// o /auth/me. El backend re-valida siempre con 403, así que esto solo decide
+// mostrar/ocultar UI. Aún sin consumidores — se usará al construir las vistas
+// de Muelles/Citas para el coordinador (solo-lectura).
+const puede = (user, modulo, accion) => !!user?.permisos?.[modulo]?.includes(accion);
+
 // Traduce el detail crudo de PUT /control-acceso/{id}/anular (400/403/404)
 // a un mensaje accionable. api._fetch descarta el status code y hace
 // throw new Error(await r.text()), así que acá solo tenemos el texto del
