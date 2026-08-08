@@ -1053,6 +1053,54 @@ def eliminar(
     return {"message": "Registro eliminado"}
 
 
+@router.put("/{id}/marcar-wps")
+def marcar_ingreso_wps(
+    id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permiso("proveedores", "write")),
+):
+    row = db.execute(text("SELECT estado_confirmacion FROM proveedores WHERE id = :id"), {"id": id}).fetchone()
+    if not row:
+        raise HTTPException(404, "Registro no encontrado")
+    if row.estado_confirmacion == "ingresado_wps":
+        raise HTTPException(409, "Ya fue ingresado a WPS")
+    if row.estado_confirmacion == "confirmado":
+        raise HTTPException(409, "Ya está confirmado en muelle")
+    hora = datetime.now(_BOG).strftime("%H:%M:%S")
+    db.execute(
+        text("""
+            UPDATE proveedores
+            SET estado_confirmacion = 'ingresado_wps', hora_wps = :hora,
+                marcado_wps_por = :user_id, updated_at = NOW()
+            WHERE id = :id
+        """),
+        {"id": id, "hora": hora, "user_id": current_user["id"]},
+    )
+    # citas_programadas es una tabla compartida con citas-muelles-cedi-r10 (Fase 5.3
+    # de la migración a escritor único). Esa app lee su columna `estado` para saber
+    # si una cita ya fue usada (dashboard ci_usadas, validaciones propias), pero ya
+    # no la escribe: control-vehicular-v2 es ahora el único escritor. Sin este UPDATE
+    # en cascada, `estado` se quedaba en 'pendiente' para siempre aunque el guarda ya
+    # hubiera marcado el ingreso a WPS aquí (este es ahora el paso que consume la cita,
+    # no la confirmación a muelle). El WHERE estado != 'usada' evita escrituras
+    # innecesarias si ya estaba marcada; el IN (SELECT ...) no afecta filas (no
+    # lanza error) cuando ninguna orden del proveedor tiene cita_id asociado.
+    db.execute(
+        text("""
+            UPDATE citas_programadas
+            SET estado = 'usada', updated_at = NOW()
+            WHERE id IN (
+                SELECT cita_id FROM proveedores_ordenes
+                WHERE proveedor_id = :id AND cita_id IS NOT NULL
+            )
+            AND estado != 'usada'
+        """),
+        {"id": id},
+    )
+    db.commit()
+    return {"message": "Ingreso a WPS marcado"}
+
+
 @router.put("/{id}/confirmar")
 def confirmar_autorregistro(
     id: str,
@@ -1064,7 +1112,8 @@ def confirmar_autorregistro(
         raise HTTPException(404, "Registro no encontrado")
     if row.estado_confirmacion == "confirmado":
         raise HTTPException(409, "Este registro ya estaba confirmado")
-    _BOG = timezone(timedelta(hours=-5))
+    if row.estado_confirmacion == "pendiente":
+        raise HTTPException(409, "Falta marcar ingreso a WPS antes de confirmar a muelle")
     hora = datetime.now(_BOG).strftime("%H:%M:%S")
     db.execute(
         text("""
@@ -1074,14 +1123,12 @@ def confirmar_autorregistro(
         """),
         {"id": id, "hora": hora},
     )
-    # citas_programadas es una tabla compartida con citas-muelles-cedi-r10 (Fase 5.3
-    # de la migración a escritor único). Esa app lee su columna `estado` para saber
-    # si una cita ya fue usada (dashboard ci_usadas, validaciones propias), pero ya
-    # no la escribe: control-vehicular-v2 es ahora el único escritor. Sin este UPDATE
-    # en cascada, `estado` se quedaba en 'pendiente' para siempre aunque el guarda ya
-    # hubiera confirmado la llegada aquí. El WHERE estado != 'usada' evita escrituras
-    # innecesarias si ya estaba marcada; el IN (SELECT ...) no afecta filas (no
-    # lanza error) cuando ninguna orden del proveedor tiene cita_id asociado.
+    # Red de seguridad defensiva (ya NO es el camino principal: eso se movió a
+    # PUT /{id}/marcar-wps, que consume la cita al pasar a 'ingresado_wps'). Este
+    # UPDATE sigue siendo necesario porque POST /{id}/ordenes permite agregar una
+    # orden nueva con su propio cita_id a un proveedor que YA pasó por WPS (o incluso
+    # ya confirmado); sin esta red esa cita quedaría huérfana en estado='pendiente'
+    # para siempre. El WHERE estado != 'usada' evita escrituras innecesarias.
     db.execute(
         text("""
             UPDATE citas_programadas

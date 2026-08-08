@@ -149,7 +149,8 @@ def resumen(
             "hora_ingreso": r.hora_ingreso.isoformat() if r.hora_ingreso else None,
             "empresas": r.empresas,
             "estado": "Por confirmar" if r.estado_confirmacion == "pendiente"
-                      else ("Salió" if r.hora_salida else "En muelle"),
+                      else ("Ingresado WPS" if r.estado_confirmacion == "ingresado_wps"
+                      else ("Salió" if r.hora_salida else "En muelle")),
         }
         for r in prov_hoy_rows
     ][:30]
