@@ -1533,7 +1533,7 @@ function FlotaPage({user,online,addOffline,openId,onOpened}){
     .filter(r=>{if(!busqueda.trim())return true;const q=busqueda.trim().toLowerCase();return (r.placa&&r.placa.toLowerCase().includes(q))||(r.conductor_nombre&&r.conductor_nombre.toLowerCase().includes(q))||(r.conductor&&r.conductor.toLowerCase().includes(q));});
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
-      h('div',{style:{display:'flex',gap:8,padding:'8px 14px 6px'}},
+      h('div',{style:{display:'flex',gap:8,padding:'8px 14px 6px',flexWrap:'wrap'}},
         !esVehicular&&!esCoordinador&&h('button',{onClick:()=>api.exportar('flota'),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
           h(Ico,{n:'download',s:14}),' Excel'
         ),
@@ -2164,7 +2164,7 @@ function ItemAccesoPage({tipo,user}){
     .filter(r=>{if(!busqueda.trim())return true;const q=busqueda.trim().toLowerCase();return (r.descripcion&&r.descripcion.toLowerCase().includes(q))||(r.responsable&&r.responsable.toLowerCase().includes(q));});
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
-      h('div',{style:{display:'flex',gap:8,padding:'8px 14px 6px'}},
+      h('div',{style:{display:'flex',gap:8,padding:'8px 14px 6px',flexWrap:'wrap'}},
         h('button',{onClick:()=>api.exportar(tipo),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
           h(Ico,{n:'download',s:14}),' Excel'
         ),
@@ -2645,7 +2645,7 @@ function VisitantesPage({user,online,addOffline}){
     .filter(r=>{if(!busqueda.trim())return true;const q=busqueda.trim().toLowerCase();return (r.nombre&&r.nombre.toLowerCase().includes(q))||(r.cedula&&String(r.cedula).includes(q));});
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
-      h('div',{style:{display:'flex',gap:8,padding:'8px 14px 6px'}},
+      h('div',{style:{display:'flex',gap:8,padding:'8px 14px 6px',flexWrap:'wrap'}},
         h('div',{style:{display:'flex',gap:6,alignItems:'center'}},
           h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
           h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
@@ -2823,7 +2823,7 @@ function VisitaVehicularPage({user,online,addOffline}){
     .filter(r=>{if(!busqueda.trim())return true;const q=busqueda.trim().toLowerCase();return (r.placa&&r.placa.toLowerCase().includes(q))||(r.conductor&&r.conductor.toLowerCase().includes(q));});
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
-      h('div',{style:{display:'flex',gap:8,padding:'8px 14px 6px'}},
+      h('div',{style:{display:'flex',gap:8,padding:'8px 14px 6px',flexWrap:'wrap'}},
         h('button',{onClick:()=>api.exportar('visita-vehicular'),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
           h(Ico,{n:'download',s:14}),' Excel'
         ),
@@ -3749,7 +3749,7 @@ function ProveedoresPage({user,online,addOffline}){
     });
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
-      h('div',{style:{display:'flex',gap:8,padding:'8px 14px 6px'}},
+      h('div',{style:{display:'flex',gap:8,padding:'8px 14px 6px',flexWrap:'wrap'}},
         !esBodega&&!esCoordinador&&h('button',{onClick:()=>api.exportar('proveedores'),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
           h(Ico,{n:'download',s:14}),' Excel'
         ),
