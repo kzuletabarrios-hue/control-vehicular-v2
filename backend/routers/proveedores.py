@@ -1145,6 +1145,74 @@ def confirmar_autorregistro(
     return {"message": "Ingreso confirmado"}
 
 
+@router.put("/{id}/liberar-muelle")
+def liberar_muelle(
+    id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permiso("muelles", "liberar")),
+):
+    """Libera el andén/muelle que tiene asignado un proveedor
+    (proveedores.muelle_descargue -> NULL), como paso independiente de
+    "Registrar salida" (PUT /{id} con hora_salida): en la operación real el
+    vehículo puede desocupar el muelle y seguir un rato más dentro del CEDI
+    antes de salir del todo. Gateado con el permiso "muelles":"liberar" que
+    ya tiene guarda_bodega en producción (ver
+    migrations_manual/2026-08-01_roles_guarda_alta_formal.sql) -- no hace
+    falta ninguna migración de permisos nueva para este endpoint.
+
+    NOTA sobre la línea de tiempo del frontend (DetalleTiempos, "Salida de
+    muelle"): ese paso lee registro.muelle_numero / registro.hora_muelle_liberado,
+    que hoy NO son columnas reales de `proveedores` -- se calculan en cada
+    lectura (_attach_muelle, arriba) desde un JOIN contra muelle_eventos/muelles,
+    tablas que routers/muelles.py documenta como vacías/sin uso operativo en
+    producción (decisión de Alejandro, 2026-08-07: ese router deriva el
+    tablero de disponibilidad de muelle_descargue en su lugar, exactamente
+    por lo mismo). Como esas dos tablas no las escribe nadie desde esta app,
+    este endpoint NO puede "copiar muelle_descargue a muelle_numero y
+    estampar hora_muelle_liberado" como columnas de proveedores: esas
+    columnas no existen (confirmado contra information_schema.columns), y
+    aunque se agregaran con un ALTER TABLE, _attach_muelle las
+    sobreescribiría igual en cada respuesta con el resultado (siempre NULL)
+    de ese JOIN a tablas vacías -- quedarían pobladas en la base de datos
+    pero invisibles para el frontend sin tocar también _attach_muelle. Por
+    eso este endpoint solo vacía muelle_descargue (la única fuente de verdad
+    real hoy, según la misma decisión de Alejandro) y dejamos el paso
+    "Salida de muelle" de la línea de tiempo como está hoy: sin datos. Cerrar
+    ese hueco requiere una decisión de esquema (con Jorge) sobre dónde
+    persistir número de muelle + hora de liberación, y no se hizo aquí a
+    propósito -- reportado en el resumen de la tarea, no aplicado sin
+    autorización."""
+    row = db.execute(
+        text("SELECT estado_confirmacion, muelle_descargue, hora_salida FROM proveedores WHERE id = :id"),
+        {"id": id},
+    ).fetchone()
+    if not row:
+        raise HTTPException(404, "Registro no encontrado")
+    if row.estado_confirmacion != "confirmado":
+        raise HTTPException(409, "Este proveedor aún no tiene el ingreso confirmado en muelle.")
+    if not row.muelle_descargue:
+        raise HTTPException(409, "Este proveedor no tiene un muelle asignado para liberar")
+    if row.hora_salida is not None:
+        raise HTTPException(409, "Este proveedor ya registró salida del CEDI")
+
+    muelle_anterior = row.muelle_descargue
+    db.execute(
+        text("""
+            UPDATE proveedores
+            SET muelle_descargue = NULL, updated_at = NOW()
+            WHERE id = :id
+        """),
+        {"id": id},
+    )
+    _audit(
+        db, current_user, "LIBERAR_MUELLE", "proveedores", id,
+        {"muelle_descargue": muelle_anterior},
+        {"muelle_descargue": None},
+    )
+    db.commit()
+    return {"message": "Muelle liberado"}
+
+
 # ── Legacy batch endpoint (kept for backward compat) ──────────────────────────
 @router.post("/batch", status_code=201)
 def crear_batch(

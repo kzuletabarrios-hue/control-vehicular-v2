@@ -827,17 +827,17 @@ function Alert({type,msg,onClose}){
     onClose&&h('button',{onClick:onClose,style:{marginLeft:'auto',background:'none',border:'none',cursor:'pointer'}},h(Ico,{n:'x',s:13}))
   );
 }
-function ConfirmSheet({msg,onOk,onCancel}){
+function ConfirmSheet({msg,onOk,onCancel,icon='trash',titulo='¿Eliminar registro?',textoOk='Eliminar',colorOk='var(--red)'}){
   return h('div',{className:'overlay',onClick:onCancel},
     h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
       h('div',{className:'sheet-handle'}),
       h('div',{style:{padding:'0 0 8px',textAlign:'center'}},
-        h('div',{className:'confirm-icon'},h(Ico,{n:'trash',s:22})),
-        h('h3',{style:{fontSize:16,fontWeight:700,marginBottom:6}},'¿Eliminar registro?'),
+        h('div',{className:'confirm-icon'},h(Ico,{n:icon,s:22})),
+        h('h3',{style:{fontSize:16,fontWeight:700,marginBottom:6}},titulo),
         h('p',{style:{fontSize:12,color:'var(--slate)',marginBottom:20,lineHeight:1.5}},msg||'Esta acción no se puede deshacer.'),
         h('div',{style:{display:'flex',gap:8}},
           h('button',{className:'btn-cancel btn-primary',style:{background:'none',border:'1.5px solid var(--navy2)',color:'var(--navy2)',flex:1},onClick:onCancel},'Cancelar'),
-          h('button',{className:'btn-primary',style:{background:'var(--red)'},onClick:onOk},h(Ico,{n:'trash',s:16}),'Eliminar')
+          h('button',{className:'btn-primary',style:{background:colorOk},onClick:onOk},h(Ico,{n:icon,s:16}),textoOk)
         )
       )
     )
@@ -2923,6 +2923,7 @@ function ProveedoresPage({user,online,addOffline}){
   const [saving,setSaving]     = useState(false);
   const [alert,setAlert]       = useState(null);
   const [confirm,setConfirm]   = useState(null);
+  const [liberarMuelle,setLiberarMuelle] = useState(null);
   const [selected,setSelected] = useState(null);
   const [salida,setSalida]     = useState(null);
   const [horaSalida,setHoraSalida]     = useState('');
@@ -3885,6 +3886,11 @@ function ProveedoresPage({user,online,addOffline}){
                 onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(ahoraHora());setFechaSalidaP(today());setFotoSalida(null);},
                 style:{background:'#d97706',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
               },'Salida'),
+              esBodega&&confMuelle&&r.muelle_descargue&&!r.hora_salida&&h('button',{
+                title:'Liberar muelle',
+                onClick:(e)=>{e.stopPropagation();setLiberarMuelle(r);},
+                style:{background:'var(--purple)',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700,display:'inline-flex',alignItems:'center',gap:3}
+              },h(Ico,{n:'truck',s:11}),' Liberar muelle'),
               (esBodega||esVehicular)&&(r.observaciones||r.foto_url)&&h('span',{style:{fontSize:10,background:'#fef3c7',color:'#92400e',borderRadius:4,padding:'2px 6px',fontWeight:600}},'Con observación'),
               !esBodega&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},className:'li-act li-act-danger'},h(Ico,{n:'trash',s:14}))
             )
@@ -3937,6 +3943,23 @@ function ProveedoresPage({user,online,addOffline}){
       )
     ),
     confirm&&h(ConfirmSheet,{msg:'Se eliminará el ingreso de proveedor y todas sus órdenes.',onOk:async()=>{await api.del(`/proveedores/${confirm}`);setConfirm(null);load();setAlert({type:'ok',msg:'Eliminado'});},onCancel:()=>setConfirm(null)}),
+    liberarMuelle&&h(ConfirmSheet,{
+      icon:'truck',
+      titulo:`¿Liberar el muelle ${liberarMuelle.muelle_descargue}?`,
+      textoOk:'Liberar muelle',
+      colorOk:'var(--purple)',
+      msg:`El vehículo ${liberarMuelle.placa_vehiculo||''} dejará de ocupar el muelle ${liberarMuelle.muelle_descargue}. Esto libera el espacio para el panel de disponibilidad, pero NO registra la salida del vehículo del CEDI.`,
+      onOk:async()=>{
+        try{
+          await api.put(`/proveedores/${liberarMuelle.id}/liberar-muelle`,{});
+          setLiberarMuelle(null); load(); setAlert({type:'ok',msg:'Muelle liberado'});
+        }catch(e){
+          setLiberarMuelle(null); load();
+          setAlert({type:'err',msg:'Error: '+e.message});
+        }
+      },
+      onCancel:()=>setLiberarMuelle(null)
+    }),
     saveFrModal&&h('div',{className:'overlay',onClick:()=>setSaveFrModal(false)},
       h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
         h('div',{className:'sheet-header'},
