@@ -153,10 +153,14 @@ def _attach_muelle(db, items: list[dict]) -> list[dict]:
     muelle_map = {str(r.proveedor_id): r for r in rows}
     for item in items:
         info = muelle_map.get(str(item["id"]))
+        # muelle_actual depende solo del JOIN (evento real sin liberar) -- no se toca.
         item["muelle_actual"] = info.muelle_numero if (info and info.hora_muelle_liberado is None) else None
-        item["muelle_numero"] = info.muelle_numero if info else None
+        # muelle_numero / hora_muelle_liberado: columnas reales de `proveedores`
+        # (ver liberar_muelle) tienen prioridad; el JOIN a muelle_eventos/muelles
+        # queda como fallback para datos históricos que no pasaron por ese endpoint.
         item["hora_muelle_asignado"] = info.hora_muelle_asignado if info else None
-        item["hora_muelle_liberado"] = info.hora_muelle_liberado if info else None
+        item["muelle_numero"] = item.get("muelle_numero") or (info.muelle_numero if info else None)
+        item["hora_muelle_liberado"] = item.get("hora_muelle_liberado") or (info.hora_muelle_liberado if info else None)
     return items
 
 
@@ -1160,28 +1164,10 @@ def liberar_muelle(
     migrations_manual/2026-08-01_roles_guarda_alta_formal.sql) -- no hace
     falta ninguna migración de permisos nueva para este endpoint.
 
-    NOTA sobre la línea de tiempo del frontend (DetalleTiempos, "Salida de
-    muelle"): ese paso lee registro.muelle_numero / registro.hora_muelle_liberado,
-    que hoy NO son columnas reales de `proveedores` -- se calculan en cada
-    lectura (_attach_muelle, arriba) desde un JOIN contra muelle_eventos/muelles,
-    tablas que routers/muelles.py documenta como vacías/sin uso operativo en
-    producción (decisión de Alejandro, 2026-08-07: ese router deriva el
-    tablero de disponibilidad de muelle_descargue en su lugar, exactamente
-    por lo mismo). Como esas dos tablas no las escribe nadie desde esta app,
-    este endpoint NO puede "copiar muelle_descargue a muelle_numero y
-    estampar hora_muelle_liberado" como columnas de proveedores: esas
-    columnas no existen (confirmado contra information_schema.columns), y
-    aunque se agregaran con un ALTER TABLE, _attach_muelle las
-    sobreescribiría igual en cada respuesta con el resultado (siempre NULL)
-    de ese JOIN a tablas vacías -- quedarían pobladas en la base de datos
-    pero invisibles para el frontend sin tocar también _attach_muelle. Por
-    eso este endpoint solo vacía muelle_descargue (la única fuente de verdad
-    real hoy, según la misma decisión de Alejandro) y dejamos el paso
-    "Salida de muelle" de la línea de tiempo como está hoy: sin datos. Cerrar
-    ese hueco requiere una decisión de esquema (con Jorge) sobre dónde
-    persistir número de muelle + hora de liberación, y no se hizo aquí a
-    propósito -- reportado en el resumen de la tarea, no aplicado sin
-    autorización."""
+    muelle_numero / hora_muelle_liberado (columnas reales de `proveedores`
+    desde 2026-08-08_proveedores_muelle_liberado_columns.sql) quedan aquí
+    como registro histórico de la línea de tiempo del frontend (DetalleTiempos,
+    "Salida de muelle"), independiente de que muelle_descargue se anule."""
     row = db.execute(
         text("SELECT estado_confirmacion, muelle_descargue, hora_salida FROM proveedores WHERE id = :id"),
         {"id": id},
@@ -1196,18 +1182,22 @@ def liberar_muelle(
         raise HTTPException(409, "Este proveedor ya registró salida del CEDI")
 
     muelle_anterior = row.muelle_descargue
+    hora = datetime.now(_BOG).strftime("%H:%M:%S")
     db.execute(
         text("""
             UPDATE proveedores
-            SET muelle_descargue = NULL, updated_at = NOW()
+            SET muelle_descargue = NULL,
+                muelle_numero = :muelle_numero,
+                hora_muelle_liberado = :hora,
+                updated_at = NOW()
             WHERE id = :id
         """),
-        {"id": id},
+        {"id": id, "muelle_numero": muelle_anterior, "hora": hora},
     )
     _audit(
         db, current_user, "LIBERAR_MUELLE", "proveedores", id,
         {"muelle_descargue": muelle_anterior},
-        {"muelle_descargue": None},
+        {"muelle_descargue": None, "muelle_numero": muelle_anterior, "hora_muelle_liberado": hora},
     )
     db.commit()
     return {"message": "Muelle liberado"}
