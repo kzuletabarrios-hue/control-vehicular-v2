@@ -6,6 +6,22 @@ from math import radians, sin, cos, sqrt, atan2
 
 _BOG = timezone(timedelta(hours=-5))
 def _hoy_bog(): return datetime.now(_BOG).date().isoformat()
+
+
+def _fecha_turno_bog(turno: str = None) -> str:
+    """Fecha 'operativa' del turno actual: para 'noche' (18:00-06:00, cruza
+    medianoche), si ya pasó la medianoche pero sigue dentro del turno
+    nocturno, la fecha sigue siendo la del día en que arrancó el turno.
+    `turno_actual` y `TURNOS` se definen más abajo en este módulo; se
+    resuelven en tiempo de llamada (no de definición), así que esto es
+    seguro una vez el módulo termina de cargar."""
+    ahora = datetime.now(_BOG)
+    turno = turno if turno in ("dia", "noche") else turno_actual(ahora.time())
+    if turno == "noche" and ahora.time() < TURNOS["dia"]:
+        return (ahora.date() - timedelta(days=1)).isoformat()
+    return ahora.date().isoformat()
+
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
@@ -392,7 +408,7 @@ def turno_cronograma(
     turno = turno if turno in ("dia", "noche") else turno_actual()
     items = calcular_cronograma(turno)
 
-    hoy = _hoy_bog()
+    hoy = _fecha_turno_bog(turno)
     ciclos = db.execute(text("""
         SELECT * FROM rondas_ciclos
         WHERE recorredor_id = :uid AND fecha = :hoy AND turno = :turno
@@ -491,7 +507,7 @@ def ciclo_iniciar(
 ):
     body = body or {}
     turno = body.get("turno") if body.get("turno") in ("dia", "noche") else turno_actual()
-    hoy = _hoy_bog()
+    hoy = _fecha_turno_bog(turno)
 
     activo = db.execute(text("""
         SELECT 1 FROM rondas_ciclos WHERE recorredor_id = :uid AND estado IN ('en_curso', 'pausada')
@@ -698,7 +714,7 @@ def marcar_punto(
              :codigo_escaneado, :estado, :observacion, :fotografia, :lat, :lng)
     """), {
         "id": rid, "recorredor_id": user["id"], "punto_id": punto_id, "ciclo_id": ciclo_id,
-        "fecha": _hoy_bog(), "hora": hora, "codigo_escaneado": codigo_escaneado,
+        "fecha": ciclo.fecha, "hora": hora, "codigo_escaneado": codigo_escaneado,
         "estado": estado, "observacion": observacion, "fotografia": fotografia,
         "lat": lat, "lng": lng,
     })
@@ -792,7 +808,7 @@ def ronda_hoy(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    hoy = _hoy_bog()
+    hoy = _fecha_turno_bog()
     if user['rol'] in ROLES_GESTION:
         rows = db.execute(text("""
             SELECT r.*, p.nombre AS punto_nombre, p.orden,
@@ -858,12 +874,15 @@ def apoyo_marcar(
     if not qr:
         raise HTTPException(400, "Código QR no corresponde al QR de Apoyo Operativo")
 
-    hoy = _hoy_bog()
+    # No se filtra por fecha: un recorredor no debería tener más de un apoyo
+    # abierto a la vez, y filtrar por fecha calendario es precisamente lo que
+    # impedía cerrar un apoyo abierto antes de medianoche cuando el guarda
+    # escanea la salida ya entrada la madrugada.
     abierto = db.execute(text("""
         SELECT * FROM apoyos_operativos
-        WHERE recorredor_id = :uid AND fecha = :hoy AND hora_salida IS NULL
+        WHERE recorredor_id = :uid AND hora_salida IS NULL
         ORDER BY hora_llegada DESC LIMIT 1
-    """), {"uid": user["id"], "hoy": hoy}).fetchone()
+    """), {"uid": user["id"]}).fetchone()
 
     if abierto:
         db.execute(text("""
@@ -888,6 +907,7 @@ def apoyo_marcar(
     tipo    = "automatico" if motivo_auto else "manual"
 
     rid = str(uuid.uuid4())
+    hoy = _fecha_turno_bog()
     db.execute(text("""
         INSERT INTO apoyos_operativos (id, recorredor_id, fecha, motivo, tipo, codigo_escaneado)
         VALUES (:id, :uid, :hoy, :motivo, :tipo, :codigo)
@@ -901,7 +921,7 @@ def apoyo_hoy(
     db: Session = Depends(get_db),
     user: dict = Depends(_require_roles(*ROLES_RONDA)),
 ):
-    hoy = _hoy_bog()
+    hoy = _fecha_turno_bog()
     rows = db.execute(text("""
         SELECT * FROM apoyos_operativos
         WHERE recorredor_id = :uid AND fecha = :hoy
@@ -917,7 +937,7 @@ def panel(
     db: Session = Depends(get_db),
     user: dict = Depends(_require_roles(*ROLES_GESTION)),
 ):
-    hoy = _hoy_bog()
+    hoy = _fecha_turno_bog()
     recorredores = db.execute(text("""
         SELECT u.id, u.nombre FROM usuarios u
         JOIN roles r ON r.id = u.rol_id
