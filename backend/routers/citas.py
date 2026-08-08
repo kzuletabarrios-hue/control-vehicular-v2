@@ -34,6 +34,23 @@ ALERTA_VENCE_MIN  = 10  # aviso cuando falten <=10 min para el fin de la franja 
 ALERTA_INICIO_MIN = 5   # aviso cuando falten <=5 min para que empiece la hora de la cita
 
 
+def _fin_con_tolerancia(fecha, hora_cita_fin, tolerancia_min):
+    """Datetime completo (fecha+hora) del fin de la franja + tolerancia.
+    datetime.combine (no .time() sueltas) para que la comparación no se
+    rompa cuando franja+tolerancia cruza medianoche -- misma fórmula que
+    usaba alertas() antes de extraerse aquí, no se cambia ni una línea."""
+    return datetime.combine(fecha, hora_cita_fin) + timedelta(minutes=tolerancia_min or 0)
+
+
+def cita_vencida(fecha, hora_cita_fin, tolerancia_min, ahora_dt) -> bool:
+    """¿Ya pasó hora_cita_fin + tolerancia_min? Único punto donde vive
+    este criterio -- lo usan alertas() (abajo) y GET /export/citas
+    (routers/export.py, columna calculada 'Vencida'). `ahora_dt` se
+    recibe como parámetro (no se calcula internamente) para que quien
+    procese muchas filas en un loop lo calcule una sola vez."""
+    return ahora_dt > _fin_con_tolerancia(fecha, hora_cita_fin, tolerancia_min)
+
+
 def _tolerancia_default(db) -> int:
     row = db.execute(text("SELECT valor FROM configuracion WHERE clave = 'tolerancia_min_default'")).fetchone()
     try:
@@ -140,7 +157,7 @@ def alertas(
         # datetime completo (fecha+hora), no solo .time(): comparar horas
         # sueltas rompe cuando la franja+tolerancia cruza la medianoche.
         inicio_dt = datetime.combine(r.fecha, r.hora_cita_inicio)
-        fin_dt = datetime.combine(r.fecha, r.hora_cita_fin) + timedelta(minutes=r.tolerancia_min or 0)
+        fin_dt = _fin_con_tolerancia(r.fecha, r.hora_cita_fin, r.tolerancia_min)
         item = {
             "numero_orden_compra": r.numero_orden_compra,
             "proveedor_nombre": r.proveedor_nombre,

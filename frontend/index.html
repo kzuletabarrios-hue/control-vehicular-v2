@@ -5955,6 +5955,10 @@ function CitasPage({user}){
   const [alertasCitas,setAlertasCitas] = useState(null);
   const [loading,setLoading] = useState(true);
   const [error,setError]     = useState(null);
+  // Rango de fechas para el export (Sección "proveedores que no llegaron"),
+  // independiente del tablero de hoy de abajo, que sigue fijo a today().
+  const [fi,setFi] = useState(today());
+  const [ff,setFf] = useState(today());
 
   const load = useCallback(()=>{
     Promise.all([
@@ -6004,6 +6008,13 @@ function CitasPage({user}){
       ),
       !loading&&!error&&config&&h('span',{className:'pill pill-slate',style:{marginTop:6,display:'inline-block'}},
         `Tolerancia vigente: ${config.tolerancia_min_default} min`
+      )
+    ),
+    puede(user,'citas','export')&&h('div',{style:{display:'flex',gap:8,padding:'8px 14px',flexWrap:'wrap',alignItems:'flex-end',background:'var(--white)',borderBottom:'1px solid var(--border)'}},
+      h('div',{style:{display:'flex',flexDirection:'column',gap:2}},h('label',{style:{fontSize:10,color:'var(--slate)',fontWeight:600}},'Desde'),h('input',{type:'date',value:fi,onChange:e=>setFi(e.target.value),style:{fontSize:12}})),
+      h('div',{style:{display:'flex',flexDirection:'column',gap:2}},h('label',{style:{fontSize:10,color:'var(--slate)',fontWeight:600}},'Hasta'),h('input',{type:'date',value:ff,onChange:e=>setFf(e.target.value),style:{fontSize:12}})),
+      h('button',{onClick:()=>api.exportar('citas',fi,ff),style:{background:'none',border:'1.5px solid var(--slate)',color:'var(--slate)',borderRadius:8,padding:'7px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:600,fontFamily:'inherit'}},
+        h(Ico,{n:'download',s:14}),' Excel · No llegaron'
       )
     ),
     h('div',{className:'scroll-body',style:{padding:'12px 14px'}},

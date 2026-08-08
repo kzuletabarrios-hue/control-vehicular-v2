@@ -10,6 +10,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 
 from database import get_db
 from routers.auth import require_permiso
+from routers.citas import cita_vencida
 
 router = APIRouter()
 
@@ -619,3 +620,62 @@ def export_rondas(
         ws.append(list(row))
     _autowidth(ws)
     return _stream(wb, f"rondas_{_hoy_bog()}.xlsx")
+
+
+@router.get("/citas")
+def export_citas(
+    fecha_desde: str = Query(default=None),
+    fecha_hasta: str = Query(default=None),
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("citas", "export")),
+):
+    """Proveedores que NO llegaron según el archivo del WMS cargado en
+    citas_programadas: estado != 'usada', sin importar si ya venció el
+    horario -- a diferencia de GET /citas/alertas, que sí filtra por
+    horario vigente y solo mira estado='pendiente' de hoy/ayer. Aquí se
+    lista el rango de fechas pedido completo; la columna calculada
+    'Vencida' (mismo criterio que alertas(), ver routers/citas.py
+    cita_vencida()) informa el vencimiento sin excluir filas por eso."""
+    where = ["cp.estado != 'usada'"]
+    params = {}
+    if fecha_desde:
+        where.append("cp.fecha >= :desde")
+        params["desde"] = fecha_desde
+    if fecha_hasta:
+        where.append("cp.fecha <= :hasta")
+        params["hasta"] = fecha_hasta
+
+    rows = db.execute(text(f"""
+        SELECT cp.fecha, cp.numero_orden_compra,
+               COALESCE(cp.proveedor_nombre, cp.proveedor_codigo) AS proveedor,
+               cp.hora_cita_inicio, cp.hora_cita_fin, cp.tolerancia_min,
+               cp.estado, ac.created_at AS hora_carga
+        FROM citas_programadas cp
+        LEFT JOIN archivos_citas ac ON ac.id = cp.archivo_id
+        WHERE {' AND '.join(where)}
+        ORDER BY cp.fecha DESC, cp.hora_cita_inicio ASC
+    """), params).fetchall()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Citas no llegaron"
+
+    headers = [
+        "Fecha", "N° Orden Compra", "Proveedor",
+        "H. Cita Inicio", "H. Cita Fin", "Tolerancia (min)",
+        "Vencida", "Estado", "H. Carga Archivo",
+    ]
+    _header_style(ws, headers)
+
+    ahora_dt = datetime.now(_BOG).replace(tzinfo=None)
+    for row in rows:
+        vencida = cita_vencida(row.fecha, row.hora_cita_fin, row.tolerancia_min, ahora_dt)
+        ws.append([
+            row.fecha, row.numero_orden_compra, row.proveedor,
+            row.hora_cita_inicio, row.hora_cita_fin, row.tolerancia_min,
+            "Sí" if vencida else "No",
+            row.estado,
+            row.hora_carga.isoformat() if row.hora_carga else None,
+        ])
+    _autowidth(ws)
+    return _stream(wb, f"citas_no_llegaron_{_hoy_bog()}.xlsx")

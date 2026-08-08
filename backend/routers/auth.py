@@ -68,6 +68,26 @@ def decode_token(token: str) -> dict:
 # citas-muelles-cedi-r10 (coordinador escribe allá, no aquí).
 ROLES_SOLO_LECTURA_EN_ESTA_APP = {"coordinador"}
 
+# Excepción puntual y documentada al clamp de solo-lectura: exportar
+# no muta datos (es lectura formateada), y Karen confirmó 2026-08-07
+# que coordinador puede usar citas:export específicamente. No
+# generalizar a "toda acción export" -- ver discusión en el commit de
+# este cambio. Si en el futuro coordinador necesita otra excepción,
+# amplía este dict a {modulo: {acciones}}, no cambies el criterio de
+# ROLES_SOLO_LECTURA_EN_ESTA_APP.
+ACCIONES_ADICIONALES_COORDINADOR = {"citas": {"export"}}
+
+
+def _clamp_permisos_solo_lectura(permisos: dict) -> dict:
+    """Reduce cada módulo a ['read'] salvo las acciones puntuales
+    autorizadas en ACCIONES_ADICIONALES_COORDINADOR (module-scoped, ver
+    comentario de esa constante). Compartida por get_current_user y
+    login para no duplicar el criterio en dos sitios."""
+    return {
+        m: [a for a in acs if a == "read" or a in ACCIONES_ADICIONALES_COORDINADOR.get(m, set())]
+        for m, acs in (permisos or {}).items()
+    }
+
 
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> dict:
     auth = request.headers.get("Authorization", "")
@@ -93,8 +113,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> dict:
     user_dict = dict(user._mapping)
 
     if user_dict["rol"] in ROLES_SOLO_LECTURA_EN_ESTA_APP:
-        permisos = user_dict.get("permisos") or {}
-        user_dict["permisos"] = {m: [a for a in acs if a == "read"] for m, acs in permisos.items()}
+        user_dict["permisos"] = _clamp_permisos_solo_lectura(user_dict.get("permisos"))
 
     return user_dict
 
@@ -147,7 +166,7 @@ def login(body: dict, request: Request, db: Session = Depends(get_db)):
 
     permisos = user.permisos or {}
     if user.rol in ROLES_SOLO_LECTURA_EN_ESTA_APP:
-        permisos = {m: [a for a in acs if a == "read"] for m, acs in permisos.items()}
+        permisos = _clamp_permisos_solo_lectura(permisos)
 
     expires = datetime.now(timezone.utc) + timedelta(days=REFRESH_EXPIRE)
     db.execute(
