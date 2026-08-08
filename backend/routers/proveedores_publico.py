@@ -77,20 +77,34 @@ def conductor_frecuente(
 
 
 def _buscar_cita_hoy(db: Session, numero_orden_compra) -> dict | None:
-    """Busca la cita programada de HOY (fecha calculada en el SERVIDOR con
-    _BOG -- nunca se confía en una fecha que mande el cliente) para un número
-    de orden de compra. Es la fuente de verdad tanto del lookup público
-    (GET /citas/buscar, usado para la UX del formulario) como de
-    POST /autorregistro (que la vuelve a consultar como autoridad real de
+    """Busca la cita programada de HOY o AYER (fechas calculadas en el
+    SERVIDOR con _BOG -- nunca se confía en una fecha que mande el cliente)
+    para un número de orden de compra. Es la fuente de verdad tanto del
+    lookup público (GET /citas/buscar, usado para la UX del formulario) como
+    de POST /autorregistro (que la vuelve a consultar como autoridad real de
     seguridad): este flujo es público y sin autenticación, así que un POST
     directo sin pasar por el formulario debe ser rechazado igual que si
     hubiera pasado por el lookup. Mismo criterio de normalización que usa
     el guarda en GET /proveedores/citas/buscar (routers/proveedores.py).
 
+    Incluye también `fecha = ayer` -- mismo motivo que el filtro
+    `fecha IN (:hoy, :ayer)` de GET /citas/alertas (routers/citas.py): una
+    franja que termina tarde en la noche más la tolerancia puede seguir
+    vigente después de medianoche, y el conductor puede llegar y escanear
+    el QR ya del lado de "hoy" en el reloj. Si por algún motivo hubiera dos
+    filas candidatas para el mismo número de orden (una de hoy y otra de
+    ayer -- no debería pasar en operación normal, cada orden pertenece a un
+    único archivo/fecha del WMS), se prioriza la más reciente
+    (ORDER BY fecha DESC) por ser la recarga más nueva del archivo.
+
     NO validar proximidad horaria aquí -- decisión de negocio 2026-08-06: ni
     el conductor ni el guarda deben bloquearse por estar fuera del rango de
     hora_cita_inicio/fin. Solo se alerta (GET /proveedores/citas/alertas),
-    nunca se bloquea.
+    nunca se bloquea. Tampoco se filtra por `estado` aquí (a diferencia del
+    _validar_orden de citas-muelles-cedi-r10): si la cita ya quedó 'usada'
+    igual se devuelve el match y es el INSERT de más abajo (UNIQUE parcial
+    idx_proveedores_ordenes_cita_id_unico) el que la rechaza con un mensaje
+    de negocio claro -- ver _raise_error_insercion.
 
     Incluye `id` (citas_programadas.id) en el resultado -- POST /autorregistro
     lo usa para setear proveedores_ordenes.cita_id y así marcar que esta cita
@@ -100,15 +114,18 @@ def _buscar_cita_hoy(db: Session, numero_orden_compra) -> dict | None:
     numero = _extraer_numero_orden(numero_orden_compra)
     if not numero:
         return None
-    hoy = datetime.now(_BOG).date().isoformat()
+    ahora_dt = datetime.now(_BOG).replace(tzinfo=None)
+    hoy = ahora_dt.date()
+    ayer = hoy - timedelta(days=1)
     row = db.execute(
         text("""
             SELECT id, proveedor_nombre, hora_cita_inicio
             FROM citas_programadas
-            WHERE fecha = :fecha AND numero_orden_compra = :numero
+            WHERE fecha IN (:hoy, :ayer) AND numero_orden_compra = :numero
+            ORDER BY fecha DESC
             LIMIT 1
         """),
-        {"fecha": hoy, "numero": numero},
+        {"hoy": hoy.isoformat(), "ayer": ayer.isoformat(), "numero": numero},
     ).fetchone()
     if not row:
         return None
@@ -257,6 +274,44 @@ def autorregistro(
     try:
         db.execute(text(f"INSERT INTO proveedores ({cols}) VALUES ({placeholders})"), vals)
         _insert_ordenes(db, rid, ordenes)
+        # Fase 5.4: marca de una vez la(s) cita(s) como 'usada' en el momento
+        # del autorregistro (hasta ahora eso solo ocurría cuando el guarda
+        # confirmaba el ingreso -- PUT /proveedores/{id}/confirmar, Fase 5.3
+        # -- lo que generaba falsas alertas de "vencida"/"por vencer" en
+        # GET /citas/alertas mientras el registro seguía 'pendiente' de
+        # confirmar). Mismo patrón exacto (subquery contra
+        # proveedores_ordenes.cita_id + WHERE estado != 'usada') que usa
+        # confirmar_autorregistro en routers/proveedores.py (línea ~1085) --
+        # se deja igual a propósito para que ambos escritores de citas_programadas.estado
+        # sean idempotentes entre sí y no se pisen: si esta escritura ya la dejó
+        # en 'usada', el UPDATE de la confirmación del guarda es un no-op (y
+        # viceversa, aunque en la práctica esta siempre corre primero).
+        #
+        # No hace falta iterar `ordenes` para armar un WHERE id IN (...) con
+        # los cita_id: proveedores_ordenes ya tiene las filas recién insertadas
+        # por _insert_ordenes (misma transacción), así que el subquery las ve.
+        #
+        # La defensa real contra la carrera de dos conductores autorregistrando
+        # la MISMA orden casi al mismo tiempo no es este WHERE estado != 'usada'
+        # (que aquí solo evita un UPDATE innecesario) -- es el UNIQUE parcial
+        # idx_proveedores_ordenes_cita_id_unico sobre proveedores_ordenes.cita_id
+        # que ya viola el INSERT de _insert_ordenes de arriba: el segundo
+        # request nunca llega a ejecutar este UPDATE, revienta antes con
+        # IntegrityError y cae al `except IntegrityError` de abajo, que
+        # responde 409 con mensaje de negocio claro (_raise_error_insercion),
+        # no un 500 crudo. Ambas protecciones son complementarias, no se
+        # contradicen: una (UNIQUE) resuelve la concurrencia real a nivel de
+        # inserción; la otra (estado != 'usada') solo hace idempotente el
+        # UPDATE en cascada frente al otro escritor (el guarda).
+        db.execute(text("""
+            UPDATE citas_programadas
+            SET estado = 'usada', updated_at = NOW()
+            WHERE id IN (
+                SELECT cita_id FROM proveedores_ordenes
+                WHERE proveedor_id = :id AND cita_id IS NOT NULL
+            )
+            AND estado != 'usada'
+        """), {"id": rid})
         db.commit()
     except IntegrityError as e:
         _raise_error_insercion(db, e)
