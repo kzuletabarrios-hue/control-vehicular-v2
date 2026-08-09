@@ -773,7 +773,7 @@ function TipoCargaBadgeMini({tipo}){
   if(!tipo) return null;
   return h('span',{className:`pill-mini ${TIPO_CARGA_CLS[tipo]||'pill-slate'}`},TIPO_CARGA_ABREV[tipo]||tipo);
 }
-// Línea de tiempo de 5 pasos del ciclo de un proveedor: cita -> llegada ->
+// Línea de tiempo de 6 pasos del ciclo de un proveedor: cita -> llegada ->
 // ingreso confirmado -> salida de muelle -> salida del CEDI. Puramente
 // informativo/solo lectura -- se inserta dentro de la vista de detalle de
 // ProveedoresPage como un agregado, sin tocar el formulario editable ni sus
@@ -3870,7 +3870,7 @@ function ProveedoresPage({user,online,addOffline}){
             h('span',{className:'li-date'},fmtDate(r.fecha),
               r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida))
             ),
-            !esCoordinador&&h('div',{style:{display:'flex',gap:6,marginTop:3,alignItems:'center'}},
+            !esCoordinador&&h('div',{style:{display:'flex',gap:6,marginTop:3,alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}},
               !esBodega&&pendConf&&h('button',{
                 title:'Marcar ingreso a WPS',
                 onClick:(e)=>{e.stopPropagation();marcarWps(r.id);},
@@ -5123,7 +5123,7 @@ function RondaPage({user}){
           background:tab==='activa'?'var(--navy2)':'#e2e8f0',color:tab==='activa'?'#fff':'var(--text2)'}},
         'Ronda activa')
     ),
-    esRecorredor&&h('div',{style:{display:'flex',gap:6,alignItems:'center',padding:'8px 14px 0'}},
+    esRecorredor&&h('div',{style:{display:'flex',gap:6,alignItems:'center',padding:'8px 14px 0',flexWrap:'wrap'}},
       h('span',{style:{fontSize:11,color:'var(--slate)',fontWeight:600}},'Mi turno:'),
       h('button',{onClick:()=>elegirTurno('dia'),
         style:{padding:'4px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',
