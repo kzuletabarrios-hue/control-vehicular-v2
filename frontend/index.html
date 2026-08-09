@@ -3321,11 +3321,13 @@ function ProveedoresPage({user,online,addOffline}){
         h('button',{onClick:()=>{setView('list');setForm(emptyF);setSelected(null);setFormOrdenes([]);setAddingOrd(false);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
           h(Ico,{n:'arrowLeft',s:18}),' Volver'
         ),
-        h('div',{className:'header-brand'},h('h1',null,'Editar Proveedor'),h('span',null,'Proveedores'))
+        h('div',{className:'header-brand'},h('h1',null,esCoordinador?'Ver Proveedor':'Editar Proveedor'),h('span',null,'Proveedores'))
       )
     ),
     h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      esCoordinador&&h('p',{style:{fontSize:12,color:'var(--slate)',margin:'0 0 8px'}},'Solo lectura'),
+      h('div',{style:{pointerEvents:esCoordinador?'none':undefined}},
       h(DetalleTiempos,{registro:form}),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'truck',s:12}),' Vehículo y conductor'),
@@ -3433,10 +3435,11 @@ function ProveedoresPage({user,online,addOffline}){
             h(Ico,{n:'plus',s:14}),'Agregar orden')
         )
       )
+      )
     ),
     h('div',{className:'sticky-cta'},
       h('button',{className:'btn-cancel',onClick:()=>{setView('list');setForm(emptyF);setSelected(null);setFormOrdenes([]);setAddingOrd(false);}},h(Ico,{n:'x',s:15})),
-      h('button',{className:'btn-primary',onClick:handleSave,disabled:saving},
+      !esCoordinador&&h('button',{className:'btn-primary',onClick:handleSave,disabled:saving},
         saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),saving?'Guardando...':'Guardar registro'
       )
     )
@@ -3850,7 +3853,7 @@ function ProveedoresPage({user,online,addOffline}){
           h('div',{className:'li-icon',style:{background:pendConf?'#fef3c7':'#fde68a'}},
             h(Ico,{n:pendConf?'bell':'package',s:18,style:{color:'#d97706'}})
           ),
-          h('div',{className:'li-body',onClick:esCoordinador?undefined:()=>{
+          h('div',{className:'li-body',onClick:()=>{
             setForm({...emptyF,...r,cedula_conductor:r.cedula_conductor||'',hora_ingreso:r.hora_ingreso||'',hora_salida:r.hora_salida||''});
             setSelected(r);setFormOrdenes(r.ordenes||[]);setAddingOrd(false);setView('form');
           }},
