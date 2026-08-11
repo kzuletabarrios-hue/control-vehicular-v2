@@ -209,14 +209,16 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
    clickeable (no hay nada que mostrar en el panel de detalle para un muelle
    vacío), por eso queda como <button disabled> -- fuera del tab order y sin
    cursor de mano, pero sigue siendo perfectamente legible. */
-.muelle-celda.libre{background:#d1fae5;cursor:default}
+.muelle-celda.libre{background:var(--green);cursor:default}
+.muelle-celda.libre .muelle-celda-num{color:#fff}
 /* Ocupado: mismo cian que el pill "Ocupado" de antes. Sí es interactiva. */
 .muelle-celda.ocupado{background:#cffafe;cursor:pointer}
-/* Ámbar = tiempo de ocupación excedido (>=2 horas), igual que antes en
+/* Rojo = tiempo de ocupación excedido (>=2 horas), igual que antes en
    .muelle-card.alerta. Es la señal más urgente del tablero, por eso pisa al
    color de "ocupado" en vez de combinarse con él, y por lo mismo el punto de
-   discordancia (ver .muelle-celda-dot) nunca usa este mismo tono ámbar. */
-.muelle-celda.alerta{border-color:#fbbf24;background:#fffbeb;cursor:pointer}
+   discordancia (ver .muelle-celda-dot) nunca usa este mismo tono. */
+.muelle-celda.alerta{border-color:var(--red);background:var(--red);cursor:pointer}
+.muelle-celda.alerta .muelle-celda-num{color:#fff}
 .muelle-celda.ocupado:hover,.muelle-celda.alerta:hover{filter:brightness(0.97)}
 .muelle-celda.selected{border-color:var(--navy2);box-shadow:0 0 0 2px var(--navy2) inset}
 .muelle-celda:disabled{opacity:1}
@@ -241,9 +243,9 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 .muelle-leyenda{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px}
 .muelle-leyenda-item{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;color:var(--text2)}
 .muelle-leyenda-swatch{width:10px;height:10px;border-radius:3px;flex-shrink:0;border:1.5px solid transparent}
-.muelle-leyenda-swatch.libre{background:#d1fae5}
+.muelle-leyenda-swatch.libre{background:var(--green)}
 .muelle-leyenda-swatch.ocupado{background:#cffafe}
-.muelle-leyenda-swatch.alerta{background:#fffbeb;border-color:#fbbf24}
+.muelle-leyenda-swatch.alerta{background:var(--red);border-color:var(--red)}
 .muelle-leyenda-dot{width:6px;height:6px;border-radius:50%;background:#1d4ed8;flex-shrink:0}
 
 /* ── SECTION TITLE ── */
@@ -5884,11 +5886,11 @@ function MuelleDetallePanel({muelle:m, onCerrar}){
     m.empresas&&h('p',{style:{fontSize:11,color:'#0e7490',fontWeight:600,marginTop:3}},m.empresas),
     m.tipo_carga&&h('div',{style:{marginTop:6}},h(TipoCargaBadge,{tipo:m.tipo_carga})),
     h('div',{style:{display:'flex',alignItems:'center',flexWrap:'wrap',gap:6,marginTop:8}},
-      h('span',{style:{display:'inline-flex',alignItems:'center',gap:4,color:m.alerta_tiempo?'#b45309':'var(--text2)'}},
+      h('span',{style:{display:'inline-flex',alignItems:'center',gap:4,color:m.alerta_tiempo?'var(--red)':'var(--text2)'}},
         h(Ico,{n:'clock',s:12}),
         h('span',{style:{fontSize:11,fontWeight:700}},m.minutos_ocupado!=null?`${m.minutos_ocupado} min ocupado`:'—')
       ),
-      m.alerta_tiempo&&h('span',{className:'pill pill-amber'},'Tiempo excedido')
+      m.alerta_tiempo&&h('span',{className:'pill pill-red'},'Tiempo excedido')
     ),
     discordancia&&h('div',{className:'muelle-discordancia'},
       h(Ico,{n:'alert',s:12}),
