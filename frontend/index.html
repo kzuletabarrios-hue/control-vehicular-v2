@@ -5878,13 +5878,10 @@ function MuelleCelda({muelle:m, seleccionado, onSeleccionar}){
 // la celda de 56-64px no tiene espacio para esa información. Un solo muelle
 // seleccionado a la vez; se cierra con el botón X o tocando la misma celda.
 // Línea de tiempo del vehículo que ocupa el muelle -- mismo patrón que
-// DetalleTiempos en Proveedores (LineaTiempoPasos, línea ~778), pero con el
-// subconjunto de pasos que aplica aquí: SÍ incluye "Cita" (útil para ver si
-// llegó a tiempo), pero NO incluye "Salida" (hora_salida) porque el
-// vehículo sigue dentro del CEDI mientras aparece en este tablero -- ese
-// paso todavía no aplica. Suma el paso "Llegada al muelle"
-// (hora_muelle_asignado) que no existe en Proveedores, porque ahí el
-// vehículo normalmente aún no tiene muelle asignado.
+// DetalleTiempos en Proveedores (LineaTiempoPasos, línea ~778), con el
+// mismo subconjunto de pasos salvo que NO incluye "Salida" (hora_salida)
+// porque el vehículo sigue dentro del CEDI mientras aparece en este
+// tablero -- ese paso todavía no aplica.
 // No se usa .fcard (a diferencia de DetalleTiempos) porque este bloque ya
 // vive dentro de .muelle-detalle, que es una tarjeta en sí misma -- envolver
 // con otra tarjeta anidada duplicaría fondo/sombra/borde sin necesidad.
@@ -5894,7 +5891,6 @@ function MuelleLineaTiempo({muelle:m}){
     {icon:'qrCode',      titulo:'Llegada/portería',  hora:hhmmT(m.hora_ingreso),            desc:'Autorregistro por QR en portería'},
     {icon:'upload',      titulo:'Ingresado a WPS',   hora:hhmmT(m.hora_wps),                desc:'Registrado en el sistema WPS'},
     {icon:'checkCircle', titulo:'Ingreso confirmado',hora:hhmmT(m.hora_ingreso_confirmado), desc:'Confirmado por el guarda vehicular'},
-    {icon:'mapPin',      titulo:'Llegada al muelle', hora:hhmmT(m.hora_muelle_asignado),    desc:`Asignado — Muelle ${m.numero}`},
     {icon:'truck',       titulo:'Salida de muelle',  hora:hhmmT(m.hora_muelle_liberado),    desc:'Liberado por el guarda de bodega'},
   ];
   return h(React.Fragment,null,

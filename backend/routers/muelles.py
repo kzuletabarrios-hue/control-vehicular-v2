@@ -119,25 +119,22 @@ def tablero(
     # si un vehículo está o no en muelle.
     #
     # Columnas adicionales (hora_cita, hora_wps, hora_ingreso_confirmado,
-    # hora_muelle_asignado, hora_muelle_liberado, muelle_numero): línea de
-    # tiempo completa que consume el frontend (mismo patrón que
-    # DetalleTiempos en Proveedores, frontend ~línea 784-793), agregado
-    # junto con la migración 2026-08-11_proveedores_hora_muelle_asignado_column.sql.
-    # Se leen con nombres explícitos (no SELECT p.*) para que este SELECT
-    # siga funcionando igual ANTES y DESPUÉS de que esa migración se
-    # aplique: hora_muelle_asignado puede no existir todavía en producción.
+    # hora_muelle_liberado, muelle_numero): línea de tiempo completa que
+    # consume el frontend (mismo patrón que DetalleTiempos en Proveedores,
+    # frontend ~línea 784-793). Se leen con nombres explícitos (no SELECT
+    # p.*) para no arrastrar columnas que el panel no necesita.
     rows = db.execute(text("""
         SELECT p.id, p.placa_vehiculo, p.nombre_conductor, p.muelle_descargue,
                p.hora_ingreso, p.tipo_carga,
                p.hora_cita, p.hora_wps, p.hora_ingreso_confirmado,
-               p.hora_muelle_asignado, p.hora_muelle_liberado, p.muelle_numero,
+               p.hora_muelle_liberado, p.muelle_numero,
                string_agg(DISTINCT po.empresa, ', ') AS empresas
         FROM proveedores p
         LEFT JOIN proveedores_ordenes po ON po.proveedor_id = p.id
         WHERE p.estado_confirmacion = 'confirmado' AND p.hora_salida IS NULL
         GROUP BY p.id, p.placa_vehiculo, p.nombre_conductor, p.muelle_descargue,
                  p.hora_ingreso, p.tipo_carga, p.hora_cita, p.hora_wps,
-                 p.hora_ingreso_confirmado, p.hora_muelle_asignado,
+                 p.hora_ingreso_confirmado,
                  p.hora_muelle_liberado, p.muelle_numero
         ORDER BY p.hora_ingreso ASC
     """)).fetchall()
@@ -170,10 +167,11 @@ def tablero(
             "empresas": None,
             "tipo_carga": None,
             # Línea de tiempo completa (mismo orden que DetalleTiempos en
-            # Proveedores, frontend ~línea 784-793, más el paso "Llegada al
-            # muelle" que faltaba ahí): cita, WPS, ingreso confirmado,
-            # llegada al muelle, salida de muelle. hora_ingreso ya viaja
-            # arriba (placa_vehiculo, etc. van sueltos por compat).
+            # Proveedores, frontend ~línea 784-793): cita, WPS, ingreso
+            # confirmado, salida de muelle. hora_ingreso ya viaja arriba
+            # (placa_vehiculo, etc. van sueltos por compat). No se incluye
+            # "Llegada al muelle" como paso propio: en la operación real no
+            # se captura como evento distinto de "ingreso confirmado".
             "hora_cita": None,
             # hora_ingreso: ya se leía en el SELECT de arriba pero no viajaba
             # en el payload -- lo necesita la línea de tiempo del panel de
@@ -182,7 +180,6 @@ def tablero(
             "hora_ingreso": None,
             "hora_wps": None,
             "hora_ingreso_confirmado": None,
-            "hora_muelle_asignado": None,
             "hora_muelle_liberado": None,
             "muelle_numero": None,
             "minutos_ocupado": None,
@@ -197,19 +194,20 @@ def tablero(
             item["hora_ingreso"] = r.hora_ingreso
             item["hora_wps"] = r.hora_wps
             item["hora_ingreso_confirmado"] = r.hora_ingreso_confirmado
-            item["hora_muelle_asignado"] = r.hora_muelle_asignado
             item["hora_muelle_liberado"] = r.hora_muelle_liberado
             item["muelle_numero"] = r.muelle_numero
-            # Base del cálculo de "tiempo excedido": llegada REAL al muelle
-            # (hora_muelle_asignado, migración 2026-08-11) en vez de la
-            # llegada a portería (hora_ingreso). Fallback a hora_ingreso
-            # para vehículos legacy / filas que la migración de backfill no
-            # alcanzó a poblar (columna NULL) -- mismo comportamiento que
-            # tenía el panel antes de este cambio. Resuelto en Python (no
-            # COALESCE en SQL) porque el ajuste de "cruce de medianoche" de
-            # abajo ya vive aquí y aplica igual a cualquiera de las dos
-            # columnas (ambas son TIME sin fecha).
-            base_hora = r.hora_muelle_asignado or r.hora_ingreso
+            # Base del cálculo de "tiempo excedido": el momento en que el
+            # guarda vehicular confirma el ingreso (hora_ingreso_confirmado),
+            # no la llegada a portería (hora_ingreso) ni una asignación de
+            # muelle -- en la operación real no hay un evento distinto que
+            # marque "llegada al muelle". Fallback a hora_ingreso como red de
+            # seguridad para filas legacy; en la práctica todo registro con
+            # estado_confirmacion = 'confirmado' (único filtro del SELECT de
+            # arriba) debería traer hora_ingreso_confirmado poblada. Resuelto
+            # en Python (no COALESCE en SQL) porque el ajuste de "cruce de
+            # medianoche" de abajo ya vive aquí y aplica igual a cualquiera
+            # de las dos columnas (ambas son TIME sin fecha).
+            base_hora = r.hora_ingreso_confirmado or r.hora_ingreso
             if base_hora is not None:
                 # TIME sin fecha -- se combina con la fecha de hoy en zona
                 # Bogotá para calcular el tiempo transcurrido.
