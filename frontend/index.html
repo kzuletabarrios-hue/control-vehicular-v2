@@ -775,6 +775,42 @@ function TipoCargaBadgeMini({tipo}){
   if(!tipo) return null;
   return h('span',{className:`pill-mini ${TIPO_CARGA_CLS[tipo]||'pill-slate'}`},TIPO_CARGA_ABREV[tipo]||tipo);
 }
+// Formatea un campo TIME ("HH:MM:SS" o "HH:MM") a "HH:MM" para mostrar en
+// cualquier línea de tiempo de la app. Compartido por DetalleTiempos
+// (Proveedores) y MuelleDetallePanel (Muelles) -- un solo lugar para no
+// duplicar el criterio de formato.
+const hhmmT = t => t ? String(t).slice(0,5) : null;
+// Render de los "pasos" de una línea de tiempo (círculo+icono, conector
+// vertical, título/hora/desc). Extraído de DetalleTiempos para que
+// MuelleDetallePanel pueda mostrar su propio subconjunto de pasos (incluye
+// "Llegada al muelle", que Proveedores no tiene; no incluye "Salida", que no
+// aplica ahí) sin duplicar el marcado. `pasos`: [{icon,titulo,hora,desc}].
+function LineaTiempoPasos({pasos}){
+  return h('div',{style:{display:'flex',flexDirection:'column'}},
+    pasos.map((p,i)=>{
+      const hecho = !!p.hora;
+      const esUltimo = i===pasos.length-1;
+      return h('div',{key:p.titulo,style:{display:'flex',gap:10}},
+        h('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0}},
+          h('div',{style:{
+            width:26,height:26,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,
+            background:hecho?'#d1fae5':'#f1f5f9',
+            border:'1.5px solid '+(hecho?'var(--green)':'var(--border)'),
+            color:hecho?'var(--green)':'var(--slate)'
+          }},h(Ico,{n:p.icon,s:13})),
+          !esUltimo&&h('div',{style:{width:2,flex:1,minHeight:18,background:hecho?'var(--green)':'var(--border)',margin:'2px 0'}})
+        ),
+        h('div',{style:{flex:1,paddingBottom:esUltimo?0:14,minWidth:0}},
+          h('div',{style:{display:'flex',alignItems:'baseline',justifyContent:'space-between',gap:8,flexWrap:'wrap'}},
+            h('span',{style:{fontWeight:700,fontSize:12.5,color:hecho?'var(--text)':'var(--slate)'}},p.titulo),
+            h('span',{className:'pill '+(hecho?'pill-green':'pill-slate'),style:{fontWeight:700}},p.hora||'—')
+          ),
+          h('p',{style:{fontSize:11,color:'var(--slate)',marginTop:2}},p.desc)
+        )
+      );
+    })
+  );
+}
 // Línea de tiempo de 6 pasos del ciclo de un proveedor: cita -> llegada ->
 // ingreso confirmado -> salida de muelle -> salida del CEDI. Puramente
 // informativo/solo lectura -- se inserta dentro de la vista de detalle de
@@ -783,7 +819,6 @@ function TipoCargaBadgeMini({tipo}){
 // establecidas en la hoja de estilos (nada de paleta nueva).
 function DetalleTiempos({registro}){
   const r = registro||{};
-  const hhmmT = t => t ? String(t).slice(0,5) : null;
   const pasos = [
     {icon:'calendar',    titulo:'Cita',              hora:hhmmT(r.hora_cita),               desc:'Hora que digitó el conductor'},
     {icon:'qrCode',      titulo:'Llegada',            hora:hhmmT(r.hora_ingreso),            desc:'Autorregistro por QR en portería'},
@@ -794,30 +829,7 @@ function DetalleTiempos({registro}){
   ];
   return h('div',{className:'fcard'},
     h('p',{className:'sec-ttl'},h(Ico,{n:'clock',s:12}),' Línea de tiempo'),
-    h('div',{style:{display:'flex',flexDirection:'column'}},
-      pasos.map((p,i)=>{
-        const hecho = !!p.hora;
-        const esUltimo = i===pasos.length-1;
-        return h('div',{key:p.titulo,style:{display:'flex',gap:10}},
-          h('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0}},
-            h('div',{style:{
-              width:26,height:26,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,
-              background:hecho?'#d1fae5':'#f1f5f9',
-              border:'1.5px solid '+(hecho?'var(--green)':'var(--border)'),
-              color:hecho?'var(--green)':'var(--slate)'
-            }},h(Ico,{n:p.icon,s:13})),
-            !esUltimo&&h('div',{style:{width:2,flex:1,minHeight:18,background:hecho?'var(--green)':'var(--border)',margin:'2px 0'}})
-          ),
-          h('div',{style:{flex:1,paddingBottom:esUltimo?0:14,minWidth:0}},
-            h('div',{style:{display:'flex',alignItems:'baseline',justifyContent:'space-between',gap:8,flexWrap:'wrap'}},
-              h('span',{style:{fontWeight:700,fontSize:12.5,color:hecho?'var(--text)':'var(--slate)'}},p.titulo),
-              h('span',{className:'pill '+(hecho?'pill-green':'pill-slate'),style:{fontWeight:700}},p.hora||'—')
-            ),
-            h('p',{style:{fontSize:11,color:'var(--slate)',marginTop:2}},p.desc)
-          )
-        );
-      })
-    )
+    h(LineaTiempoPasos,{pasos})
   );
 }
 function LoadingDots(){ return h('div',{className:'loading-dots'},h('span'),h('span'),h('span')); }
@@ -5865,6 +5877,31 @@ function MuelleCelda({muelle:m, seleccionado, onSeleccionar}){
 // -- lo que antes mostraba cada card, ahora aparece solo bajo demanda porque
 // la celda de 56-64px no tiene espacio para esa información. Un solo muelle
 // seleccionado a la vez; se cierra con el botón X o tocando la misma celda.
+// Línea de tiempo del vehículo que ocupa el muelle -- mismo patrón que
+// DetalleTiempos en Proveedores (LineaTiempoPasos, línea ~778), pero con el
+// subconjunto de pasos que aplica aquí: SÍ incluye "Cita" (útil para ver si
+// llegó a tiempo), pero NO incluye "Salida" (hora_salida) porque el
+// vehículo sigue dentro del CEDI mientras aparece en este tablero -- ese
+// paso todavía no aplica. Suma el paso "Llegada al muelle"
+// (hora_muelle_asignado) que no existe en Proveedores, porque ahí el
+// vehículo normalmente aún no tiene muelle asignado.
+// No se usa .fcard (a diferencia de DetalleTiempos) porque este bloque ya
+// vive dentro de .muelle-detalle, que es una tarjeta en sí misma -- envolver
+// con otra tarjeta anidada duplicaría fondo/sombra/borde sin necesidad.
+function MuelleLineaTiempo({muelle:m}){
+  const pasos = [
+    {icon:'calendar',    titulo:'Cita',              hora:hhmmT(m.hora_cita),               desc:'Hora que digitó el conductor'},
+    {icon:'qrCode',      titulo:'Llegada/portería',  hora:hhmmT(m.hora_ingreso),            desc:'Autorregistro por QR en portería'},
+    {icon:'upload',      titulo:'Ingresado a WPS',   hora:hhmmT(m.hora_wps),                desc:'Registrado en el sistema WPS'},
+    {icon:'checkCircle', titulo:'Ingreso confirmado',hora:hhmmT(m.hora_ingreso_confirmado), desc:'Confirmado por el guarda vehicular'},
+    {icon:'mapPin',      titulo:'Llegada al muelle', hora:hhmmT(m.hora_muelle_asignado),    desc:`Asignado — Muelle ${m.numero}`},
+    {icon:'truck',       titulo:'Salida de muelle',  hora:hhmmT(m.hora_muelle_liberado),    desc:'Liberado por el guarda de bodega'},
+  ];
+  return h(React.Fragment,null,
+    h('p',{className:'sec-ttl'},h(Ico,{n:'clock',s:12}),' Línea de tiempo'),
+    h(LineaTiempoPasos,{pasos})
+  );
+}
 function MuelleDetallePanel({muelle:m, onCerrar}){
   const discordancia = m.tipo_carga_habitual && m.tipo_carga && m.tipo_carga_habitual!==m.tipo_carga;
   return h('div',{className:'muelle-detalle'},
@@ -5895,7 +5932,8 @@ function MuelleDetallePanel({muelle:m, onCerrar}){
     discordancia&&h('div',{className:'muelle-discordancia'},
       h(Ico,{n:'alert',s:12}),
       h('span',null,'Carga distinta a la habitual de este muelle')
-    )
+    ),
+    h(MuelleLineaTiempo,{muelle:m})
   );
 }
 

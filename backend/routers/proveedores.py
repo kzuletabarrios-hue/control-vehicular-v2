@@ -937,6 +937,14 @@ def crear(
     # sin hora_ingreso_confirmado hasta que se pulse "Confirmar" (endpoint
     # /proveedores/{id}/confirmar-ingreso), que es el único que la puebla.
     vals["estado_confirmacion"] = "pendiente"
+    # Si el guarda ya conoce el muelle al momento de crear el registro
+    # (campo "opcional" del formulario, frontend ~línea 3632), se estampa
+    # hora_muelle_asignado en el mismo INSERT -- no hay "valor anterior"
+    # que comparar porque el registro nace ahora (ver migración
+    # 2026-08-11_proveedores_hora_muelle_asignado_column.sql). Mismo
+    # criterio de "no vacío" que en PUT /{id} (ver actualizar()).
+    if str(vals.get("muelle_descargue") or "").strip():
+        vals["hora_muelle_asignado"] = datetime.now(_BOG).strftime("%H:%M:%S")
     cols = ", ".join(vals.keys())
     placeholders = ", ".join(f":{k}" for k in vals.keys())
     try:
@@ -1028,12 +1036,32 @@ def actualizar(
     db: Session = Depends(get_db),
     _: dict = Depends(require_permiso("proveedores", "write")),
 ):
-    if not db.execute(text("SELECT 1 FROM proveedores WHERE id = :id"), {"id": id}).fetchone():
+    # SELECT previo (mismo patrón que liberar_muelle, líneas ~1171-1174) para
+    # poder comparar el muelle_descargue ANTERIOR contra el que trae este PUT
+    # -- necesario para decidir si hay que estampar hora_muelle_asignado.
+    row = db.execute(
+        text("SELECT muelle_descargue FROM proveedores WHERE id = :id"), {"id": id}
+    ).fetchone()
+    if not row:
         raise HTTPException(404, "Registro no encontrado")
     vals = {c: body[c] for c in CAMPOS_VEHICULO if c in body}
     if not vals:
         raise HTTPException(400, "Sin campos para actualizar")
     vals["id"] = id
+
+    # Estampado automático de hora_muelle_asignado (migración
+    # 2026-08-11_proveedores_hora_muelle_asignado_column.sql): solo la
+    # PRIMERA vez que muelle_descargue pasa de vacío/NULL a un valor real.
+    # Si "muelle_descargue" no viene en este PUT, no se toca la columna.
+    # Si ya tenía un valor anterior (ej. se corrige un typo de "7" a "9" sin
+    # pasar por /liberar-muelle), NO se re-estampa: el cronómetro del panel
+    # de Muelles debe seguir corriendo desde la primera asignación real.
+    if "muelle_descargue" in vals:
+        nuevo = str(vals["muelle_descargue"] or "").strip()
+        anterior = str(row.muelle_descargue or "").strip()
+        if nuevo and not anterior:
+            vals["hora_muelle_asignado"] = datetime.now(_BOG).strftime("%H:%M:%S")
+
     sets = ", ".join(f"{c} = :{c}" for c in vals if c != "id")
     try:
         db.execute(text(f"UPDATE proveedores SET {sets}, updated_at = NOW() WHERE id = :id"), vals)

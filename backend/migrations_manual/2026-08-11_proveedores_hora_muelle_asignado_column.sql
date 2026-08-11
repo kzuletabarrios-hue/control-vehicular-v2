@@ -1,0 +1,141 @@
+-- ================================================================
+-- Agrega `proveedores.hora_muelle_asignado`: momento real de llegada
+-- del vehículo al muelle (distinto de `hora_ingreso`, que es la llegada
+-- a la caseta del guarda/portería). El panel de Muelles
+-- (backend/routers/muelles.py, endpoint GET /muelles ~líneas 112-181)
+-- hoy calcula "minutos_ocupado"/"alerta_tiempo" (umbral ALERTA_MUELLE_MIN
+-- = 120 min) desde `p.hora_ingreso`, lo cual sobreestima el tiempo real
+-- en muelle en todo el tramo caseta→muelle. Decisión de Alejandro: nueva
+-- columna real para capturar la hora exacta de asignación al muelle, con
+-- fallback en runtime a `hora_ingreso` cuando sea NULL (lo implementa
+-- María en muelles.py).
+--
+-- Contexto confirmado por Jorge el 2026-08-08 (ver
+-- 2026-08-08_proveedores_muelle_liberado_columns.sql): `muelle_eventos` /
+-- `muelles.hora_asignado` están vacías y sin uso operativo real.
+-- `proveedores.muelle_descargue` (texto libre, diligenciado por los
+-- guardas) sigue siendo la única fuente viva de "quién está en qué
+-- muelle" -- este ALTER no cambia esa fuente, solo agrega el timestamp
+-- que falta para medir el tiempo desde la llegada real al muelle.
+--
+-- Estado real verificado en producción (Supabase) el 2026-08-11 por
+-- Jorge, lectura directa contra information_schema/proveedores/
+-- muelle_eventos ANTES de escribir este script (no se asume nada):
+--
+--   information_schema.columns: proveedores NO tiene columna
+--     `hora_muelle_asignado` (0 filas de resultado). Columnas hora_*
+--     existentes confirmadas, TODAS `time without time zone`, nullable,
+--     sin default: hora_cita, hora_ingreso, hora_ingreso_confirmado,
+--     hora_muelle_liberado, hora_salida, hora_wps. `muelle_numero` y
+--     `hora_muelle_liberado` (agregadas 2026-08-08) también presentes,
+--     mismo tipo/nullable/sin default -- confirma que esta tabla sigue
+--     el patrón consistente que se replica aquí.
+--   muelle_eventos: 0 filas (sigue vacía).
+--   proveedores: 1839 filas totales; 1751 con muelle_descargue no vacío
+--     (candidatas al backfill de abajo); de esas 1751, 0 tienen
+--     hora_ingreso NULL -- ninguna fila candidata queda sin valor de
+--     origen para el backfill.
+--
+--   IMPORTANTE -- colisión de nombre detectada (no bloquea el ALTER,
+--   pero SÍ requiere ajuste de código para que el dato llegue al
+--   frontend, igual que pasó con muelle_numero/hora_muelle_liberado en
+--   2026-08-08): tanto backend/routers/proveedores.py (_attach_muelle,
+--   línea ~145) como su gemelo en la app hermana
+--   C:\citas-muelles-cedi-r10\backend\routers\proveedores.py (línea
+--   ~131) ya devuelven una clave "hora_muelle_asignado" en el JSON de
+--   respuesta, pero HOY es un alias calculado desde el JOIN
+--   muelle_eventos/muelles (siempre None, porque muelle_eventos está
+--   vacía), NO la nueva columna real. Peor aún: a diferencia de
+--   muelle_numero/hora_muelle_liberado (que en proveedores.py líneas
+--   162-163 SÍ dan prioridad a la columna real con el patrón
+--   `item.get(...) or (info.campo if info else None)`), la línea 161 de
+--   _attach_muelle sigue con asignación incondicional:
+--     item["hora_muelle_asignado"] = info.hora_muelle_asignado if info else None
+--   Esto SOBREESCRIBE cualquier valor que la nueva columna real hubiera
+--   traído vía `SELECT p.*`, dejándolo siempre en None en cualquier
+--   endpoint que pase por _attach_muelle. El endpoint que sí importa
+--   para esta funcionalidad (GET /muelles en muelles.py) NO pasa por
+--   _attach_muelle -- hace su propio SELECT directo contra proveedores
+--   -- así que el panel de Muelles no se ve afectado por este bug
+--   existente. Pero si más adelante alguien expone hora_muelle_asignado
+--   a través del listado general de proveedores, se llevará la misma
+--   sorpresa que ya se documentó para los otros dos campos. Se deja
+--   registrado aquí para que María lo tenga en cuenta si toca ese
+--   código.
+--
+-- Backfill (con datos, a diferencia de la migración de 2026-08-08):
+--   UPDATE proveedores SET hora_muelle_asignado = hora_ingreso
+--   WHERE muelle_descargue IS NOT NULL AND btrim(muelle_descargue) <> ''
+--     AND hora_muelle_asignado IS NULL;
+--   Motivo: hay vehículos ocupando un muelle HOY (muelle_descargue
+--   diligenciado, sin liberar) cuya alerta de 2h ya está corriendo desde
+--   hora_ingreso en el panel actual. Si esta columna naciera NULL para
+--   esas filas, el fallback en runtime (COALESCE a hora_ingreso, según
+--   diseño de Alejandro) terminaría produciendo el MISMO valor que hoy
+--   -- así que backfillear a hora_ingreso no cambia el comportamiento
+--   percibido para esos casos existentes, solo lo hace explícito en la
+--   columna en vez de depender del fallback. Las filas SIN
+--   muelle_descargue (vehículo no está en muelle) quedan NULL: no hay
+--   evento de "llegó al muelle" que backfillear, y no deben disparar
+--   ninguna alerta de muelle. De ahora en adelante, cada asignación
+--   nueva a muelle poblará esta columna vía el código que escriba
+--   María (mismo patrón que hora_muelle_liberado: Python estampa
+--   datetime.now(_BOG).strftime("%H:%M:%S") antes del UPDATE).
+--
+-- Tipo de dato: TIME WITHOUT TIME ZONE, nullable, sin default -- mismo
+-- patrón exacto que hora_muelle_liberado (2026-08-08) y el resto de
+-- columnas hora_* de esta tabla. Se estampará en Python con
+-- datetime.now(_BOG).strftime("%H:%M:%S"), NO timestamptz, por
+-- consistencia con hhmmT en el frontend (que espera un string
+-- "HH:MM:SS", no timestamp con fecha/zona).
+--
+-- Riesgo: BAJO. 1 columna nueva, nullable, sin default, sin CHECK, sin
+-- FK, sin tocar ninguna columna/constraint existente -- no puede romper
+-- ningún INSERT/UPDATE/SELECT que ya corre en producción en ninguna de
+-- las dos apps (`SELECT *`/`SELECT p.*` simplemente traerán 1 columna
+-- adicional en el dict; ver nota de colisión de nombre arriba sobre por
+-- qué esa columna adicional no se ve todavía en el JSON de
+-- _attach_muelle). El UPDATE de backfill toca ~1751 filas (95.2% de la
+-- tabla), pero solo escribe un valor ya derivable 1:1 desde una columna
+-- existente (hora_ingreso) en filas donde hoy ya vale lo mismo en la
+-- práctica (ver justificación arriba) -- no altera ningún otro campo ni
+-- introduce inconsistencia con datos que ya existían. Idempotente
+-- (ADD COLUMN IF NOT EXISTS + UPDATE con condición WHERE ... IS NULL):
+-- segura de re-ejecutar sin duplicar efectos. No requiere downtime ni
+-- bloqueo de tabla relevante en Postgres moderno (ADD COLUMN nullable
+-- sin default es solo catálogo; el UPDATE subsiguiente es una escritura
+-- normal, sin reescritura de tabla por cambio de tipo).
+--
+-- Queda pendiente de aplicar hasta que Karen confirme -- según las
+-- reglas del equipo, cualquier cambio de esquema en producción se
+-- reporta explícitamente antes de ejecutarse, aunque el riesgo sea
+-- bajo.
+--
+-- Fecha: 2026-08-11
+-- ================================================================
+
+ALTER TABLE proveedores
+  ADD COLUMN IF NOT EXISTS hora_muelle_asignado TIME WITHOUT TIME ZONE;
+
+UPDATE proveedores
+SET hora_muelle_asignado = hora_ingreso
+WHERE muelle_descargue IS NOT NULL
+  AND btrim(muelle_descargue) <> ''
+  AND hora_muelle_asignado IS NULL;
+
+INSERT INTO schema_migrations (filename)
+VALUES ('2026-08-11_proveedores_hora_muelle_asignado_column.sql')
+ON CONFLICT (filename) DO NOTHING;
+
+-- ── VERIFICACIÓN (informativo, no modifica datos) ───────────────
+-- SELECT column_name, data_type, is_nullable, column_default
+-- FROM information_schema.columns
+-- WHERE table_name = 'proveedores' AND column_name = 'hora_muelle_asignado';
+--
+-- SELECT count(*) AS total,
+--        count(*) FILTER (WHERE hora_muelle_asignado IS NOT NULL) AS con_valor,
+--        count(*) FILTER (
+--          WHERE (muelle_descargue IS NOT NULL AND btrim(muelle_descargue) <> '')
+--            AND hora_muelle_asignado IS DISTINCT FROM hora_ingreso
+--        ) AS backfill_inconsistente  -- debe dar 0
+-- FROM proveedores;
