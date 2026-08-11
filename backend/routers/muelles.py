@@ -123,19 +123,46 @@ def tablero(
     # consume el frontend (mismo patrón que DetalleTiempos en Proveedores,
     # frontend ~línea 784-793). Se leen con nombres explícitos (no SELECT
     # p.*) para no arrastrar columnas que el panel no necesita.
+    # "empresas" se arma en dos niveles (pedido de Karen: mostrar la OC junto
+    # a la empresa, solo en este tablero -- Proveedores y Dashboard no se
+    # tocan). numero_orden_compra es texto libre digitado por el guarda sin
+    # CHECK ni UNIQUE: un mismo proveedor puede tener varias filas de la
+    # misma empresa, unas con OC y otras sin ella (olvido de digitación). Si
+    # se concatenara "empresa (OC ...)" fila por fila y se aplicara DISTINCT
+    # sobre ese string ya armado, una fila sin OC generaría una entrada
+    # fantasma duplicada para una empresa que ya tiene OC en otra fila
+    # ("ACME (OC 123), ACME"). Por eso se agrupa primero por empresa (sub-
+    # consulta correlacionada a p.id) armando ahí las OCs distintas y no
+    # nulas/vacías de esa empresa, y solo en el nivel externo se unen las
+    # empresas entre sí. Empresa sin ninguna OC capturada -> se muestra solo
+    # el nombre, sin paréntesis (igual que antes). Reemplaza el LEFT JOIN
+    # proveedores_ordenes anterior (solo se usaba para esta columna), lo que
+    # también simplifica el GROUP BY de p.* a nada.
     rows = db.execute(text("""
         SELECT p.id, p.placa_vehiculo, p.nombre_conductor, p.muelle_descargue,
                p.hora_ingreso, p.tipo_carga,
                p.hora_cita, p.hora_wps, p.hora_ingreso_confirmado,
                p.hora_muelle_liberado, p.muelle_numero,
-               string_agg(DISTINCT po.empresa, ', ') AS empresas
+               (
+                   SELECT string_agg(
+                       CASE WHEN emp.ocs IS NULL THEN emp.empresa
+                            ELSE emp.empresa || ' (' || emp.ocs || ')'
+                       END,
+                       ', ' ORDER BY emp.empresa
+                   )
+                   FROM (
+                       SELECT po.empresa,
+                              string_agg(
+                                  DISTINCT 'OC ' || NULLIF(po.numero_orden_compra, ''),
+                                  ', ' ORDER BY 'OC ' || NULLIF(po.numero_orden_compra, '')
+                              ) AS ocs
+                       FROM proveedores_ordenes po
+                       WHERE po.proveedor_id = p.id
+                       GROUP BY po.empresa
+                   ) emp
+               ) AS empresas
         FROM proveedores p
-        LEFT JOIN proveedores_ordenes po ON po.proveedor_id = p.id
         WHERE p.estado_confirmacion = 'confirmado' AND p.hora_salida IS NULL
-        GROUP BY p.id, p.placa_vehiculo, p.nombre_conductor, p.muelle_descargue,
-                 p.hora_ingreso, p.tipo_carga, p.hora_cita, p.hora_wps,
-                 p.hora_ingreso_confirmado,
-                 p.hora_muelle_liberado, p.muelle_numero
         ORDER BY p.hora_ingreso ASC
     """)).fetchall()
 
