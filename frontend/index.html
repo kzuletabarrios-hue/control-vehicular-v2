@@ -1186,8 +1186,8 @@ function HomePage({setPage,user}){
     {id:'flota', label:'Flota Propia',     desc:'Salidas de vehículos',   cls:'m-flota',icon:'truck',    roles:['admin','supervisor','operador','guarda_bodega','guarda_vehicular','coordinador'],cnt:resumen?.flota?.hoy},
     {id:'prov',  label:'Proveedores',desc:'Vehículos terceros',     cls:'m-prov', icon:'package',  roles:['admin','supervisor','operador','guarda_vehicular','guarda_bodega','coordinador'],cnt:resumen?.proveedores?.hoy},
     {id:'visitavh',label:'Visita Vehicular',desc:'Visitas puntuales en vehículo', cls:'m-visitavh', icon:'truck', roles:['admin','supervisor','operador','guarda_bodega','guarda_vehicular'],cnt:resumen?.visita_vehicular?.hoy},
-    {id:'acceso',label:'Control Acceso',   desc:'Entrada/salida personal',cls:'m-acc',  icon:'userCheck',roles:['admin','supervisor','operador','guarda_peatonal'],  cnt:resumen?.control_acceso?.hoy},
-    {id:'visit', label:'Visitantes',       desc:'Registro de visitas',    cls:'m-vis',  icon:'users',    roles:['admin','supervisor','operador','guarda_peatonal','guarda_vehicular'],  cnt:resumen?.visitantes?.hoy},
+    {id:'acceso',label:'Control Acceso',   desc:'Entrada/salida personal',cls:'m-acc',  icon:'userCheck',roles:['admin','supervisor','operador','guarda_peatonal','coordinador'],  cnt:resumen?.control_acceso?.hoy},
+    {id:'visit', label:'Visitantes',       desc:'Registro de visitas',    cls:'m-vis',  icon:'users',    roles:['admin','supervisor','operador','guarda_peatonal','guarda_vehicular','coordinador'],  cnt:resumen?.visitantes?.hoy},
     {id:'sust',  label:'Sustancias',        desc:'Control de sustancias',  cls:'m-sust', icon:'alert',    roles:['admin','supervisor','operador','guarda_peatonal'],cnt:null},
     {id:'herr',  label:'Herramientas',     desc:'Control de herramientas',cls:'m-herr', icon:'key',      roles:['admin','supervisor','operador','guarda_peatonal'],cnt:null},
     {id:'bd',    label:'Base de Datos',    desc:'Catálogos maestros',     cls:'m-bd',   icon:'database', roles:['admin','supervisor'],cnt:null},
@@ -1209,7 +1209,7 @@ function HomePage({setPage,user}){
   const pendAcceso = resumen?.pendientes?.acceso_sin_salida||[];
 
   const showFlotaStats   = isAdmin||isGuardaBodega||isGuardaVehicular||isCoordinador;
-  const showAccesoStats  = isAdmin||isGuardaPeatonal;
+  const showAccesoStats  = isAdmin||isGuardaPeatonal||isCoordinador;
   const showProvStats    = isAdmin||isGuardaVehicular||isGuardaBodega||isCoordinador;
   const showDashboard    = !isRecorredor;
 
@@ -1240,7 +1240,7 @@ function HomePage({setPage,user}){
           showAccesoStats&&h(StatCard,{label:'Pend. días anteriores', value:resumen.control_acceso.dias_anteriores_pendientes, color:'#b91c1c',icon:'alert',active:showAccesoDiasAnt,onClick:()=>setShowAccesoDiasAnt(v=>!v)}),
           showProvStats&&h(StatCard,{label:'Proveedores hoy',          value:resumen.proveedores.hoy,    color:'#d97706',icon:'package',active:showProvHoy,onClick:()=>setShowProvHoy(v=>!v)}),
           showProvStats&&h(StatCard,{label:'En muelle',        value:resumen.proveedores.en_muelle, color:'#0891b2',icon:'package',active:showMuelle,onClick:()=>setShowMuelle(v=>!v)}),
-          !isCoordinador&&showProvStats&&h(StatCard,{label:'Visitantes hoy',   value:resumen.visitantes.hoy,     color:'#059669',icon:'users',active:showVisitantesHoy,onClick:()=>setShowVisitantesHoy(v=>!v)})
+          showProvStats&&h(StatCard,{label:'Visitantes hoy',   value:resumen.visitantes.hoy,     color:'#059669',icon:'users',active:showVisitantesHoy,onClick:()=>setShowVisitantesHoy(v=>!v)})
         ),
         showFlotaHoy&&h(DetalleLista,{items:resumen.flota.hoy_detalle||[],emptyMsg:'Sin registros de flota hoy',render:v=>[
           h('strong',{key:'p'},v.placa),' · ',v.conductor||'—',v.muelle&&(' · Muelle '+v.muelle),' · ',v.estado
@@ -1273,7 +1273,7 @@ function HomePage({setPage,user}){
       ),
       (()=>{
         const showFlotaPend  = !isGuardaPeatonal;
-        const showAccesoPend = !isGuardaVehicular && !isGuardaBodega && !isCoordinador;
+        const showAccesoPend = !isGuardaVehicular && !isGuardaBodega;
         const hayFlota  = showFlotaPend  && flotaPend>0;
         const hayAcceso = showAccesoPend && accesoPend>0;
         if(!hayFlota && !hayAcceso) return null;
@@ -2279,6 +2279,7 @@ function AccesoPage({user,online,addOffline}){
   const [form,setForm] = useState(emptyF);
   const [filtro,setFiltro] = useState('pendientes');
   const [busqueda,setBusqueda] = useState('');
+  const esCoordinador = user?.rol==='coordinador';
 
   // ── Anulación ──
   const [anular,setAnular]           = useState(null);   // registro activo en el modal de anulación
@@ -2367,11 +2368,13 @@ function AccesoPage({user,online,addOffline}){
         h('button',{onClick:()=>{setView('list');setForm(emptyF);setSelected(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
           h(Ico,{n:'arrowLeft',s:18}),' Volver'
         ),
-        h('div',{className:'header-brand'},h('h1',null,selected?'Editar':'Nuevo registro'),h('span',null,'Control Acceso'))
+        h('div',{className:'header-brand'},h('h1',null,esCoordinador?'Ver registro':(selected?'Editar':'Nuevo registro')),h('span',null,'Control Acceso'))
       )
     ),
     h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      esCoordinador&&h('p',{style:{fontSize:12,color:'var(--slate)',margin:'0 0 8px'}},'Solo lectura'),
+      h('div',{style:{pointerEvents:esCoordinador?'none':undefined}},
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'userCheck',s:12}),' Identificación'),
         h('div',{className:'fgrid2'},
@@ -2404,10 +2407,11 @@ function AccesoPage({user,online,addOffline}){
         ),
         h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:3,placeholder:'—'}))
       )
+      )
     ),
     h('div',{className:'sticky-cta'},
       h('button',{className:'btn-cancel',onClick:()=>{setView('list');setForm(emptyF);setSelected(null);}},h(Ico,{n:'x',s:15})),
-      h('button',{className:'btn-primary',onClick:handleSave,disabled:saving},
+      !esCoordinador&&h('button',{className:'btn-primary',onClick:handleSave,disabled:saving},
         saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),saving?'Guardando...':'Guardar registro'
       )
     )
@@ -2435,9 +2439,10 @@ function AccesoPage({user,online,addOffline}){
           h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`),
           h('button',{onClick:()=>setFiltro('anulados'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='anulados'?'var(--slate)':'transparent',color:filtro==='anulados'?'#fff':'var(--slate)',borderColor:filtro==='anulados'?'var(--slate)':'var(--border)',display:'flex',alignItems:'center',gap:4}},h(Ico,{n:'ban',s:11}),'Anulados')
         ),
-        h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+        !esCoordinador&&h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
           h(Ico,{n:'plus',s:15}),' Nuevo'
-        )
+        ),
+        esCoordinador&&h('p',{style:{fontSize:12,color:'var(--slate)',marginLeft:'auto',alignSelf:'center'}},'Solo lectura')
       ),
       h('div',{style:{padding:'0 14px 8px',position:'relative'}},
         h(Ico,{n:'search',s:14,style:{position:'absolute',left:24,top:'50%',transform:'translateY(-50%)',color:'var(--slate)',pointerEvents:'none'}}),
@@ -2476,7 +2481,7 @@ function AccesoPage({user,online,addOffline}){
           h('span',{className:'li-date'},r.cedula||'—',
             r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida))
           ),
-          h('div',{style:{display:'flex',gap:6,marginTop:3,alignItems:'center'}},
+          !esCoordinador&&h('div',{style:{display:'flex',gap:6,marginTop:3,alignItems:'center'}},
             r.hora_ingreso&&!r.hora_salida&&h('button',{
               title:'Registrar salida',
               onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(ahoraHora());setFechaSalidaA(today());},
@@ -2589,6 +2594,7 @@ function VisitantesPage({user,online,addOffline}){
   const [form,setForm] = useState(emptyF);
   const [filtro,setFiltro] = useState('pendientes');
   const [busqueda,setBusqueda] = useState('');
+  const esCoordinador = user?.rol==='coordinador';
 
   const load = useCallback(()=>{
     setLoading(true);
@@ -2616,11 +2622,13 @@ function VisitantesPage({user,online,addOffline}){
         h('button',{onClick:()=>{setView('list');setForm(emptyF);setSelected(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
           h(Ico,{n:'arrowLeft',s:18}),' Volver'
         ),
-        h('div',{className:'header-brand'},h('h1',null,selected?'Editar visitante':'Nuevo visitante'),h('span',null,'Visitantes'))
+        h('div',{className:'header-brand'},h('h1',null,esCoordinador?'Ver visitante':(selected?'Editar visitante':'Nuevo visitante')),h('span',null,'Visitantes'))
       )
     ),
     h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      esCoordinador&&h('p',{style:{fontSize:12,color:'var(--slate)',margin:'0 0 8px'}},'Solo lectura'),
+      h('div',{style:{pointerEvents:esCoordinador?'none':undefined}},
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'users',s:12}),' Datos del visitante'),
         h('div',{className:'fgrid2'},
@@ -2645,10 +2653,11 @@ function VisitantesPage({user,online,addOffline}){
         h('p',{className:'sec-ttl'},h(Ico,{n:'camera',s:12}),' Fotografía'),
         h(CameraField,{value:form.foto_url,onChange:v=>setForm(p=>({...p,foto_url:v}))})
       )
+      )
     ),
     h('div',{className:'sticky-cta'},
       h('button',{className:'btn-cancel',onClick:()=>{setView('list');setForm(emptyF);setSelected(null);}},h(Ico,{n:'x',s:15})),
-      h('button',{className:'btn-primary',onClick:handleSave,disabled:saving},
+      !esCoordinador&&h('button',{className:'btn-primary',onClick:handleSave,disabled:saving},
         saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),saving?'Guardando...':'Guardar registro'
       )
     )
@@ -2665,9 +2674,10 @@ function VisitantesPage({user,online,addOffline}){
           h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
           h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
         ),
-        h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+        !esCoordinador&&h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
           h(Ico,{n:'plus',s:15}),' Nuevo'
-        )
+        ),
+        esCoordinador&&h('p',{style:{fontSize:12,color:'var(--slate)',marginLeft:'auto',alignSelf:'center'}},'Solo lectura')
       ),
       h('div',{style:{padding:'0 14px 8px',position:'relative'}},
         h(Ico,{n:'search',s:14,style:{position:'absolute',left:24,top:'50%',transform:'translateY(-50%)',color:'var(--slate)',pointerEvents:'none'}}),
@@ -2694,7 +2704,7 @@ function VisitantesPage({user,online,addOffline}){
           h('span',{className:'li-date'},r.cedula||'—',
             r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida))
           ),
-          h('div',{style:{display:'flex',gap:6,marginTop:3,alignItems:'center'}},
+          !esCoordinador&&h('div',{style:{display:'flex',gap:6,marginTop:3,alignItems:'center'}},
             r.hora_ingreso&&!r.hora_salida&&h('button',{
               title:'Registrar salida',
               onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(ahoraHora());setFechaSalidaVis(today());},
@@ -6202,7 +6212,7 @@ function App(){
     :rol==='guarda_peatonal'     ? [{id:'home',label:'Inicio',icon:'home'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'},{id:'sust',label:'Sust.',icon:'alert'},{id:'herr',label:'Herram.',icon:'key'}]
     :rol==='guarda_vehicular'    ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'visitavh',label:'Visita Vh.',icon:'truck'},{id:'visit',label:'Visitas',icon:'users'}]
     :rol==='recorredor_externo'  ? [{id:'home',label:'Inicio',icon:'home'},{id:'ronda',label:'Ronda',icon:'mapPin'},{id:'novedades',label:'Novedades',icon:'bell'}]
-    :rol==='coordinador'         ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'}]
+    :rol==='coordinador'         ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'}]
     :[
       {id:'home',  label:'Inicio',  icon:'home'},
       {id:'flota', label:'Flota',   icon:'truck'},
