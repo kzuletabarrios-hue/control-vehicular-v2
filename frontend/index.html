@@ -211,8 +211,8 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
    cursor de mano, pero sigue siendo perfectamente legible. */
 .muelle-celda.libre{background:var(--green);cursor:default}
 .muelle-celda.libre .muelle-celda-num{color:#fff}
-/* Ocupado: mismo cian que el pill "Ocupado" de antes. Sí es interactiva. */
-.muelle-celda.ocupado{background:#cffafe;cursor:pointer}
+/* Ocupado: amarillo (pedido de Karen). Sí es interactiva. */
+.muelle-celda.ocupado{background:var(--amber);cursor:pointer}
 /* Rojo = tiempo de ocupación excedido (>=2 horas), igual que antes en
    .muelle-card.alerta. Es la señal más urgente del tablero, por eso pisa al
    color de "ocupado" en vez de combinarse con él, y por lo mismo el punto de
@@ -244,7 +244,7 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 .muelle-leyenda-item{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;color:var(--text2)}
 .muelle-leyenda-swatch{width:10px;height:10px;border-radius:3px;flex-shrink:0;border:1.5px solid transparent}
 .muelle-leyenda-swatch.libre{background:var(--green)}
-.muelle-leyenda-swatch.ocupado{background:#cffafe}
+.muelle-leyenda-swatch.ocupado{background:var(--amber)}
 .muelle-leyenda-swatch.alerta{background:var(--red);border-color:var(--red)}
 .muelle-leyenda-dot{width:6px;height:6px;border-radius:50%;background:#1d4ed8;flex-shrink:0}
 
@@ -5917,7 +5917,7 @@ function MuelleDetallePanel({muelle:m, onCerrar}){
         m.zona&&h('p',{style:{fontSize:11,color:'var(--slate)',marginTop:2}},m.zona)
       ),
       h('div',{style:{display:'flex',alignItems:'center',gap:6,flexShrink:0}},
-        h('span',{className:'pill',style:{background:'#cffafe',color:'#0e7490'}},'Ocupado'),
+        h('span',{className:'pill',style:{background:'var(--amber)',color:'var(--navy)'}},'Ocupado'),
         h('button',{type:'button',onClick:onCerrar,'aria-label':'Cerrar detalle del muelle',
           style:{background:'none',border:'none',cursor:'pointer',padding:4,color:'var(--slate)',display:'flex'}
         },h(Ico,{n:'x',s:16}))
