@@ -937,6 +937,10 @@ def crear(
     # sin hora_ingreso_confirmado hasta que se pulse "Confirmar" (endpoint
     # /proveedores/{id}/confirmar-ingreso), que es el único que la puebla.
     vals["estado_confirmacion"] = "pendiente"
+    if not (vals.get("nombre_conductor") or "").strip():
+        raise HTTPException(400, "El nombre del conductor es obligatorio")
+    if not (vals.get("cedula_conductor") or "").strip():
+        raise HTTPException(400, "La cédula del conductor es obligatoria")
     cols = ", ".join(vals.keys())
     placeholders = ", ".join(f":{k}" for k in vals.keys())
     try:
@@ -1033,6 +1037,10 @@ def actualizar(
     vals = {c: body[c] for c in CAMPOS_VEHICULO if c in body}
     if not vals:
         raise HTTPException(400, "Sin campos para actualizar")
+    if "nombre_conductor" in vals and not (vals["nombre_conductor"] or "").strip():
+        raise HTTPException(400, "El nombre del conductor no puede quedar vacío")
+    if "cedula_conductor" in vals and not (vals["cedula_conductor"] or "").strip():
+        raise HTTPException(400, "La cédula del conductor no puede quedar vacía")
     vals["id"] = id
 
     sets = ", ".join(f"{c} = :{c}" for c in vals if c != "id")
@@ -1225,6 +1233,10 @@ def crear_batch(
             # Mismo ciclo que crear(): nace 'pendiente', sin hora_ingreso_confirmado
             # (se puebla solo vía /proveedores/{id}/confirmar-ingreso).
             vals["estado_confirmacion"] = "pendiente"
+            if not (vals.get("nombre_conductor") or "").strip():
+                raise HTTPException(400, "El nombre del conductor es obligatorio")
+            if not (vals.get("cedula_conductor") or "").strip():
+                raise HTTPException(400, "La cédula del conductor es obligatoria")
             cols = ", ".join(vals.keys())
             placeholders = ", ".join(f":{k}" for k in vals.keys())
             db.execute(text(f"INSERT INTO proveedores ({cols}) VALUES ({placeholders})"), vals)

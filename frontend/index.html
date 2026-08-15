@@ -3179,6 +3179,9 @@ function ProveedoresPage({user,online,addOffline}){
 
   /* guardar vehículo editado (datos generales) */
   const handleSave = async()=>{
+    if(!(form.placa_vehiculo||'').trim()) return setAlert({type:'err',msg:'La placa es obligatoria'});
+    if(!(form.nombre_conductor||'').trim()) return setAlert({type:'err',msg:'El nombre del conductor es obligatorio'});
+    if(!(form.cedula_conductor||'').trim()) return setAlert({type:'err',msg:'La cédula del conductor es obligatoria'});
     setSaving(true);
     const body = Object.fromEntries(Object.entries(form).filter(([,v])=>v!=null&&v!==''));
     try{
@@ -3264,6 +3267,7 @@ function ProveedoresPage({user,online,addOffline}){
   const guardarIngreso = async()=>{
     if(!vehiculoForm.placa_vehiculo.trim()) return setAlert({type:'err',msg:'La placa es obligatoria'});
     if(!vehiculoForm.cedula_conductor.trim()) return setAlert({type:'err',msg:'La cédula del conductor es obligatoria'});
+    if(!vehiculoForm.nombre_conductor.trim()) return setAlert({type:'err',msg:'El nombre del conductor es obligatorio'});
     if(ordenes.length===0) return setAlert({type:'err',msg:'Agrega al menos un proveedor'});
     setSaving(true);
     try{
@@ -3641,7 +3645,7 @@ function ProveedoresPage({user,online,addOffline}){
           )
         ),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Nombre conductor'),h('input',{type:'text',value:vehiculoForm.nombre_conductor,onChange:e=>setVehiculoForm(p=>({...p,nombre_conductor:e.target.value})),onBlur:()=>setVehiculoForm(p=>({...p,nombre_conductor:capitalizarNombre(p.nombre_conductor)})),placeholder:'Se autocompleta o ingresa manual'})),
+          h('div',{className:'fg'},h('label',null,'Nombre conductor',h('span',{className:'req'},'*')),h('input',{type:'text',value:vehiculoForm.nombre_conductor,onChange:e=>setVehiculoForm(p=>({...p,nombre_conductor:e.target.value})),onBlur:()=>setVehiculoForm(p=>({...p,nombre_conductor:capitalizarNombre(p.nombre_conductor)})),placeholder:'Se autocompleta o ingresa manual'})),
           h('div',{className:'fg'},h('label',null,'Teléfono conductor'),h('input',{type:'tel',value:vehiculoForm.telefono_conductor||'',onChange:e=>setVehiculoForm(p=>({...p,telefono_conductor:e.target.value})),placeholder:'Número de contacto (opcional)'}))
         ),
         h('div',{className:'fg'},h('label',null,'Tipo vehículo'),
