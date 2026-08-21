@@ -533,10 +533,19 @@ def citas_alertas(
     db: Session = Depends(get_db),
     _: dict = Depends(require_permiso("proveedores", "read")),
 ):
-    """Citas programadas de HOY (fecha calculada en el SERVIDOR) para las que
-    todavía nadie registró una llegada (ninguna fila de proveedores_ordenes
-    con ese cita_id) y que ya están cerca de su hora -- para que el guarda
-    llame al proveedor antes de que se pase la cita.
+    """Todas las citas programadas de HOY (fecha calculada en el SERVIDOR)
+    para las que todavía nadie registró una llegada (ninguna fila de
+    proveedores_ordenes con ese cita_id). Es el listado completo -- no solo
+    las urgentes -- que alimenta la pestaña "Con cita" de Proveedores (mismo
+    patrón que "Por confirmar"/"Ingresados WPS"/"En muelle": todo lo que
+    está en ese estado, no un subconjunto).
+
+    Clasifica cada cita en 3 grupos según qué tan cerca está su hora:
+    - "pendientes": todavía falta más de ALERTA_PREAVISO_MIN minutos.
+    - "por_vencer": dentro de la ventana de preaviso o dentro de
+      tolerancia_min tras la hora de cita (ya pasó la hora pero aún no se
+      considera atraso).
+    - "atrasadas": ya superó tolerancia_min tras la hora de cita.
 
     NO bloquea nada: es solo información para que el guarda decida llamar.
     NO valida proximidad horaria para impedir un registro -- decisión de
@@ -581,6 +590,7 @@ def citas_alertas(
         {"hoy": hoy},
     ).fetchall()
 
+    pendientes: list[dict] = []
     por_vencer: list[dict] = []
     atrasadas: list[dict] = []
     for row in rows:
@@ -593,16 +603,20 @@ def citas_alertas(
         inicio_preaviso = minutos_cita - ALERTA_PREAVISO_MIN
         limite_atraso = minutos_cita + tolerancia
 
-        if minutos_ahora < inicio_preaviso:
-            continue  # todavía falta demasiado, ni siquiera preaviso
-
         item = {
             "numero_orden_compra": d["numero_orden_compra"],
             "proveedor_nombre": d["proveedor_nombre"],
             "hora_cita_inicio": f"{hi.hour:02d}:{hi.minute:02d}",
             "telefono": d.get("telefono"),
         }
-        if minutos_ahora > limite_atraso:
+
+        if minutos_ahora < inicio_preaviso:
+            # todavía falta demasiado, ni siquiera preaviso -- antes se
+            # descartaba con un "continue"; ahora se reporta como pendiente
+            # para la pestaña "Con cita" (no es urgente, solo informativo).
+            item["minutos_restantes"] = minutos_cita - minutos_ahora
+            pendientes.append(item)
+        elif minutos_ahora > limite_atraso:
             item["minutos_atraso"] = minutos_ahora - minutos_cita
             atrasadas.append(item)
         else:
@@ -614,7 +628,7 @@ def citas_alertas(
             item["minutos_restantes"] = minutos_cita - minutos_ahora
             por_vencer.append(item)
 
-    return {"por_vencer": por_vencer, "atrasadas": atrasadas}
+    return {"pendientes": pendientes, "por_vencer": por_vencer, "atrasadas": atrasadas}
 
 
 class EditarCitaBody(BaseModel):
@@ -1030,9 +1044,12 @@ def actualizar(
     id: str,
     body: dict,
     db: Session = Depends(get_db),
-    _: dict = Depends(require_permiso("proveedores", "write")),
+    current_user: dict = Depends(require_permiso("proveedores", "write")),
 ):
-    if not db.execute(text("SELECT 1 FROM proveedores WHERE id = :id"), {"id": id}).fetchone():
+    antes = db.execute(
+        text("SELECT * FROM proveedores WHERE id = :id"), {"id": id}
+    ).fetchone()
+    if not antes:
         raise HTTPException(404, "Registro no encontrado")
     vals = {c: body[c] for c in CAMPOS_VEHICULO if c in body}
     if not vals:
@@ -1046,10 +1063,14 @@ def actualizar(
     sets = ", ".join(f"{c} = :{c}" for c in vals if c != "id")
     try:
         db.execute(text(f"UPDATE proveedores SET {sets}, updated_at = NOW() WHERE id = :id"), vals)
-        db.commit()
     except (IntegrityError, DataError):
         db.rollback()
         raise HTTPException(400, "Datos inválidos: revisa las fechas y los campos de selección (tipo de documento, tipo/formato de carga, quién maneja la carga).")
+    try:
+        _audit(db, current_user, "UPDATE", "proveedores", id, dict(antes._mapping), vals)
+    except Exception:
+        pass
+    db.commit()
     return {"message": "Registro actualizado"}
 
 
