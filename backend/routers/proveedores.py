@@ -534,11 +534,16 @@ def citas_alertas(
     _: dict = Depends(require_permiso("proveedores", "read")),
 ):
     """Todas las citas programadas de HOY (fecha calculada en el SERVIDOR)
-    para las que todavía nadie registró una llegada (ninguna fila de
-    proveedores_ordenes con ese cita_id). Es el listado completo -- no solo
-    las urgentes -- que alimenta la pestaña "Con cita" de Proveedores (mismo
-    patrón que "Por confirmar"/"Ingresados WPS"/"En muelle": todo lo que
-    está en ese estado, no un subconjunto).
+    que todavía no fueron consumidas por el paso de "Ingresado WPS"
+    (cp.estado sigue en 'pendiente' -- ver marcar_ingreso_wps, que es quien
+    la pasa a 'usada'). Ya puede existir una llegada registrada en
+    proveedores_ordenes para esa cita sin que eso la saque de aquí: llegar
+    no es lo mismo que quedar procesada en WPS, y la alerta debe seguir
+    visible mientras falte ese paso (ver "ya_registrado" más abajo, que
+    distingue ambos casos para el frontend). Es el listado completo -- no
+    solo las urgentes -- que alimenta la pestaña "Con cita" de Proveedores
+    (mismo patrón que "Por confirmar"/"Ingresados WPS"/"En muelle": todo lo
+    que está en ese estado, no un subconjunto).
 
     Clasifica cada cita en 3 grupos según qué tan cerca está su hora:
     - "pendientes": todavía falta más de ALERTA_PREAVISO_MIN minutos.
@@ -578,13 +583,14 @@ def citas_alertas(
                        WHERE UPPER(btrim(bp.nombre)) = UPPER(btrim(cp.proveedor_nombre))
                        ORDER BY bp.activo DESC, bp.updated_at DESC
                        LIMIT 1
-                   ) AS telefono
+                   ) AS telefono,
+                   EXISTS (
+                       SELECT 1 FROM proveedores_ordenes po WHERE po.cita_id = cp.id
+                   ) AS ya_registrado
             FROM citas_programadas cp
             WHERE cp.fecha = :hoy
               AND NOT (cp.hora_cita_inicio = '00:00:00' AND cp.hora_cita_fin = '23:59:00')
-              AND NOT EXISTS (
-                  SELECT 1 FROM proveedores_ordenes po WHERE po.cita_id = cp.id
-              )
+              AND cp.estado = 'pendiente'
             ORDER BY cp.hora_cita_inicio
         """),
         {"hoy": hoy},
@@ -608,6 +614,7 @@ def citas_alertas(
             "proveedor_nombre": d["proveedor_nombre"],
             "hora_cita_inicio": f"{hi.hour:02d}:{hi.minute:02d}",
             "telefono": d.get("telefono"),
+            "ya_registrado": d["ya_registrado"],
         }
 
         if minutos_ahora < inicio_preaviso:

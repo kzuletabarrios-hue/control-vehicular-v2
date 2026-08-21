@@ -3775,7 +3775,21 @@ function ProveedoresPage({user,online,addOffline}){
     const emps = (r.ordenes||[]).map(o=>o.empresa).filter(Boolean);
     return emps.length===0?(r.empresa||'Sin empresa'):emps.length<=2?emps.join(' · '):emps.slice(0,2).join(' · ')+` +${emps.length-2}`;
   };
-  const visibles = records
+  // Orden compuesto: fecha DESC (como ya viene del backend, agrupa por
+  // día) y, dentro del mismo día, hora_cita ASC -- los que tienen cita más
+  // temprano primero. Los registros sin hora_cita van al final de su día
+  // sin romper el orden de los que sí la tienen. Se ordena ANTES de
+  // filtrar para que todas las pestañas hereden el mismo orden.
+  const cmpRecords = (a,b) => {
+    if(a.fecha !== b.fecha) return a.fecha < b.fecha ? 1 : -1; // fecha DESC
+    const ha = a.hora_cita || null, hb = b.hora_cita || null;
+    if(ha && hb) return ha < hb ? -1 : ha > hb ? 1 : 0; // hora_cita ASC
+    if(ha && !hb) return -1;
+    if(!ha && hb) return 1;
+    return 0;
+  };
+  const visibles = [...records]
+    .sort(cmpRecords)
     .filter(r=>{
       if(filtro==='confirmar') return r.estado_confirmacion==='pendiente';
       if(filtro==='wps') return r.estado_confirmacion==='ingresado_wps';
@@ -3849,9 +3863,11 @@ function ProveedoresPage({user,online,addOffline}){
         // esCoordinador tiene acceso de solo lectura a todo el módulo: ve la
         // pestaña pero sin botón de llamar activo (no le corresponde operar).
         const Fila = (c,tono)=>h('div',{key:tono+'-'+c.numero_orden_compra,style:{background:'var(--white)',borderRadius:10,padding:'10px 12px',marginBottom:8,display:'flex',alignItems:'center',flexWrap:'wrap',columnGap:10,rowGap:4,boxShadow:'0 1px 4px rgba(0,0,0,0.05)',border:'1px solid '+(tono==='at'?'#fecaca':tono==='pv'?'#fed7aa':'var(--border)')}},
-          h(Ico,{n:'phone',s:14,style:{color:tono==='at'?'#e11d48':tono==='pv'?'#c2650a':'var(--slate)',flexShrink:0}}),
+          c.ya_registrado
+            ?h('span',{style:{fontWeight:700,whiteSpace:'nowrap',padding:'2px 9px',borderRadius:20,fontSize:11,background:'#fef3c7',color:'#92400e',flexShrink:0}},'En portería · pendiente WPS')
+            :h(Ico,{n:'phone',s:14,style:{color:tono==='at'?'#e11d48':tono==='pv'?'#c2650a':'var(--slate)',flexShrink:0}}),
           h('span',{style:{fontWeight:700,fontSize:13,color:'var(--text)'}},c.proveedor_nombre||'Sin nombre'),
-          c.telefono&&(esCoordinador
+          !c.ya_registrado&&c.telefono&&(esCoordinador
             ?h('span',{style:{color:'var(--slate)',fontSize:12}},c.telefono)
             :h('a',{href:'tel:'+c.telefono,style:{color:tono==='at'?'#e11d48':tono==='pv'?'#c2650a':'var(--navy)',fontWeight:600,fontSize:12,textDecoration:'underline'}},c.telefono)),
           h('span',{style:{color:'var(--slate)',fontSize:12}},`orden ${c.numero_orden_compra} · cita ${c.hora_cita_inicio}`),
@@ -3884,13 +3900,16 @@ function ProveedoresPage({user,online,addOffline}){
           :conSalida?null
           :{txt:'Ingreso autorizado',cls:'pill-green'};
         // Alerta cuando falta 1h o menos para la hora de cita que dio el
-        // conductor y el vehiculo todavia no ha llegado/confirmado.
-        const citaProxima = pendConf && r.hora_cita && (()=>{
+        // conductor y el vehiculo todavia no ha pasado a WPS (estado_confirmacion
+        // sigue en 'pendiente'). Se mantiene activa aunque la hora ya haya
+        // pasado (diff negativo): sigue sin confirmarse, sigue alertando.
+        const citaAlerta = (pendConf && r.hora_cita) ? (()=>{
           const [ch,cm] = r.hora_cita.split(':').map(Number);
           const [ah,am] = ahoraHora().split(':').map(Number);
           const diff = (ch*60+cm) - (ah*60+am);
-          return diff>=0 && diff<=60;
-        })();
+          return diff<=60 ? {diff} : null;
+        })() : null;
+        const citaProxima = !!citaAlerta;
         return h('div',{key:r.id,className:'list-item',style:citaProxima?{border:'1.5px solid #f87171',background:'#fef2f2'}:pendConf?{border:'1.5px solid #fcd34d',background:'#fffbeb'}:null},
           h('div',{className:'li-icon',style:{background:pendConf?'#fef3c7':'#fde68a'}},
             h(Ico,{n:pendConf?'bell':'package',s:18,style:{color:'#d97706'}})
@@ -3899,7 +3918,7 @@ function ProveedoresPage({user,online,addOffline}){
             setForm({...emptyF,...r,cedula_conductor:r.cedula_conductor||'',hora_ingreso:r.hora_ingreso||'',hora_salida:r.hora_salida||''});
             setSelected(r);setFormOrdenes(r.ordenes||[]);setAddingOrd(false);setView('form');
           }},
-            citaProxima&&h('span',{className:'pill',style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#fee2e2',color:'#991b1b',border:'1px solid #fca5a5'}},'⏰ Cita en ≤1h'),
+            citaAlerta&&h('span',{className:'pill',style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#fee2e2',color:'#991b1b',border:'1px solid #fca5a5'}},citaAlerta.diff>=0?`⏰ Cita en ${citaAlerta.diff} min`:`⏰ Cita atrasada ${Math.abs(citaAlerta.diff)} min`),
             etapa&&h('span',{className:`pill ${etapa.cls}`,style:{marginBottom:3,display:'inline-block'}},etapa.txt),
             h('div',{className:'li-title'},r.nombre_conductor||r.placa_vehiculo||'Sin nombre'),
             h('div',{className:'li-sub'},
