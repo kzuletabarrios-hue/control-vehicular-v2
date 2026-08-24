@@ -3442,7 +3442,7 @@ function ProveedoresPage({user,online,addOffline}){
           h('div',{style:{flex:1,minWidth:0}},
             h('div',{style:{fontWeight:700,fontSize:13,color:'var(--text)'}},(o.empresa||'Sin empresa')),
             h('div',{style:{fontSize:11,color:'var(--slate)',marginTop:1}},
-              [o.actividad_a_desarrollar,o.carga_compartida&&'Carga compartida'].filter(Boolean).join(' · ')
+              [o.numero_orden_compra&&('OC '+o.numero_orden_compra),o.actividad_a_desarrollar,o.carga_compartida&&'Carga compartida'].filter(Boolean).join(' · ')
             )
           ),
           h('button',{title:'Eliminar orden',onClick:()=>eliminarOrdenForm(o.id),style:{background:'#fee2e2',border:'none',cursor:'pointer',color:'#dc2626',padding:'4px 8px',borderRadius:6,fontSize:11}},h(Ico,{n:'trash',s:12}))
