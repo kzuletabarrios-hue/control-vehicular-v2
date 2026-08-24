@@ -3889,7 +3889,22 @@ function ProveedoresPage({user,online,addOffline}){
       visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'package',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='confirmar'?'Nadie por confirmar en este momento':filtro==='dentro'?'Nadie dentro en este momento':'Sin proveedores')):
       visibles.map(r=>{
         const ords=r.ordenes||[];
-        const emps=ords.map(o=>o.empresa).filter(Boolean);
+        // Mismo criterio que backend/routers/muelles.py tablero() (SELECT
+        // "empresas"): se agrupa por empresa y se listan sus OCs distintas
+        // y no vacías entre paréntesis -- "Empresa (OC 111, OC 222)". Una
+        // empresa sin ninguna OC capturada se muestra solo con el nombre,
+        // sin paréntesis. Se arma aquí en el cliente (no hace falta tocar
+        // el backend: r.ordenes ya trae numero_orden_compra por orden).
+        const empGroups=[];
+        const empIndex={};
+        ords.forEach(o=>{
+          const nombreEmp=o.empresa;
+          if(!nombreEmp) return;
+          if(!(nombreEmp in empIndex)){empIndex[nombreEmp]=empGroups.length;empGroups.push({empresa:nombreEmp,ocs:[]});}
+          const oc=(o.numero_orden_compra||'').trim();
+          if(oc && !empGroups[empIndex[nombreEmp]].ocs.includes(oc)) empGroups[empIndex[nombreEmp]].ocs.push(oc);
+        });
+        const emps=empGroups.map(g=>g.ocs.length?`${g.empresa} (${g.ocs.map(oc=>'OC '+oc).join(', ')})`:g.empresa);
         const empLabel=emps.length===0?(r.empresa||'Sin empresa'):emps.length<=2?emps.join(' · '):emps.slice(0,2).join(' · ')+` +${emps.length-2}`;
         const pendConf = r.estado_confirmacion==='pendiente';
         const enWps = r.estado_confirmacion==='ingresado_wps';
