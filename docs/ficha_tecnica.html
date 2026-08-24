@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<title>Ficha Técnica - Sistema de Control de Acceso y Operaciones CEDI R10</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',sans-serif;color:#1e293b;background:#fff;font-size:14px;line-height:1.6}
+  .page{max-width:880px;margin:0 auto;padding:40px 48px}
+
+  .portada{background:linear-gradient(160deg,#0f2440 0%,#1e4570 60%,#1a3a5c 100%);min-height:260px;border-radius:20px;padding:48px;margin-bottom:44px;color:#fff;position:relative;overflow:hidden}
+  .portada::after{content:'';position:absolute;bottom:-40px;right:-40px;width:200px;height:200px;border-radius:50%;background:rgba(245,158,11,0.1)}
+  .portada-label{background:rgba(245,158,11,0.2);border:1px solid rgba(245,158,11,0.5);color:#fcd34d;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:5px 14px;border-radius:20px;display:inline-block;margin-bottom:20px}
+  .portada h1{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;margin-bottom:8px;line-height:1.2}
+  .portada h2{font-size:15px;font-weight:400;color:rgba(255,255,255,0.7);margin-bottom:28px}
+  .portada .meta{display:flex;gap:32px;flex-wrap:wrap}
+  .portada .meta-item span{display:block;font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px}
+  .portada .meta-item strong{font-size:13px;color:#fff}
+
+  h2.sec{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#0f2440;margin:36px 0 14px;padding-bottom:8px;border-bottom:3px solid #f59e0b}
+  h3{font-size:14px;font-weight:700;color:#1e4570;margin:18px 0 8px}
+  p{margin-bottom:10px;color:#475569}
+
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+  th{background:#0f2440;color:#fff;padding:9px 12px;text-align:left;font-size:12px;font-weight:600;white-space:nowrap}
+  td{padding:9px 12px;border-bottom:1px solid #e2e8f0;color:#475569;vertical-align:top}
+  tr:nth-child(even) td{background:#f8fafc}
+  td code, p code{background:#f1f5f9;color:#0f2440;padding:1px 6px;border-radius:4px;font-size:12px;font-family:monospace}
+
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:14px 0}
+  .stack-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px}
+  .stack-card h4{font-size:12px;font-weight:700;color:#1e4570;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+  .tag{display:inline-block;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;margin:2px 3px 2px 0}
+  .tag-green{background:#f0fdf4;color:#166534;border-color:#86efac}
+  .tag-amber{background:#fffbeb;color:#92400e;border-color:#fcd34d}
+
+  .modulos{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:12px 0}
+  .modulo{display:flex;gap:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:11px 13px}
+  .modulo .n{font-family:'Syne',sans-serif;font-weight:800;color:#f59e0b;font-size:14px;flex-shrink:0}
+  .modulo h5{font-size:12px;font-weight:700;color:#0f2440;margin-bottom:1px}
+  .modulo p{font-size:11px;color:#64748b;margin:0}
+
+  .badge-row{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+  .badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0}
+
+  .callout{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:14px 16px;margin:14px 0;font-size:13px;color:#78350f}
+  .callout strong{color:#92400e}
+  .callout-red{background:#fef2f2;border-color:#fca5a5;color:#7f1d1d}
+  .callout-red strong{color:#991b1b}
+
+  @media print{ .page{padding:20px 24px} h2.sec{page-break-before:auto} }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="portada">
+    <div class="portada-label">Ficha Técnica</div>
+    <h1>Sistema de Control de Acceso y Operaciones<br>CEDI R10</h1>
+    <h2>Documento de referencia técnica — arquitectura, módulos, seguridad e infraestructura</h2>
+    <div class="meta">
+      <div class="meta-item"><span>Versión API</span><strong>2.1.0</strong></div>
+      <div class="meta-item"><span>Última actualización</span><strong>Agosto 2026</strong></div>
+      <div class="meta-item"><span>Clasificación</span><strong>Interno</strong></div>
+    </div>
+  </div>
+
+  <h2 class="sec">1. Identificación general</h2>
+  <table>
+    <tr><td style="width:220px"><strong>Nombre</strong></td><td>Sistema de Control de Acceso y Operaciones CEDI R10</td></tr>
+    <tr><td><strong>Propósito</strong></td><td>Digitalizar y centralizar el registro de vehículos (flota propia y proveedores), personal (contratistas, visitantes) y rondas de seguridad de un centro de distribución, reemplazando registro manual en papel/hojas de cálculo.</td></tr>
+    <tr><td><strong>Tipo de aplicación</strong></td><td>Aplicación web progresiva (PWA) — funciona en cualquier celular con navegador, sin instalación.</td></tr>
+    <tr><td><strong>Repositorio</strong></td><td><code>control-vehicular-v2</code> (GitHub, rama <code>master</code>)</td></tr>
+    <tr><td><strong>App relacionada</strong></td><td><code>citas-muelles-cedi-r10</code> — app separada que comparte la misma base de datos (tablas de muelles y citas programadas), gestiona citas de logística y asignación/liberación de muelles.</td></tr>
+  </table>
+
+  <h2 class="sec">2. Arquitectura tecnológica</h2>
+  <div class="grid2">
+    <div class="stack-card">
+      <h4>Backend</h4>
+      <span class="tag">Python 3.12</span><span class="tag">FastAPI</span><span class="tag">SQLAlchemy 2.x</span><span class="tag">psycopg2</span><span class="tag">PyJWT</span><span class="tag">bcrypt</span><span class="tag">openpyxl</span><span class="tag">qrcode</span>
+      <p style="margin-top:8px">API REST bajo <code>/api</code>, autenticación JWT por token Bearer. Desplegado en Railway con auto-deploy desde GitHub.</p>
+    </div>
+    <div class="stack-card">
+      <h4>Frontend</h4>
+      <span class="tag tag-green">React 18</span><span class="tag tag-green">HTML/CSS puro</span><span class="tag tag-green">Sin build step</span>
+      <p style="margin-top:8px">Un solo archivo <code>index.html</code>, componentes vía <code>h(...)</code> (sin JSX/bundler). Desplegado en Vercel CDN.</p>
+    </div>
+    <div class="stack-card">
+      <h4>Base de datos</h4>
+      <span class="tag">PostgreSQL</span><span class="tag">Supabase (managed)</span>
+      <p style="margin-top:8px">Conexión estándar vía <code>DATABASE_URL</code> (SQLAlchemy + psycopg2), sin dependencias propietarias de Supabase en las consultas — portable a cualquier Postgres. <code>NullPool</code> (sin conexiones persistentes, compatible con el transaction pooler de Supabase).</p>
+    </div>
+    <div class="stack-card">
+      <h4>Almacenamiento de archivos</h4>
+      <span class="tag tag-amber">Supabase Storage</span>
+      <p style="margin-top:8px">Fotos de evidencia (salidas, rechazos, herramientas) se suben como JPEG al bucket público <code>fotos</code> vía API REST de Supabase Storage — única pieza no portable del stack.</p>
+    </div>
+  </div>
+
+  <h3>Autenticación y autorización</h3>
+  <table>
+    <tr><td style="width:220px"><strong>Contraseñas</strong></td><td>bcrypt, costo 12. Mínimo 8 caracteres.</td></tr>
+    <tr><td><strong>Sesión</strong></td><td>Access token JWT (HS256, expira en 60 min) + refresh token opaco guardado en tabla <code>sesiones</code> (revocable, expira en 30 días, ligado a IP/user-agent).</td></tr>
+    <tr><td><strong>Permisos</strong></td><td>Modelo <code>{módulo: [acciones]}</code> en JSONB por rol (tabla <code>roles</code>), revalidado contra base de datos en cada request — no se confía únicamente en el contenido del token.</td></tr>
+    <tr><td><strong>Auditoría</strong></td><td>Tabla <code>audit_log</code>: usuario, acción, tabla, datos antes/después, timestamp — en Flota Propia y Proveedores.</td></tr>
+  </table>
+
+  <h2 class="sec">3. Roles operativos (9)</h2>
+  <div class="badge-row">
+    <span class="badge">Admin</span><span class="badge">Supervisor</span><span class="badge">Coordinador</span><span class="badge">Guarda Bodega</span><span class="badge">Guarda Vehicular</span><span class="badge">Guarda Peatonal</span><span class="badge">Recorredor (rondas)</span><span class="badge">Operador</span><span class="badge">Consulta</span>
+  </div>
+  <p>Cada rol solo ve y opera los módulos que le corresponden. Ningún guarda puede eliminar registros. Coordinador tiene acceso de solo lectura a Flota Propia, Proveedores, Visitantes y Control de Acceso.</p>
+
+  <h2 class="sec">4. Módulos del sistema (13)</h2>
+  <div class="modulos">
+    <div class="modulo"><div class="n">01</div><div><h5>Flota Propia</h5><p>Ciclo bodega → salida → regreso, con sellos y fotos</p></div></div>
+    <div class="modulo"><div class="n">02</div><div><h5>Proveedores</h5><p>Registro manual + autorregistro QR, citas WMS, muelles</p></div></div>
+    <div class="modulo"><div class="n">03</div><div><h5>Visita Vehicular</h5><p>Vehículos puntuales, ni flota ni proveedores</p></div></div>
+    <div class="modulo"><div class="n">04</div><div><h5>Control de Acceso</h5><p>Ingreso/salida de contratistas por cédula</p></div></div>
+    <div class="modulo"><div class="n">05</div><div><h5>Visitantes</h5><p>Registro de personas externas</p></div></div>
+    <div class="modulo"><div class="n">06</div><div><h5>Sustancias</h5><p>Control de sustancias sospechosas/controladas</p></div></div>
+    <div class="modulo"><div class="n">07</div><div><h5>Herramientas</h5><p>Ingreso de herramientas con responsable</p></div></div>
+    <div class="modulo"><div class="n">08</div><div><h5>Base de Datos</h5><p>Catálogos de conductores, contratistas, proveedores</p></div></div>
+    <div class="modulo"><div class="n">09</div><div><h5>Carga Masiva</h5><p>Importación de catálogos desde Excel</p></div></div>
+    <div class="modulo"><div class="n">10</div><div><h5>Rondas de Seguridad</h5><p>Marcación QR con georreferenciación anti-fraude</p></div></div>
+    <div class="modulo"><div class="n">11</div><div><h5>Novedades</h5><p>Incidencias detectadas en recorridos</p></div></div>
+    <div class="modulo"><div class="n">12</div><div><h5>Panel Rondero</h5><p>Supervisión en vivo del cumplimiento de rondas</p></div></div>
+    <div class="modulo"><div class="n">13</div><div><h5>Reportes / Muelles</h5><p>Exportación Excel y tablero de ocupación de muelles</p></div></div>
+  </div>
+
+  <h2 class="sec">5. Modelo de datos — tablas principales</h2>
+  <table>
+    <tr><th>Tabla</th><th>Propósito</th></tr>
+    <tr><td><code>usuarios</code> / <code>roles</code> / <code>sesiones</code></td><td>Autenticación, permisos, refresh tokens</td></tr>
+    <tr><td><code>flota_propia</code></td><td>Ciclo de vehículos propios (bodega/salida/regreso)</td></tr>
+    <tr><td><code>proveedores</code> / <code>proveedores_ordenes</code></td><td>Registro del vehículo proveedor + N órdenes/empresas por vehículo</td></tr>
+    <tr><td><code>bd_proveedores</code> / <code>citas_programadas</code></td><td>Catálogo de empresas + citas importadas del WMS de logística</td></tr>
+    <tr><td><code>control_acceso</code> / <code>bd_control_acceso</code></td><td>Registro diario de contratistas + maestro de contratistas</td></tr>
+    <tr><td><code>visitantes</code></td><td>Registro de personas externas</td></tr>
+    <tr><td><code>muelles</code> / <code>muelle_eventos</code></td><td>Catálogo de muelles y eventos de ocupación (tablas compartidas con <code>citas-muelles-cedi-r10</code>; hoy sin uso operativo, el tablero deriva de <code>proveedores.muelle_descargue</code>)</td></tr>
+    <tr><td><code>audit_log</code></td><td>Bitácora de auditoría (quién, cuándo, antes/después)</td></tr>
+    <tr><td><code>registros</code></td><td>Tabla genérica heredada de un sistema anterior (AppSheet)</td></tr>
+  </table>
+
+  <h2 class="sec">6. Seguridad — resumen de hallazgos de revisión técnica</h2>
+  <table>
+    <tr><th>Aspecto</th><th>Estado</th></tr>
+    <tr><td>Inyección SQL</td><td>No encontrada — todas las consultas parametrizadas, nombres de columna siempre de whitelist fija en código, nunca de input del usuario</td></tr>
+    <tr><td>Contraseñas / tokens</td><td>bcrypt costo 12, JWT con clave validada al arrancar, refresh tokens revocables</td></tr>
+    <tr><td>Rate limiting en login</td><td><strong>No implementado</strong> — sin límite de intentos, punto pendiente de mayor prioridad</td></tr>
+    <tr><td>Subida de archivos</td><td>Sin validación de tipo/tamaño real en <code>/upload-foto</code> — cualquier usuario autenticado puede subir</td></tr>
+    <tr><td>Documentación de API</td><td><code>/docs</code> (Swagger) público sin autenticación — expone el mapa completo de endpoints</td></tr>
+    <tr><td>CORS</td><td>Abierto a cualquier origen, mitigado porque la auth es por Bearer token, no cookies</td></tr>
+  </table>
+
+  <h2 class="sec">7. Capacidad e infraestructura</h2>
+  <div class="grid2">
+    <div class="stack-card">
+      <h4>Supabase (free tier)</h4>
+      <p>500 MB almacenamiento BD · +10,000 registros de texto soportados · 1 GB almacenamiento de fotos</p>
+    </div>
+    <div class="stack-card">
+      <h4>Volumen real observado</h4>
+      <p>+1,800 registros/mes entre todos los módulos (Control Acceso concentra el mayor volumen por registrar entrada y salida por separado)</p>
+    </div>
+  </div>
+
+  <div class="callout callout-red">
+    <strong>Riesgo de infraestructura conocido y ya materializado:</strong> el proyecto de Supabase corre en plan gratuito, que pausa automáticamente por inactividad — ya causó una caída completa de producción (agosto 2026). Reanudar es posible sin costo mientras no pase de cierto tiempo pausado, pero el riesgo de que se repita permanece mientras se siga en free tier. Decisión pendiente: pasar a plan pago (~$25 USD/mes) o migrar la base de datos a otro proveedor sin auto-pausa silenciosa (evaluado: Neon).
+  </div>
+
+  <div style="margin-top:36px;text-align:center;color:#94a3b8;font-size:11px;border-top:1px solid #e2e8f0;padding-top:18px">
+    Ficha Técnica · Sistema de Control de Acceso y Operaciones · CEDI R10 · Agosto 2026 · Confidencial — uso interno
+  </div>
+
+</div>
+</body>
+</html>

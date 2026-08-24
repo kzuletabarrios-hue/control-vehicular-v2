@@ -34,3 +34,5 @@ Thumbs.db
 backend/tmp_bcrypt/
 *.xlsx
 *.xls
+*.zip
+db_backup/
