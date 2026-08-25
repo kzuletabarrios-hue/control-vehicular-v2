@@ -7,7 +7,7 @@ from collections import Counter
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, field_validator, model_validator
 from sqlalchemy.orm import Session
@@ -1247,7 +1247,7 @@ def deshacer_ingreso_wps(
 @router.put("/{id}/confirmar")
 def confirmar_autorregistro(
     id: str,
-    body: dict | None = None,
+    body: dict | None = Body(default=None),
     db: Session = Depends(get_db),
     _: dict = Depends(require_permiso("proveedores", "write")),
 ):
