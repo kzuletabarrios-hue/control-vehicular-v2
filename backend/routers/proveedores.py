@@ -158,7 +158,13 @@ def _attach_muelle(db, items: list[dict]) -> list[dict]:
         # muelle_numero / hora_muelle_liberado: columnas reales de `proveedores`
         # (ver liberar_muelle) tienen prioridad; el JOIN a muelle_eventos/muelles
         # queda como fallback para datos históricos que no pasaron por ese endpoint.
-        item["hora_muelle_asignado"] = info.hora_muelle_asignado if info else None
+        # Bug corregido (reportado por Jorge en la migración 2026-08-21): antes
+        # se sobreescribía SIEMPRE de forma incondicional con el valor del JOIN
+        # a muelle_eventos (dejando en None el valor real de la columna
+        # proveedores.hora_muelle_asignado en cuanto info era None), a
+        # diferencia de muelle_numero/hora_muelle_liberado, que sí seguían el
+        # patrón correcto de abajo. Mismo patrón aplicado aquí ahora.
+        item["hora_muelle_asignado"] = item.get("hora_muelle_asignado") or (info.hora_muelle_asignado if info else None)
         item["muelle_numero"] = item.get("muelle_numero") or (info.muelle_numero if info else None)
         item["hora_muelle_liberado"] = item.get("hora_muelle_liberado") or (info.hora_muelle_liberado if info else None)
     return items
@@ -1100,12 +1106,12 @@ def marcar_ingreso_wps(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permiso("proveedores", "write")),
 ):
-    row = db.execute(text("SELECT estado_confirmacion FROM proveedores WHERE id = :id"), {"id": id}).fetchone()
-    if not row:
+    antes = db.execute(text("SELECT * FROM proveedores WHERE id = :id"), {"id": id}).fetchone()
+    if not antes:
         raise HTTPException(404, "Registro no encontrado")
-    if row.estado_confirmacion == "ingresado_wps":
+    if antes.estado_confirmacion == "ingresado_wps":
         raise HTTPException(409, "Ya fue ingresado a WPS")
-    if row.estado_confirmacion == "confirmado":
+    if antes.estado_confirmacion == "confirmado":
         raise HTTPException(409, "Ya está confirmado en muelle")
     hora = datetime.now(_BOG).strftime("%H:%M:%S")
     db.execute(
@@ -1138,8 +1144,103 @@ def marcar_ingreso_wps(
         """),
         {"id": id},
     )
+    try:
+        _audit(
+            db, current_user, "UPDATE", "proveedores", id,
+            dict(antes._mapping),
+            {"estado_confirmacion": "ingresado_wps", "hora_wps": hora, "marcado_wps_por": current_user["id"]},
+        )
+    except Exception:
+        pass
     db.commit()
     return {"message": "Ingreso a WPS marcado"}
+
+
+@router.put("/{id}/deshacer-wps")
+def deshacer_ingreso_wps(
+    id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permiso("proveedores", "write")),
+):
+    """Revierte un `marcar-wps` hecho por error: pendiente <- ingresado_wps,
+    dentro de una ventana corta (15 min desde hora_wps) para que sea
+    claramente "deshacer el clic accidental" y no una forma alterna de editar
+    el registro más tarde (para eso ya existe PUT /{id}).
+
+    Salvaguarda pedida por Alejandro: si la cita ligada a este proveedor
+    (proveedores_ordenes.cita_id) también está referenciada por una orden de
+    OTRO proveedor que ya avanzó a 'ingresado_wps' o 'confirmado', NO se
+    reabre esa cita al deshacer -- ese otro proveedor la sigue necesitando
+    marcada como 'usada'. Caso raro (una misma cita compartida entre
+    proveedores distintos) pero real dado el modelo de datos actual."""
+    antes = db.execute(text("SELECT * FROM proveedores WHERE id = :id"), {"id": id}).fetchone()
+    if not antes:
+        raise HTTPException(404, "Registro no encontrado")
+    if antes.estado_confirmacion != "ingresado_wps":
+        raise HTTPException(
+            409,
+            "Solo se puede deshacer mientras el registro está en 'Ingresado WPS'",
+        )
+    ahora = datetime.now(_BOG)
+    if antes.hora_wps:
+        minutos_ahora = ahora.hour * 60 + ahora.minute
+        minutos_wps = antes.hora_wps.hour * 60 + antes.hora_wps.minute
+        transcurridos = minutos_ahora - minutos_wps
+        if transcurridos < 0:
+            transcurridos += 24 * 60  # cruce de medianoche
+        if transcurridos > 15:
+            raise HTTPException(
+                409,
+                "Han pasado más de 15 minutos desde el ingreso a WPS: corrige el registro editándolo manualmente, no con este botón",
+            )
+    db.execute(
+        text("""
+            UPDATE proveedores
+            SET estado_confirmacion = 'pendiente', hora_wps = NULL,
+                marcado_wps_por = NULL, updated_at = NOW()
+            WHERE id = :id
+        """),
+        {"id": id},
+    )
+    # Reabre la cita consumida por marcar-wps, salvo que esa misma cita_id
+    # ya esté en uso por la orden de OTRO proveedor que avanzó más allá de
+    # 'pendiente' (ver salvaguarda en el docstring).
+    cita_result = db.execute(
+        text("""
+            UPDATE citas_programadas
+            SET estado = 'pendiente', updated_at = NOW()
+            WHERE estado = 'usada'
+              AND id IN (
+                  SELECT cita_id FROM proveedores_ordenes
+                  WHERE proveedor_id = :id AND cita_id IS NOT NULL
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM proveedores_ordenes po2
+                  JOIN proveedores p2 ON p2.id = po2.proveedor_id
+                  WHERE po2.cita_id = citas_programadas.id
+                    AND po2.proveedor_id != :id
+                    AND p2.estado_confirmacion IN ('ingresado_wps', 'confirmado')
+              )
+            RETURNING id
+        """),
+        {"id": id},
+    )
+    citas_reabiertas = [str(r[0]) for r in cita_result.fetchall()]
+    try:
+        _audit(
+            db, current_user, "UPDATE", "proveedores", id,
+            dict(antes._mapping),
+            {
+                "estado_confirmacion": "pendiente",
+                "hora_wps": None,
+                "marcado_wps_por": None,
+                "citas_programadas_reabiertas": citas_reabiertas,
+            },
+        )
+    except Exception:
+        pass
+    db.commit()
+    return {"message": "Ingreso a WPS deshecho: el registro vuelve a 'Por confirmar'"}
 
 
 @router.put("/{id}/confirmar")
