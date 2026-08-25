@@ -1231,6 +1231,19 @@ function HomePage({setPage,user}){
   const showAccesoStats  = isAdmin||isGuardaPeatonal||isCoordinador;
   const showProvStats    = isAdmin||isGuardaVehicular||isGuardaBodega||isCoordinador;
   const showDashboard    = !isRecorredor;
+  // Indicador gerencial (tiempo de autorregistro por QR): no es una cola
+  // operativa del turno, es un dato de consulta ocasional -- solo perfiles
+  // con visión gerencial/administrativa (los guardas de puesto no lo necesitan).
+  const showTiempoAutoregistro = isAdmin||isCoordinador;
+
+  const [tiempoAutoregistro,setTiempoAutoregistro] = useState(null);
+  useEffect(()=>{
+    if(!showTiempoAutoregistro) return;
+    api.get('/dashboard/tiempo-autorregistro').then(setTiempoAutoregistro).catch(()=>{});
+    // Dato lento (cambia con cada autorregistro por QR, no en tiempo real):
+    // se carga una sola vez al montar, sin polling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[showTiempoAutoregistro]);
 
   const tabBtn = (id,label,icon)=>h('button',{
     onClick:()=>setTab(id),
@@ -1315,6 +1328,24 @@ function HomePage({setPage,user}){
           )
         );
       })(),
+      showTiempoAutoregistro&&h('div',{className:'dash-section',style:{marginTop:4}},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'clock',s:12}),' Indicadores'),
+        h('div',{style:{background:'#fff',borderRadius:12,padding:'14px 14px',boxShadow:'0 1px 4px rgba(0,0,0,0.07)'}},
+          !tiempoAutoregistro
+            ? h(LoadingDots)
+            : tiempoAutoregistro.muestras===0
+              ? h('p',{style:{fontSize:12,color:'var(--slate)'}},'Aún no hay suficientes autorregistros por QR para calcular este indicador.')
+              : h('div',null,
+                  h('div',{style:{display:'flex',alignItems:'baseline',gap:6,flexWrap:'wrap'}},
+                    h('span',{style:{fontSize:26,fontWeight:800,fontFamily:'Syne,sans-serif',color:'#1e4570',lineHeight:1}},tiempoAutoregistro.mediana_minutos+' min'),
+                    h('span',{style:{fontSize:11,color:'var(--slate)',fontWeight:600}},'tiempo mediano de autorregistro por QR')
+                  ),
+                  h('p',{style:{fontSize:11,color:'var(--slate)',marginTop:5}},
+                    `Promedio: ${tiempoAutoregistro.promedio_minutos} min · ${tiempoAutoregistro.muestras} registro${tiempoAutoregistro.muestras===1?'':'s'}`
+                  )
+                )
+        )
+      ),
       !resumen&&h('div',{style:{padding:'40px 14px',textAlign:'center',color:'var(--slate)',fontSize:13}},
         h(LoadingDots)
       )
