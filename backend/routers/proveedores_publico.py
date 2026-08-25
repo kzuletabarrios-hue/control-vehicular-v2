@@ -14,6 +14,7 @@ from routers.proveedores import (
     CAMPOS_VEHICULO, CAMPOS_ORDEN, _clean, _insert_ordenes,
     validar_token_ingreso_qr, crear_token_sesion_registro, validar_token_sesion_registro,
     fecha_valida, _extraer_numero_orden, _raise_error_insercion,
+    SESION_REGISTRO_TTL_SEG,
 )
 from sqlalchemy.exc import IntegrityError, DataError
 
@@ -168,7 +169,7 @@ def autorregistro(
     db: Session = Depends(get_db),
 ):
     token = body.get("token")
-    validar_token_sesion_registro(token)
+    payload_sesion = validar_token_sesion_registro(token)
 
     vehiculo = body.get("vehiculo") or {}
     ordenes  = body.get("ordenes") or []
@@ -268,6 +269,23 @@ def autorregistro(
     vals["estado_confirmacion"] = "pendiente"
     vals["origen"] = "autorregistro"
     vals["creado_por"] = None
+    # Métrica de UX (Alejandro/Jorge, 2026-08-25): cuánto tardó el conductor
+    # en llenar el formulario, desde que escaneó el QR hasta este envío.
+    # Se deriva del propio JWT de sesión de registro: su claim "exp" (epoch
+    # UTC, PyJWT lo decodifica como número, no datetime) menos el TTL fijo
+    # de la sesión reconstruye la hora exacta de emisión (= hora de escaneo).
+    # Nunca debe tumbar el autorregistro: si el cálculo falla o da un valor
+    # absurdo, se guarda NULL en vez de reventar la función (indicador
+    # secundario, no crítico para el flujo).
+    try:
+        hora_inicio_sesion_epoch = payload_sesion["exp"] - SESION_REGISTRO_TTL_SEG
+        ahora_epoch = datetime.now(timezone.utc).timestamp()
+        duracion_segundos = round(ahora_epoch - hora_inicio_sesion_epoch)
+        if duracion_segundos < 0:
+            duracion_segundos = None
+    except Exception:
+        duracion_segundos = None
+    vals["tiempo_autorregistro_segundos"] = duracion_segundos
 
     cols = ", ".join(vals.keys())
     placeholders = ", ".join(f":{k}" for k in vals.keys())

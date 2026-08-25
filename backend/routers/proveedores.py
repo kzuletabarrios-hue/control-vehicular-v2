@@ -81,7 +81,7 @@ def crear_token_sesion_registro() -> str:
     return jwt.encode({"tipo": SESION_REGISTRO_TIPO, "exp": exp}, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def validar_token_sesion_registro(token: str) -> None:
+def validar_token_sesion_registro(token: str) -> dict:
     if not token:
         raise HTTPException(400, "Tu sesión de registro no es válida. Escanea el QR nuevamente.")
     try:
@@ -92,6 +92,7 @@ def validar_token_sesion_registro(token: str) -> None:
         raise HTTPException(400, "Tu sesión de registro no es válida.")
     if payload.get("tipo") != SESION_REGISTRO_TIPO:
         raise HTTPException(400, "Tu sesión de registro no es válida.")
+    return payload
 
 
 def _raise_error_insercion(db: Session, e: IntegrityError):

@@ -1,0 +1,141 @@
+-- ================================================================
+-- Métrica "tiempo de autorregistro" en `proveedores`: cuánto tarda un
+-- conductor en llenar el formulario de autorregistro por QR, desde
+-- que escanea el código hasta que envía el formulario. Decisión de
+-- Alejandro (2026-08-25): NO se crea tabla nueva -- el dato se deriva
+-- en el momento del envío a partir del propio token de sesión de
+-- registro (que ya trae una expiración fija), y se guarda calculado
+-- en una sola columna sobre `proveedores`.
+--
+-- ── Estado ANTES verificado (Jorge, 2026-08-25) ─────────────────────
+-- Se leyó el historial COMPLETO de backend/migrations_manual/ en
+-- orden (0000 en adelante, fuente de verdad del esquema desde
+-- 2026-08-01 según ese mismo archivo) hasta la última migración que
+-- toca `proveedores`: 2026-08-21_proveedores_logistica_inversa_columns.sql
+-- (2026-08-25_permiso_muelles_read_guarda_vehicular.sql, misma fecha,
+-- solo toca `roles`, no `proveedores`). No se usó database/schema.sql
+-- como referencia por estar desactualizado (ya documentado en
+-- migraciones previas de este mismo repo). Columna nueva de este
+-- script (`tiempo_autorregistro_segundos`) NO existe hoy -- grep del
+-- repo completo por ese nombre: 0 resultados antes de este archivo.
+-- No hubo lectura en vivo contra information_schema de Supabase
+-- producción en esta sesión (sin herramienta de conexión disponible);
+-- por eso el script es idempotente (ADD COLUMN IF NOT EXISTS) y se
+-- recomienda correr el SELECT de verificación del final antes de
+-- aplicar, igual que en la migración del 21.
+--
+-- Además se verificó el mecanismo real del que se deriva el dato,
+-- para no documentar una suposición (backend/routers/proveedores.py):
+--   línea 113: SESION_REGISTRO_TTL_SEG = 1800  # 30 min: tiempo para
+--              llenar el formulario una vez escaneado
+--   líneas 134-136: crear_token_sesion_registro() emite un JWT con
+--              claim "exp" = ahora + SESION_REGISTRO_TTL_SEG (fijo,
+--              1800 s, coincide con lo indicado por Alejandro).
+--   líneas 139-149: validar_token_sesion_registro(token) decodifica
+--              ese JWT en cada endpoint protegido, incluyendo el envío
+--              final del formulario (backend/routers/proveedores_publico.py,
+--              línea 176: POST autorregistro).
+-- Es decir: el "exp" del token YA es un dato disponible en el momento
+-- del submit sin tabla ni columna adicional -- confirma que el enfoque
+-- de Alejandro es viable con el código actual.
+--
+-- ── Diseño elegido ───────────────────────────────────────────────
+-- `tiempo_autorregistro_segundos INTEGER`, NULLABLE, SIN DEFAULT, SIN
+-- ÍNDICE.
+--   - INTEGER (segundos), no INTERVAL: el consumo declarado es
+--     agregación estadística (AVG(), PERCENTILE_CONT, MIN/MAX) sobre
+--     un reporte, no aritmética de fechas -- un entero simple es más
+--     barato de agregar y más directo de graficar en el frontend que
+--     un INTERVAL, sin perder precisión (la unidad es fija: segundos).
+--   - NULLABLE sin DEFAULT: no todo registro pasa por el flujo de
+--     token de sesión. El alta manual del guarda (formulario interno,
+--     sin QR ni token) nunca tiene "hora de escaneo" que restar --
+--     NULL es el valor correcto y permanente para esas filas, no un
+--     0 encubierto (0 significaría "llenó el formulario instantáneo",
+--     un dato falso). Mismo criterio de NULL-con-significado que ya
+--     usa esta tabla (ver semántica de tipos_logistica_inversa en la
+--     migración del 21).
+--   - SIN ÍNDICE: pedido explícito, y correcto para el caso de uso --
+--     esta columna alimenta funciones de agregación (AVG,
+--     PERCENTILE_CONT) que típicamente escanean la tabla completa (o
+--     un rango ya filtrado por fecha/empresa vía índices que SÍ
+--     existen en otras columnas), no se usa en un WHERE fila-por-fila.
+--     Un índice btree aquí sería puro costo de escritura sin beneficio
+--     real de lectura.
+--   - SIN CHECK: aunque el rango teórico está acotado por
+--     SESION_REGISTRO_TTL_SEG (0-1800), no se agrega una restricción
+--     de rango en este script -- un cambio futuro de esa constante en
+--     código (o un pequeño desfase de reloj entre servidor/cliente al
+--     calcular la resta) no debe poder romper un INSERT/UPDATE de
+--     producción por un CHECK de esquema desalineado con el código.
+--     Si aparecen valores fuera de rango en la práctica, es una señal
+--     para revisar el cálculo en aplicación, no algo que la base de
+--     datos deba bloquear a ciegas.
+--
+-- ── Sin backfill ─────────────────────────────────────────────────
+-- No hay forma de reconstruir este dato para filas existentes: el
+-- valor depende del JWT de la sesión de registro que se usó en el
+-- momento del envío (claim "exp" + hora real de submit), y ese token
+-- ya expiró y no quedó persistido en ningún lado (es un JWT
+-- stateless, no se guarda en `sesiones` ni en ninguna tabla -- esa
+-- tabla es para sesiones de USUARIOS autenticados, ver auth.py, no
+-- para tokens de registro público). No existe ninguna otra columna en
+-- `proveedores` de la que derivar esto retroactivamente. Todas las
+-- filas existentes nacen NULL, igual que los futuros registros del
+-- flujo manual del guarda -- indistinguibles a nivel de esquema (el
+-- backend de María es quien sabe si una fila vino de QR o de alta
+-- manual, y decide si calcula y escribe el valor o deja NULL).
+--
+-- Riesgo: BAJO. 1 columna nueva, nullable, sin default, sin CHECK,
+-- sin FK, sin índice -- no toca ninguna columna/constraint existente,
+-- no puede romper ningún INSERT/UPDATE/SELECT que ya corre en
+-- producción (SELECT * simplemente trae 1 columna adicional, siempre
+-- NULL hasta que María implemente la escritura). Idempotente (ADD
+-- COLUMN IF NOT EXISTS): segura de re-ejecutar. No requiere downtime
+-- ni bloqueo de tabla relevante en Postgres moderno (ADD COLUMN
+-- nullable sin default es solo catálogo, no reescribe filas).
+--
+-- No implementa el cálculo ni la escritura del valor (backend, lo
+-- construye María) ni ninguna vista/reporte de consumo (frontend,
+-- Laura/María) -- este script solo agrega la columna.
+--
+-- Fecha: 2026-08-25
+-- ================================================================
+
+ALTER TABLE proveedores
+  ADD COLUMN IF NOT EXISTS tiempo_autorregistro_segundos INTEGER;
+
+INSERT INTO schema_migrations (filename, nota)
+VALUES (
+  '2026-08-25_proveedores_tiempo_autorregistro_column.sql',
+  'Agrega tiempo_autorregistro_segundos INTEGER (nullable, sin default, sin índice) a proveedores. Mide cuánto tarda el conductor en llenar el formulario de autorregistro QR, derivado del claim exp del JWT de sesión de registro (SESION_REGISTRO_TTL_SEG=1800s, proveedores.py línea 113) menos el tiempo real de envío. NULL para filas existentes y para el flujo manual del guarda, sin backfill posible (el JWT de sesiones ya usadas no se puede recuperar).'
+)
+ON CONFLICT (filename) DO NOTHING;
+
+-- ── VERIFICACIÓN (informativo, no modifica datos) ───────────────
+-- Correr ANTES de aplicar, para confirmar que la columna no existe ya
+-- bajo otro nombre (drift no documentado):
+--
+-- SELECT column_name, data_type, is_nullable, column_default
+-- FROM information_schema.columns
+-- WHERE table_name = 'proveedores'
+--   AND column_name = 'tiempo_autorregistro_segundos';
+--
+-- Correr DESPUÉS de aplicar, para confirmar que nació NULL en todas
+-- las filas existentes:
+--
+-- SELECT count(*) AS total,
+--        count(*) FILTER (WHERE tiempo_autorregistro_segundos IS NOT NULL) AS con_tiempo
+-- FROM proveedores;  -- "con_tiempo" debe dar 0 justo después de aplicar
+--
+-- Ejemplo de consulta de reporte una vez María empiece a poblar el
+-- dato (referencia para agregaciones, no parte de esta migración):
+--
+-- SELECT
+--   round(avg(tiempo_autorregistro_segundos))                                   AS promedio_seg,
+--   percentile_cont(0.5) WITHIN GROUP (ORDER BY tiempo_autorregistro_segundos)  AS mediana_seg,
+--   min(tiempo_autorregistro_segundos)                                          AS minimo_seg,
+--   max(tiempo_autorregistro_segundos)                                          AS maximo_seg,
+--   count(tiempo_autorregistro_segundos)                                        AS muestras
+-- FROM proveedores
+-- WHERE tiempo_autorregistro_segundos IS NOT NULL;

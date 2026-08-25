@@ -249,3 +249,40 @@ def resumen(
             "acceso_sin_salida": acceso_sin_salida,
         },
     }
+
+
+@router.get("/tiempo-autorregistro")
+def tiempo_autorregistro(
+    fecha_desde: str | None = None,
+    fecha_hasta: str | None = None,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("dashboard", "read")),
+):
+    """Mediana, promedio y número de muestras de cuánto tarda un conductor en
+    llenar el formulario de autorregistro por QR (proveedores.tiempo_autorregistro_segundos).
+    Excluye NULL automáticamente (filas sin QR, ej. alta manual del guarda).
+    Filtro opcional de rango de fechas sobre proveedores.fecha -- nombres de
+    parámetro alineados con el resto del backend (ver export.py), no con
+    /resumen de este mismo archivo, que no acepta filtro de fecha por request.
+    """
+    row = db.execute(text("""
+        SELECT
+            AVG(tiempo_autorregistro_segundos)                                     AS promedio_seg,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY tiempo_autorregistro_segundos) AS mediana_seg,
+            COUNT(tiempo_autorregistro_segundos)                                   AS muestras
+        FROM proveedores
+        WHERE tiempo_autorregistro_segundos IS NOT NULL
+          AND (:desde IS NULL OR fecha >= :desde)
+          AND (:hasta IS NULL OR fecha <= :hasta)
+    """), {"desde": fecha_desde, "hasta": fecha_hasta}).mappings().one()
+
+    promedio_seg = float(row["promedio_seg"]) if row["promedio_seg"] is not None else None
+    mediana_seg  = float(row["mediana_seg"])  if row["mediana_seg"]  is not None else None
+
+    return {
+        "promedio_segundos": round(promedio_seg) if promedio_seg is not None else None,
+        "promedio_minutos":  round(promedio_seg / 60, 1) if promedio_seg is not None else None,
+        "mediana_segundos":  round(mediana_seg) if mediana_seg is not None else None,
+        "mediana_minutos":   round(mediana_seg / 60, 1) if mediana_seg is not None else None,
+        "muestras":          row["muestras"],
+    }
