@@ -247,6 +247,24 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 .muelle-leyenda-swatch.ocupado{background:var(--amber)}
 .muelle-leyenda-swatch.alerta{background:var(--red);border-color:var(--red)}
 .muelle-leyenda-dot{width:6px;height:6px;border-radius:50%;background:#1d4ed8;flex-shrink:0}
+/* Tablero reducido de ConfirmarMuelleSheet (Proveedores → botón "Confirmar"):
+   mismos colores libre/ocupado y tipografía Syne del número que
+   .muelle-grid/.muelle-celda, pero celdas más grandes pensadas para tacto
+   rápido en portería -- acá SÍ hace falta mostrar placa+minutos legibles
+   dentro de la celda ocupada, cosa que no cabe en los 56-64px de
+   .muelle-celda (esa sigue siendo la vista de consulta de MuellesPage). */
+.muelle-confirmar-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
+.muelle-confirmar-celda{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  min-height:68px;padding:6px 4px;border-radius:var(--radius-sm);border:1.5px solid var(--border);
+  background:var(--white);font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;
+}
+.muelle-confirmar-celda.libre{background:var(--green)}
+.muelle-confirmar-celda.libre .muelle-confirmar-num{color:#fff}
+.muelle-confirmar-celda.ocupado{background:var(--amber)}
+.muelle-confirmar-celda:active{filter:brightness(0.95)}
+.muelle-confirmar-num{font-weight:800;font-size:18px;font-family:'Syne',sans-serif;line-height:1;color:var(--text)}
+.muelle-confirmar-sub{font-size:10px;font-weight:700;color:var(--text2);text-align:center;line-height:1.25;word-break:break-word;padding:0 2px}
 
 /* ── SECTION TITLE ── */
 .sec-ttl{font-size:10px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.8px;margin:14px 0 8px;display:flex;align-items:center;gap:6px}
@@ -2940,6 +2958,105 @@ function VisitaVehicularPage({user,online,addOffline}){
   );
 }
 
+/* ── TABLERO DE MUELLES PARA CONFIRMAR INGRESO (guarda vehicular) ──
+   Se abre al tocar "Confirmar" en Proveedores en vez de confirmar directo:
+   deja elegir el muelle en el mismo gesto, sin abrir la tarjeta completa del
+   registro. Es una versión reducida a propósito de lo que ya muestra
+   MuellesPage (MuelleCelda/MuelleDetallePanel, línea ~5947) -- acá NO se
+   muestra tiempo excedido, línea de tiempo ni discordancia de carga, porque
+   eso es ruido en un selector pensado para tacto rápido en portería; esa
+   información completa sigue viviendo solo en la pantalla dedicada de
+   Muelles. Por el mismo motivo de tacto rápido las celdas son más grandes
+   que .muelle-celda (que mide 56-64px y solo alcanza para el número): acá
+   la celda ocupada necesita mostrar placa+minutos legibles, así que usa su
+   propia clase (.muelle-confirmar-celda, ver hoja de estilos) en vez de
+   reutilizar .muelle-celda tal cual -- mismos colores (var(--green)/
+   var(--amber)) y tipografía (Syne para el número) que el resto del
+   tablero de muelles, para no inventar un lenguaje visual distinto. */
+function MuelleBotonConfirmar({muelle:m, onElegir}){
+  const ocupado = m.estado==='ocupado';
+  const clases = ['muelle-confirmar-celda', ocupado?'ocupado':'libre'];
+  return h('button',{
+    type:'button',
+    className:clases.join(' '),
+    onClick:()=>onElegir(m),
+    'aria-label':`Muelle ${m.numero} — ${ocupado?'ocupado':'libre'}`,
+    title:`Muelle ${m.numero} — ${ocupado?'ocupado':'libre'}`
+  },
+    h('span',{className:'muelle-confirmar-num'},m.numero),
+    ocupado
+      ? h('span',{className:'muelle-confirmar-sub'},(m.placa_vehiculo||'Sin placa')+(m.minutos_ocupado!=null?` · ${m.minutos_ocupado}m`:''))
+      : (m.tipo_carga_habitual&&h(TipoCargaBadgeMini,{tipo:m.tipo_carga_habitual}))
+  );
+}
+
+function ConfirmarMuelleSheet({registro, onClose, onElegirMuelle, onSinMuelle}){
+  const [muelles,setMuelles] = useState([]);
+  const [loading,setLoading] = useState(true);
+  const [error,setError]     = useState(null);
+  const [saving,setSaving]   = useState(false);
+  const [ocupadoPend,setOcupadoPend] = useState(null); // muelle ocupado esperando el tap de confirmación
+
+  useEffect(()=>{
+    api.get('/muelles')
+      .then(r=>setMuelles(Array.isArray(r)?r:(r.items||[])))
+      .catch(()=>setError('No se pudo cargar el estado de los muelles'))
+      .finally(()=>setLoading(false));
+  },[]);
+
+  const elegir = (m)=>{
+    if(saving) return;
+    if(m.estado==='ocupado'){ setOcupadoPend(m); return; }
+    setSaving(true);
+    onElegirMuelle(m.numero);
+  };
+  const confirmarOcupado = ()=>{
+    if(saving||!ocupadoPend) return;
+    setSaving(true);
+    onElegirMuelle(ocupadoPend.numero);
+  };
+  const sinMuelle = ()=>{
+    if(saving) return;
+    setSaving(true);
+    onSinMuelle();
+  };
+
+  return h('div',{className:'overlay',onClick:saving?undefined:onClose},
+    h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
+      h('div',{className:'sheet-header'},
+        h('span',{style:{fontWeight:700,fontSize:15}},'Elegir muelle'),
+        h('button',{className:'btn-icon',onClick:onClose,disabled:saving},h(Ico,{n:'x',s:16}))
+      ),
+      h('p',{style:{fontSize:12,color:'var(--slate)',marginBottom:12}},
+        (registro.nombre_conductor||'Vehículo')+(registro.placa_vehiculo?' · '+registro.placa_vehiculo:'')
+      ),
+      error&&h(Alert,{type:'err',msg:error,onClose:()=>setError(null)}),
+      loading?h(LoadingDots):
+      muelles.length===0?h('div',{className:'empty'},h(Ico,{n:'mapPin',s:36}),h('p',null,'No hay muelles configurados')):
+      h('div',{className:'muelle-confirmar-grid'},
+        muelles.map(m=>h(MuelleBotonConfirmar,{key:m.id,muelle:m,onElegir:elegir}))
+      ),
+      h('div',{style:{textAlign:'center',marginTop:16}},
+        h('button',{
+          type:'button',
+          onClick:sinMuelle,
+          disabled:saving,
+          style:{background:'none',border:'none',color:'var(--slate)',fontSize:12,fontWeight:600,textDecoration:'underline',cursor:saving?'default':'pointer',padding:6}
+        },saving?'Confirmando...':'Confirmar sin muelle')
+      ),
+      ocupadoPend&&h(ConfirmSheet,{
+        icon:'alert',
+        titulo:`¿Muelle ${ocupadoPend.numero} ocupado?`,
+        textoOk:'Confirmar igual',
+        colorOk:'#d97706',
+        msg:`Muelle ${ocupadoPend.numero} ocupado por ${ocupadoPend.placa_vehiculo||'un vehículo'}${ocupadoPend.minutos_ocupado!=null?` hace ${ocupadoPend.minutos_ocupado} min`:''}. ¿Confirmar el ingreso igual en este muelle?`,
+        onOk:confirmarOcupado,
+        onCancel:()=>setOcupadoPend(null)
+      })
+    )
+  );
+}
+
 /* ── PROVEEDORES PAGE ── */
 function ProveedoresPage({user,online,addOffline}){
   const [view,setView]         = useState('list');
@@ -2950,6 +3067,7 @@ function ProveedoresPage({user,online,addOffline}){
   const [confirm,setConfirm]   = useState(null);
   const [liberarMuelle,setLiberarMuelle] = useState(null);
   const [deshacerWps,setDeshacerWps] = useState(null);
+  const [muelleSheet,setMuelleSheet] = useState(null); // registro en tablero de "elegir muelle" (ver ConfirmarMuelleSheet)
   const [selected,setSelected] = useState(null);
   const [salida,setSalida]     = useState(null);
   const [horaSalida,setHoraSalida]     = useState('');
@@ -3056,10 +3174,15 @@ function ProveedoresPage({user,online,addOffline}){
     api.get('/maestros/proveedores').then(r=>setBdProv(Array.isArray(r)?r:(r.items||[]))).catch(()=>{});
   },[]);
 
-  const confirmarIngreso = async(id)=>{
+  // muelle es opcional: si viene, viaja como muelle_descargue en el mismo
+  // PUT que confirma (ver ConfirmarMuelleSheet, tablero que abre el botón
+  // "Confirmar"). Sin muelle, el comportamiento es exactamente el de
+  // siempre -- confirma sin tocar el muelle.
+  const confirmarIngreso = async(id,muelle)=>{
     try{
-      await api.put(`/proveedores/${id}/confirmar`,{});
-      setAlert({type:'ok',msg:'Ingreso confirmado'});
+      const body = muelle?{muelle_descargue:String(muelle)}:{};
+      await api.put(`/proveedores/${id}/confirmar`,body);
+      setAlert({type:'ok',msg:muelle?`Ingreso confirmado — muelle ${muelle}`:'Ingreso confirmado'});
       load();
     }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
   };
@@ -3959,7 +4082,7 @@ function ProveedoresPage({user,online,addOffline}){
               },h(Ico,{n:'upload',s:11}),'Ingresado WPS'),
               !esBodega&&enWps&&h('button',{
                 title:'Confirmar ingreso',
-                onClick:(e)=>{e.stopPropagation();confirmarIngreso(r.id);},
+                onClick:(e)=>{e.stopPropagation();setMuelleSheet(r);},
                 style:{background:'#059669',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
               },'Confirmar'),
               // Solo UX: decide si mostrar el botón (≤15 min desde hora_wps). La
@@ -4072,6 +4195,12 @@ function ProveedoresPage({user,online,addOffline}){
         }
       },
       onCancel:()=>setDeshacerWps(null)
+    }),
+    muelleSheet&&h(ConfirmarMuelleSheet,{
+      registro:muelleSheet,
+      onClose:()=>setMuelleSheet(null),
+      onElegirMuelle:async(numero)=>{ await confirmarIngreso(muelleSheet.id,numero); setMuelleSheet(null); },
+      onSinMuelle:async()=>{ await confirmarIngreso(muelleSheet.id); setMuelleSheet(null); }
     }),
     saveFrModal&&h('div',{className:'overlay',onClick:()=>setSaveFrModal(false)},
       h('div',{className:'sheet',onClick:e=>e.stopPropagation()},

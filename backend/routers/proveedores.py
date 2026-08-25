@@ -1246,6 +1246,7 @@ def deshacer_ingreso_wps(
 @router.put("/{id}/confirmar")
 def confirmar_autorregistro(
     id: str,
+    body: dict | None = None,
     db: Session = Depends(get_db),
     _: dict = Depends(require_permiso("proveedores", "write")),
 ):
@@ -1257,14 +1258,36 @@ def confirmar_autorregistro(
     if row.estado_confirmacion == "pendiente":
         raise HTTPException(409, "Falta marcar ingreso a WPS antes de confirmar a muelle")
     hora = datetime.now(_BOG).strftime("%H:%M:%S")
-    db.execute(
-        text("""
-            UPDATE proveedores
-            SET estado_confirmacion = 'confirmado', hora_ingreso_confirmado = :hora, updated_at = NOW()
-            WHERE id = :id
-        """),
-        {"id": id, "hora": hora},
-    )
+    # El tablero de muelles del guarda vehicular (ProveedoresPage) puede mandar
+    # el muelle elegido en el mismo gesto que confirma el ingreso, para no
+    # obligarlo a abrir la tarjeta completa del registro después. Es opcional
+    # a propósito: si no viene (o llega vacío), el comportamiento es
+    # exactamente el de siempre -- confirma sin tocar muelle_descargue, que
+    # bodega puede asignar más tarde desde la pantalla de Muelles. No se
+    # valida el rango 1-18 acá: el valor sale de un botón del tablero, no de
+    # texto libre (mismo criterio laxo que ya tiene esta columna en el resto
+    # del archivo, ver `actualizar` arriba).
+    muelle = (body or {}).get("muelle_descargue")
+    muelle = str(muelle).strip() if muelle not in (None, "") else None
+    if muelle:
+        db.execute(
+            text("""
+                UPDATE proveedores
+                SET estado_confirmacion = 'confirmado', hora_ingreso_confirmado = :hora,
+                    muelle_descargue = :muelle, updated_at = NOW()
+                WHERE id = :id
+            """),
+            {"id": id, "hora": hora, "muelle": muelle},
+        )
+    else:
+        db.execute(
+            text("""
+                UPDATE proveedores
+                SET estado_confirmacion = 'confirmado', hora_ingreso_confirmado = :hora, updated_at = NOW()
+                WHERE id = :id
+            """),
+            {"id": id, "hora": hora},
+        )
     # Red de seguridad defensiva (ya NO es el camino principal: eso se movió a
     # PUT /{id}/marcar-wps, que consume la cita al pasar a 'ingresado_wps'). Este
     # UPDATE sigue siendo necesario porque POST /{id}/ordenes permite agregar una
