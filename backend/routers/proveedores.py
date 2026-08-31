@@ -1235,19 +1235,70 @@ def deshacer_ingreso_wps(
     return {"message": "Ingreso a WPS deshecho: el registro vuelve a 'Por confirmar'"}
 
 
+@router.put("/{id}/deshacer-confirmacion")
+def deshacer_confirmacion(
+    id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permiso("proveedores", "write")),
+):
+    """Revierte una confirmación de ingreso a muelle hecha por error:
+    confirmado <- ingresado_wps. Mismo patrón que deshacer_ingreso_wps."""
+    antes = db.execute(text("SELECT * FROM proveedores WHERE id = :id"), {"id": id}).fetchone()
+    if not antes:
+        raise HTTPException(404, "Registro no encontrado")
+    if antes.estado_confirmacion != "confirmado":
+        raise HTTPException(
+            409,
+            "Solo se puede deshacer mientras el registro está confirmado en muelle",
+        )
+    if antes.hora_salida is not None:
+        raise HTTPException(409, "Este proveedor ya registró salida del CEDI")
+    if getattr(antes, "muelle_logistica_inversa", None) is not None:
+        raise HTTPException(
+            409,
+            "Este proveedor ya avanzó a logística inversa; no se puede deshacer la confirmación de muelle",
+        )
+    db.execute(
+        text("""
+            UPDATE proveedores
+            SET estado_confirmacion = 'ingresado_wps', hora_ingreso_confirmado = NULL,
+                muelle_descargue = NULL, muelle_numero = NULL, hora_muelle_liberado = NULL,
+                updated_at = NOW()
+            WHERE id = :id
+        """),
+        {"id": id},
+    )
+    try:
+        _audit(
+            db, current_user, "UPDATE", "proveedores", id,
+            dict(antes._mapping),
+            {
+                "estado_confirmacion": "ingresado_wps",
+                "hora_ingreso_confirmado": None,
+                "muelle_descargue": None,
+                "muelle_numero": None,
+                "hora_muelle_liberado": None,
+            },
+        )
+    except Exception:
+        pass
+    db.commit()
+    return {"message": "Confirmación de muelle deshecha: el registro vuelve a 'Ingresado WPS'"}
+
+
 @router.put("/{id}/confirmar")
 def confirmar_autorregistro(
     id: str,
     body: dict | None = Body(default=None),
     db: Session = Depends(get_db),
-    _: dict = Depends(require_permiso("proveedores", "write")),
+    current_user: dict = Depends(require_permiso("proveedores", "write")),
 ):
-    row = db.execute(text("SELECT estado_confirmacion FROM proveedores WHERE id = :id"), {"id": id}).fetchone()
-    if not row:
+    antes = db.execute(text("SELECT * FROM proveedores WHERE id = :id"), {"id": id}).fetchone()
+    if not antes:
         raise HTTPException(404, "Registro no encontrado")
-    if row.estado_confirmacion == "confirmado":
+    if antes.estado_confirmacion == "confirmado":
         raise HTTPException(409, "Este registro ya estaba confirmado")
-    if row.estado_confirmacion == "pendiente":
+    if antes.estado_confirmacion == "pendiente":
         raise HTTPException(409, "Falta marcar ingreso a WPS antes de confirmar a muelle")
     hora = datetime.now(_BOG).strftime("%H:%M:%S")
     # El tablero de muelles del guarda vehicular (ProveedoresPage) puede mandar
@@ -1298,6 +1349,13 @@ def confirmar_autorregistro(
         """),
         {"id": id},
     )
+    try:
+        despues = {"estado_confirmacion": "confirmado", "hora_ingreso_confirmado": hora}
+        if muelle:
+            despues["muelle_descargue"] = muelle
+        _audit(db, current_user, "UPDATE", "proveedores", id, dict(antes._mapping), despues)
+    except Exception:
+        pass
     db.commit()
     return {"message": "Ingreso confirmado"}
 

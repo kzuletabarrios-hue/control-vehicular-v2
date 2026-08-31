@@ -3098,6 +3098,7 @@ function ProveedoresPage({user,online,addOffline}){
   const [confirm,setConfirm]   = useState(null);
   const [liberarMuelle,setLiberarMuelle] = useState(null);
   const [deshacerWps,setDeshacerWps] = useState(null);
+  const [deshacerConf,setDeshacerConf] = useState(null);
   const [muelleSheet,setMuelleSheet] = useState(null); // registro en tablero de "elegir muelle" (ver ConfirmarMuelleSheet)
   const [selected,setSelected] = useState(null);
   const [salida,setSalida]     = useState(null);
@@ -4127,6 +4128,14 @@ function ProveedoresPage({user,online,addOffline}){
                   onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(ahoraHora());setFechaSalidaP(today());setFotoSalida(null);},
                   style:{background:'#d97706',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
                 },'Salida'),
+                // El botón se muestra siempre que el registro esté confirmado en
+                // muelle: el guard real (estado + salida + logística inversa) lo
+                // aplica el backend en /deshacer-confirmacion.
+                !esBodega&&confMuelle&&r.hora_ingreso&&!r.hora_salida&&h('button',{
+                  title:'Deshacer la confirmación de muelle hecha por error',
+                  onClick:(e)=>{e.stopPropagation();setDeshacerConf(r);},
+                  style:{background:'none',border:'1px solid #1d4ed8',cursor:'pointer',color:'#1d4ed8',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700,display:'inline-flex',alignItems:'center',gap:3}
+                },h(Ico,{n:'undo',s:11}),'Deshacer'),
                 esBodega&&confMuelle&&r.muelle_descargue&&!r.hora_salida&&h('button',{
                   title:'Liberar muelle',
                   onClick:(e)=>{e.stopPropagation();setLiberarMuelle(r);},
@@ -4286,6 +4295,23 @@ function ProveedoresPage({user,online,addOffline}){
         }
       },
       onCancel:()=>setDeshacerWps(null)
+    }),
+    deshacerConf&&h(ConfirmSheet,{
+      icon:'undo',
+      titulo:'¿Deshacer la confirmación de muelle?',
+      textoOk:'Deshacer',
+      colorOk:'#1d4ed8',
+      msg:`El registro de ${deshacerConf.nombre_conductor||deshacerConf.placa_vehiculo||'este vehículo'} volverá a "Ingresado WPS" y quedará libre el muelle ${deshacerConf.muelle_descargue||''}. Úsalo solo si el muelle o la confirmación fueron un error.`,
+      onOk:async()=>{
+        try{
+          await api.put(`/proveedores/${deshacerConf.id}/deshacer-confirmacion`,{});
+          setDeshacerConf(null); load(); setAlert({type:'ok',msg:'Confirmación de muelle deshecha'});
+        }catch(e){
+          setDeshacerConf(null); load();
+          setAlert({type:'err',msg:_textoErrorCita(e)});
+        }
+      },
+      onCancel:()=>setDeshacerConf(null)
     }),
     muelleSheet&&h(ConfirmarMuelleSheet,{
       registro:muelleSheet,
