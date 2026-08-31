@@ -1163,10 +1163,13 @@ def deshacer_ingreso_wps(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permiso("proveedores", "write")),
 ):
-    """Revierte un `marcar-wps` hecho por error: pendiente <- ingresado_wps,
-    dentro de una ventana corta (15 min desde hora_wps) para que sea
-    claramente "deshacer el clic accidental" y no una forma alterna de editar
-    el registro más tarde (para eso ya existe PUT /{id}).
+    """Revierte un `marcar-wps` hecho por error: pendiente <- ingresado_wps.
+
+    Disponible mientras el registro siga en estado 'ingresado_wps', sin
+    ventana de tiempo: en cuanto el guarda confirma el ingreso en muelle
+    (estado pasa a 'confirmado') deja de poder deshacerse, porque ya no
+    tiene sentido revertir un ingreso ya confirmado en muelle (para editar
+    un registro confirmado ya existe PUT /{id}).
 
     Salvaguarda pedida por Alejandro: si la cita ligada a este proveedor
     (proveedores_ordenes.cita_id) también está referenciada por una orden de
@@ -1182,18 +1185,6 @@ def deshacer_ingreso_wps(
             409,
             "Solo se puede deshacer mientras el registro está en 'Ingresado WPS'",
         )
-    ahora = datetime.now(_BOG)
-    if antes.hora_wps:
-        minutos_ahora = ahora.hour * 60 + ahora.minute
-        minutos_wps = antes.hora_wps.hour * 60 + antes.hora_wps.minute
-        transcurridos = minutos_ahora - minutos_wps
-        if transcurridos < 0:
-            transcurridos += 24 * 60  # cruce de medianoche
-        if transcurridos > 15:
-            raise HTTPException(
-                409,
-                "Han pasado más de 15 minutos desde el ingreso a WPS: corrige el registro editándolo manualmente, no con este botón",
-            )
     db.execute(
         text("""
             UPDATE proveedores
