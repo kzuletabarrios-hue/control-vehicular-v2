@@ -4095,7 +4095,7 @@ function ProveedoresPage({user,online,addOffline}){
                   .filter(Boolean).reduce((acc,cur,i)=>i===0?[cur]:[...acc,' · ',cur],[])
               ),
               r.hora_cita&&h('div',{className:'li-sub'},'Cita: '+r.hora_cita.slice(0,5)),
-              r.hora_ingreso&&h('div',{className:'li-sub'},'Ingreso '+r.hora_ingreso.slice(0,5)),
+              r.hora_ingreso&&h('div',{className:'li-sub'},'Hora de llegada '+r.hora_ingreso.slice(0,5)),
               h('div',{className:'li-sub'},empLabel),
               ords.length>1&&h('span',{style:{fontSize:10,background:'#dbeafe',color:'#1d4ed8',borderRadius:4,padding:'1px 6px',fontWeight:700,display:'inline-block',marginTop:2}},ords.length+' órdenes')
             ),
