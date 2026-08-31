@@ -4166,7 +4166,7 @@ function ProveedoresPage({user,online,addOffline}){
           sinCita.sort(porHoraIngreso);
           const grupoHeader = (tipo,count,esPrimero) => {
             const cfg = {
-              atrasados:{bg:'#fee2e2',border:'#fca5a5',icon:'alert',iconColor:'#991b1b',label:'ATRASADOS',textColor:'#991b1b',pillBg:'#fecaca'},
+              atrasados:{bg:'#fee2e2',border:'#fca5a5',icon:'alert',iconColor:'#991b1b',label:'ATRASADOS POR INCUMPLIMIENTO DE CITA',textColor:'#991b1b',pillBg:'#fecaca'},
               aTiempo:{bg:'#d1fae5',border:'#6ee7b7',icon:'checkCircle',iconColor:'#065f46',label:'A TIEMPO',textColor:'#065f46',pillBg:'#a7f3d0'},
               sinCita:{bg:'#f1f5f9',border:'var(--border)',icon:'clipboard',iconColor:'var(--slate)',label:'SIN CITA REGISTRADA',textColor:'var(--slate)',pillBg:'#e2e8f0'}
             }[tipo];
