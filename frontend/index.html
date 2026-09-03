@@ -3879,11 +3879,12 @@ function ProveedoresPage({user,online,addOffline}){
           h('div',{className:'fg'},h('label',null,'Fecha',h('span',{className:'req'},'*')),h('input',{type:'date',value:vehiculoForm.fecha,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg'},h('label',null,'Hora ingreso',h('span',{className:'req'},'*')),h('input',{type:'time',value:vehiculoForm.hora_ingreso,readOnly:true,style:{background:'#f8fafc',cursor:'default'}}))
         ),
+        // Documento/cédula primero (antes de Placa): dispara lookupConductor()
+        // en el onBlur ANTES de que el guarda llene el resto de campos del
+        // conductor, para que nombre/teléfono lleguen ya autocompletados si
+        // es un conductor frecuente. Mismo criterio que el autorregistro QR
+        // (pedido explícito de Karen para ambos formularios).
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},
-            h('label',null,'Placa',h('span',{className:'req'},'*')),
-            h('input',{type:'text',value:vehiculoForm.placa_vehiculo,onChange:e=>setVehiculoForm(p=>({...p,placa_vehiculo:e.target.value.toUpperCase()})),placeholder:'ABC-123',style:{textTransform:'uppercase'}})
-          ),
           h('div',{className:'fg'},
             h('label',null,'Documento conductor',h('span',{className:'req'},'*')),
             h('div',{style:{display:'flex',gap:6}},
@@ -3903,6 +3904,10 @@ function ProveedoresPage({user,online,addOffline}){
               frecuenteInfo.estado==='encontrado'?'Conductor frecuente — datos autocompletados':
               frecuenteInfo.estado==='inactivo'?'Conductor inactivo en el catálogo':'Conductor nuevo'
             )
+          ),
+          h('div',{className:'fg'},
+            h('label',null,'Placa',h('span',{className:'req'},'*')),
+            h('input',{type:'text',value:vehiculoForm.placa_vehiculo,onChange:e=>setVehiculoForm(p=>({...p,placa_vehiculo:e.target.value.toUpperCase()})),placeholder:'ABC-123',style:{textTransform:'uppercase'}})
           )
         ),
         h('div',{className:'fgrid2'},
