@@ -380,6 +380,8 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 .loading-dots span:nth-child(2){animation-delay:.2s}
 .loading-dots span:nth-child(3){animation-delay:.4s}
 @keyframes ldot{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes citaAtrasadaBlink{0%,100%{opacity:1}50%{opacity:.4}}
+.cita-blink{animation:citaAtrasadaBlink 1.1s ease-in-out infinite}
 
 /* ── EMPTY ── */
 .empty{text-align:center;padding:48px 20px}
@@ -3278,6 +3280,31 @@ function ProveedoresPage({user,online,addOffline}){
     avisados5min.current.forEach(id=>{ if(!pendientesIds.has(id)) avisados5min.current.delete(id); });
   },[records]);
 
+  // Suena cada 7 min mientras un pendiente siga atrasado en su hora de cita
+  // (diff<0) y sin marcar WPS. Independiente de avisados5min (ese es
+  // proactivo/una vez; este es reactivo/repetido). Un timestamp por id, no un
+  // booleano, para poder re-disparar.
+  const avisadosAtraso = useRef(new Map()); // id -> ms del último aviso
+  useEffect(()=>{
+    const activosIds = new Set();
+    const ahoraMs = Date.now();
+    records.forEach(r=>{
+      if(r.estado_confirmacion!=='pendiente' || !r.hora_cita) return;
+      const [ch,cm] = r.hora_cita.split(':').map(Number);
+      const [ah,am] = ahoraHora().split(':').map(Number);
+      const diff = (ch*60+cm) - (ah*60+am);
+      if(diff<0){
+        activosIds.add(r.id);
+        const ultimo = avisadosAtraso.current.get(r.id);
+        if(ultimo==null || ahoraMs-ultimo >= 7*60*1000){
+          avisadosAtraso.current.set(r.id, ahoraMs);
+          playAlertSound();
+        }
+      }
+    });
+    avisadosAtraso.current.forEach((_,id)=>{ if(!activosIds.has(id)) avisadosAtraso.current.delete(id); });
+  },[records]);
+
   useEffect(()=>{
     api.get('/maestros/proveedores').then(r=>setBdProv(Array.isArray(r)?r:(r.items||[]))).catch(()=>{});
   },[]);
@@ -4302,7 +4329,7 @@ function ProveedoresPage({user,online,addOffline}){
           const citaProxima = !!citaAlerta;
           return cardFor(r,{
             style: citaProxima?{border:'1.5px solid #f87171',background:'#fef2f2'}:pendConf?{border:'1.5px solid #fcd34d',background:'#fffbeb'}:null,
-            pill: citaAlerta&&h('span',{className:'pill',style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#fee2e2',color:'#991b1b',border:'1px solid #fca5a5'}},citaAlerta.diff>=0?`⏰ Cita en ${citaAlerta.diff} min`:`⏰ Cita atrasada ${Math.abs(citaAlerta.diff)} min`)
+            pill: citaAlerta&&h('span',{className:'pill'+(citaAlerta.diff<0?' cita-blink':''),style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#fee2e2',color:'#991b1b',border:'1px solid #fca5a5'}},citaAlerta.diff>=0?`⏰ Cita en ${citaAlerta.diff} min`:`⏰ Cita atrasada ${Math.abs(citaAlerta.diff)} min`)
           });
         });
       })()
