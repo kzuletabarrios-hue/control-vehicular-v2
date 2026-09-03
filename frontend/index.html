@@ -183,6 +183,7 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 .pill-amber{background:#fef3c7;color:#92400e}
 .pill-red  {background:#fee2e2;color:#991b1b}
 .pill-slate{background:#f1f5f9;color:#475569}
+.pill-navy{background:rgba(26,58,92,0.10);color:var(--navy2)}
 /* Versión mini de .pill para la celda compacta de muelles: mismo color
    (background/text heredado de .pill-blue/.pill-amber/.pill-slate, se
    combinan como className="pill-mini pill-blue" etc.) pero más chica para
@@ -853,6 +854,19 @@ const TIPO_CARGA_ABREV = { Refrigerada:'❄ REF', Seca:'SEC', Mixta:'MIX' };
 function TipoCargaBadgeMini({tipo}){
   if(!tipo) return null;
   return h('span',{className:`pill-mini ${TIPO_CARGA_CLS[tipo]||'pill-slate'}`},TIPO_CARGA_ABREV[tipo]||tipo);
+}
+// Badge de los tipos de logística inversa (estibas/canastillas/devoluciones/...)
+// respondidos por el conductor -- reutiliza el catálogo global
+// TIPOS_LOGISTICA_INVERSA (línea ~499) para traducir value -> label. Se usa
+// tanto en el detalle del tablero 19-21 (MuelleDetallePanelInversa) como en
+// la card de Proveedores.
+function LogisticaInversaBadge({tipos, style}){
+  if(!Array.isArray(tipos) || tipos.length===0) return null;
+  const labels = tipos.map(v => TIPOS_LOGISTICA_INVERSA.find(t=>t.value===v)?.label || v);
+  return h('span',{className:'pill pill-navy', style:{display:'inline-flex',alignItems:'center',gap:4,fontWeight:700,...style}},
+    h(Ico,{n:'package',s:10}),
+    labels.join(', ')
+  );
 }
 // Formatea un campo TIME ("HH:MM:SS" o "HH:MM") a "HH:MM" para mostrar en
 // cualquier línea de tiempo de la app. Compartido por DetalleTiempos
@@ -3081,7 +3095,7 @@ function MuelleBotonConfirmar({muelle:m, onElegir}){
   );
 }
 
-function ConfirmarMuelleSheet({registro, onClose, onElegirMuelle, onSinMuelle}){
+function ConfirmarMuelleSheet({registro, onClose, onElegirMuelle, onSinMuelle, endpoint='/muelles', titulo='Elegir muelle', ocultarSinMuelle=false}){
   const [muelles,setMuelles] = useState([]);
   const [loading,setLoading] = useState(true);
   const [error,setError]     = useState(null);
@@ -3089,11 +3103,11 @@ function ConfirmarMuelleSheet({registro, onClose, onElegirMuelle, onSinMuelle}){
   const [ocupadoPend,setOcupadoPend] = useState(null); // muelle ocupado esperando el tap de confirmación
 
   useEffect(()=>{
-    api.get('/muelles')
+    api.get(endpoint)
       .then(r=>setMuelles(Array.isArray(r)?r:(r.items||[])))
       .catch(()=>setError('No se pudo cargar el estado de los muelles'))
       .finally(()=>setLoading(false));
-  },[]);
+  },[endpoint]);
 
   const elegir = (m)=>{
     if(saving) return;
@@ -3115,7 +3129,7 @@ function ConfirmarMuelleSheet({registro, onClose, onElegirMuelle, onSinMuelle}){
   return h('div',{className:'overlay',onClick:saving?undefined:onClose},
     h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
       h('div',{className:'sheet-header'},
-        h('span',{style:{fontWeight:700,fontSize:15}},'Elegir muelle'),
+        h('span',{style:{fontWeight:700,fontSize:15}},titulo),
         h('button',{className:'btn-icon',onClick:onClose,disabled:saving},h(Ico,{n:'x',s:16}))
       ),
       h('p',{style:{fontSize:12,color:'var(--slate)',marginBottom:12}},
@@ -3127,7 +3141,7 @@ function ConfirmarMuelleSheet({registro, onClose, onElegirMuelle, onSinMuelle}){
       h('div',{className:'muelle-confirmar-grid'},
         muelles.map(m=>h(MuelleBotonConfirmar,{key:m.id,muelle:m,onElegir:elegir}))
       ),
-      h('div',{style:{textAlign:'center',marginTop:16}},
+      !ocultarSinMuelle&&h('div',{style:{textAlign:'center',marginTop:16}},
         h('button',{
           type:'button',
           onClick:sinMuelle,
@@ -3160,6 +3174,8 @@ function ProveedoresPage({user,online,addOffline}){
   const [deshacerWps,setDeshacerWps] = useState(null);
   const [deshacerConf,setDeshacerConf] = useState(null);
   const [muelleSheet,setMuelleSheet] = useState(null); // registro en tablero de "elegir muelle" (ver ConfirmarMuelleSheet)
+  const [muelleInversaSheet,setMuelleInversaSheet] = useState(null); // registro en tablero de "elegir muelle" de logística inversa (19-21)
+  const [liberarMuelleInversa,setLiberarMuelleInversa] = useState(null);
   const [selected,setSelected] = useState(null);
   const [salida,setSalida]     = useState(null);
   const [horaSalida,setHoraSalida]     = useState('');
@@ -4203,6 +4219,18 @@ function ProveedoresPage({user,online,addOffline}){
                   onClick:(e)=>{e.stopPropagation();setLiberarMuelle(r);},
                   style:{background:'var(--purple)',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700,display:'inline-flex',alignItems:'center',gap:3}
                 },h(Ico,{n:'truck',s:11}),' Liberar muelle'),
+                esBodega&&confMuelle&&!r.hora_salida&&!r.muelle_logistica_inversa
+                  &&Array.isArray(r.tipos_logistica_inversa)&&r.tipos_logistica_inversa.length>0&&h('button',{
+                  title:'Enviar a logística inversa',
+                  onClick:(e)=>{e.stopPropagation();setMuelleInversaSheet(r);},
+                  style:{background:'var(--navy2)',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700,display:'inline-flex',alignItems:'center',gap:3}
+                },h(Ico,{n:'package',s:11}),' Enviar a logística inversa'),
+                esBodega&&!!r.muelle_logistica_inversa&&h('button',{
+                  title:'Liberar muelle de logística inversa',
+                  onClick:(e)=>{e.stopPropagation();setLiberarMuelleInversa(r);},
+                  style:{background:'var(--navy3)',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700,display:'inline-flex',alignItems:'center',gap:3}
+                },h(Ico,{n:'truck',s:11}),' Liberar muelle inversa'),
+                r.tipos_logistica_inversa&&h(LogisticaInversaBadge,{tipos:r.tipos_logistica_inversa}),
                 (esBodega||esVehicular)&&(r.observaciones||r.foto_url)&&h('span',{style:{fontSize:10,background:'#fef3c7',color:'#92400e',borderRadius:4,padding:'2px 6px',fontWeight:600}},'Con observación'),
                 !esBodega&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},className:'li-act li-act-danger'},h(Ico,{n:'trash',s:14}))
               )
@@ -4380,6 +4408,40 @@ function ProveedoresPage({user,online,addOffline}){
       onClose:()=>setMuelleSheet(null),
       onElegirMuelle:async(numero)=>{ await confirmarIngreso(muelleSheet.id,numero); setMuelleSheet(null); },
       onSinMuelle:async()=>{ await confirmarIngreso(muelleSheet.id); setMuelleSheet(null); }
+    }),
+    muelleInversaSheet&&h(ConfirmarMuelleSheet,{
+      registro:muelleInversaSheet,
+      endpoint:'/muelles/logistica-inversa',
+      titulo:'Elegir muelle de logística inversa',
+      ocultarSinMuelle:true,
+      onClose:()=>setMuelleInversaSheet(null),
+      onElegirMuelle:async(numero)=>{
+        try{
+          await api.put(`/proveedores/${muelleInversaSheet.id}/asignar-muelle-inversa`,{muelle:numero});
+          setMuelleInversaSheet(null); load(); setAlert({type:'ok',msg:`Enviado a logística inversa — muelle ${numero}`});
+        }catch(e){
+          setMuelleInversaSheet(null); load();
+          setAlert({type:'err',msg:'Error: '+e.message});
+        }
+      },
+      onSinMuelle:()=>{} // no aplica en este modo, ocultarSinMuelle:true ya quita el botón que lo dispararía
+    }),
+    liberarMuelleInversa&&h(ConfirmSheet,{
+      icon:'truck',
+      titulo:`¿Liberar el muelle de logística inversa ${liberarMuelleInversa.muelle_logistica_inversa}?`,
+      textoOk:'Liberar muelle',
+      colorOk:'var(--navy3)',
+      msg:`El vehículo ${liberarMuelleInversa.placa_vehiculo||''} dejará de ocupar el muelle ${liberarMuelleInversa.muelle_logistica_inversa} de logística inversa.`,
+      onOk:async()=>{
+        try{
+          await api.put(`/proveedores/${liberarMuelleInversa.id}/liberar-muelle-inversa`,{});
+          setLiberarMuelleInversa(null); load(); setAlert({type:'ok',msg:'Muelle de logística inversa liberado'});
+        }catch(e){
+          setLiberarMuelleInversa(null); load();
+          setAlert({type:'err',msg:'Error: '+e.message});
+        }
+      },
+      onCancel:()=>setLiberarMuelleInversa(null)
     }),
     saveFrModal&&h('div',{className:'overlay',onClick:()=>setSaveFrModal(false)},
       h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
@@ -6339,6 +6401,51 @@ function MuelleDetallePanel({muelle:m, onCerrar}){
   );
 }
 
+// Timeline y panel de detalle propios del tablero 19-21 -- mismo patrón que
+// MuelleLineaTiempo/MuelleDetallePanel pero con el subconjunto de pasos y
+// campos que expone /muelles/logistica-inversa (sin zona/tipo_carga_habitual,
+// con tipos_logistica_inversa y sus dos horas propias). Se mantienen
+// separados de los originales para no alterar el tablero 1-18.
+function MuelleLineaTiempoInversa({muelle:m}){
+  const pasos = [
+    {icon:'mapPin', titulo:'Asignado a logística inversa', hora:hhmmT(m.hora_logistica_inversa_asignado),
+     desc:'Muelle asignado tras liberar el andén de descargue'},
+    {icon:'truck',  titulo:'Liberado', hora:hhmmT(m.hora_logistica_inversa_liberado),
+     desc:'Cargue de logística inversa finalizado'},
+  ];
+  return h(React.Fragment,null,
+    h('p',{className:'sec-ttl'},h(Ico,{n:'clock',s:12}),' Línea de tiempo'),
+    h(LineaTiempoPasos,{pasos})
+  );
+}
+
+function MuelleDetallePanelInversa({muelle:m, onCerrar}){
+  return h('div',{className:'muelle-detalle'},
+    h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8,marginBottom:8}},
+      h('p',{style:{fontWeight:800,fontSize:16,fontFamily:'Syne,sans-serif',lineHeight:1.15}},'Muelle '+m.numero),
+      h('div',{style:{display:'flex',alignItems:'center',gap:6,flexShrink:0}},
+        h('span',{className:'pill',style:{background:'var(--amber)',color:'var(--navy)'}},'Ocupado'),
+        h('button',{type:'button',onClick:onCerrar,'aria-label':'Cerrar detalle del muelle',
+          style:{background:'none',border:'none',cursor:'pointer',padding:4,color:'var(--slate)',display:'flex'}
+        },h(Ico,{n:'x',s:16}))
+      )
+    ),
+    h('div',{style:{marginBottom:8}},h(LogisticaInversaBadge,{tipos:m.tipos_logistica_inversa})),
+    h('p',{style:{fontSize:14,fontWeight:700}},m.placa_vehiculo||'Sin placa'),
+    m.nombre_conductor&&h('p',{style:{fontSize:12,color:'var(--text2)',marginTop:1}},m.nombre_conductor),
+    m.empresas&&h('p',{style:{fontSize:11,color:'#0e7490',fontWeight:600,marginTop:3}},m.empresas),
+    m.tipo_carga&&h('div',{style:{marginTop:6}},h(TipoCargaBadge,{tipo:m.tipo_carga})),
+    h('div',{style:{display:'flex',alignItems:'center',flexWrap:'wrap',gap:6,marginTop:8}},
+      h('span',{style:{display:'inline-flex',alignItems:'center',gap:4,color:m.alerta_tiempo?'var(--red)':'var(--text2)'}},
+        h(Ico,{n:'clock',s:12}),
+        h('span',{style:{fontSize:11,fontWeight:700}},m.minutos_ocupado!=null?`${m.minutos_ocupado} min ocupado`:'—')
+      ),
+      m.alerta_tiempo&&h('span',{className:'pill pill-red'},'Tiempo excedido')
+    ),
+    h(MuelleLineaTiempoInversa,{muelle:m})
+  );
+}
+
 function MuellesPage({user}){
   const [muelles,setMuelles] = useState([]);
   const [loading,setLoading] = useState(true);
@@ -6407,7 +6514,60 @@ function MuellesPage({user}){
         h('div',{className:'muelle-grid'},muelles.map(m=>h(MuelleCelda,{
           key:m.id,muelle:m,seleccionado:m.id===seleccionId,onSeleccionar:seleccionarMuelle
         })))
-      )
+      ),
+      h(MuellesLogisticaInversaSection)
+    )
+  );
+}
+
+// Sección independiente del tablero 19-21 (logística inversa) -- mismo
+// patrón de polling/estado que MuellesPage pero aislada en su propio
+// componente porque consume un endpoint distinto (/muelles/logistica-inversa)
+// y no comparte estado con el tablero 1-18. Se monta como último hijo del
+// .scroll-body de MuellesPage.
+function MuellesLogisticaInversaSection(){
+  const [muelles,setMuelles] = useState([]);
+  const [loading,setLoading] = useState(true);
+  const [error,setError]     = useState(null);
+  const [seleccionId,setSeleccionId] = useState(null);
+
+  const load = useCallback(()=>{
+    api.get('/muelles/logistica-inversa')
+      .then(r=>{ setMuelles(Array.isArray(r)?r:(r.items||[])); setError(null); })
+      .catch(()=>setError('No se pudo cargar el tablero de logística inversa'))
+      .finally(()=>setLoading(false));
+  },[]);
+  useVisibilityPolling(load, 60000, [load]);
+
+  const ocupados = muelles.filter(m=>m.estado==='ocupado').length;
+  const muelleSeleccionado = seleccionId!=null ? muelles.find(m=>m.id===seleccionId && m.estado==='ocupado') : null;
+
+  return h('div',{style:{margin:'22px -14px 0',padding:'14px 14px 12px',borderTop:'3px solid var(--navy2)',background:'linear-gradient(180deg,rgba(26,58,92,0.06),transparent 70%)'}},
+    h('div',{style:{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}},
+      h('span',{style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:26,height:26,borderRadius:8,background:'var(--navy2)',color:'#fff',flexShrink:0}},
+        h(Ico,{n:'package',s:14})
+      ),
+      h('h2',{className:'syne',style:{fontSize:15,fontWeight:800,color:'var(--navy)',margin:0}},'Logística inversa'),
+      h('span',{className:'pill pill-navy',style:{fontWeight:800}},'Muelles 19–21')
+    ),
+    h('p',{style:{fontSize:11,color:'var(--slate)',margin:'4px 0 10px'}},
+      'Vehículos que ya descargaron en 1–18 y pasaron aquí a recoger estibas, canastillas, devoluciones u otros.'
+    ),
+    !loading&&!error&&h('p',{style:{fontSize:11,color:'var(--text2)',fontWeight:700,marginBottom:6}},
+      `${ocupados} ocupado${ocupados===1?'':'s'} de ${muelles.length}`
+    ),
+    !loading&&!error&&muelles.length>0&&h('div',{className:'muelle-leyenda'},
+      h('span',{className:'muelle-leyenda-item'},h('span',{className:'muelle-leyenda-swatch libre','aria-hidden':'true'}),'Libre'),
+      h('span',{className:'muelle-leyenda-item'},h('span',{className:'muelle-leyenda-swatch ocupado','aria-hidden':'true'}),'Ocupado'),
+      h('span',{className:'muelle-leyenda-item'},h('span',{className:'muelle-leyenda-swatch alerta','aria-hidden':'true'}),'Tiempo excedido')
+    ),
+    error&&h(Alert,{type:'err',msg:error,onClose:()=>setError(null)}),
+    loading?h(LoadingDots):h(React.Fragment,null,
+      muelleSeleccionado&&h(MuelleDetallePanelInversa,{muelle:muelleSeleccionado,onCerrar:()=>setSeleccionId(null)}),
+      h('div',{className:'muelle-grid'},muelles.map(m=>h(MuelleCelda,{
+        key:m.id, muelle:m, seleccionado:m.id===seleccionId,
+        onSeleccionar:id=>setSeleccionId(prev=>prev===id?null:id)
+      })))
     )
   );
 }
