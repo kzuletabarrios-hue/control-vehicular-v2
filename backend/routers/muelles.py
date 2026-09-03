@@ -83,6 +83,14 @@ ALERTA_MUELLE_MIN = 120  # ajustado por Karen: 2 horas (antes 90 min / citas-mue
 # sin esta lista fija no habría forma de mostrar "libre" en el tablero.
 MUELLES_NUMEROS = list(range(1, 19))
 
+# Muelles de logística inversa (19-21, ver migración
+# 2026-08-21_proveedores_logistica_inversa_columns.sql): vehículos que ya
+# descargaron en un muelle normal (1-18) y se mueven aquí a recoger
+# estibas/canastillas/devoluciones/donaciones/garantías/otros. Universo fijo
+# por el mismo motivo que MUELLES_NUMEROS (derivar "libre" de una columna de
+# texto libre no es posible sin una lista fija).
+MUELLES_LOGISTICA_INVERSA = [19, 20, 21]
+
 # TODO: retirar este mapeo y volver al JOIN contra
 # muelles.tipo_carga_habitual en cuanto esa tabla tenga datos operativos
 # reales (hoy está vacía, el JOIN devolvería NULL siempre). Rango exacto
@@ -143,6 +151,7 @@ def tablero(
                p.hora_ingreso, p.tipo_carga,
                p.hora_cita, p.hora_wps, p.hora_ingreso_confirmado,
                p.hora_muelle_liberado, p.muelle_numero,
+               p.tipos_logistica_inversa,
                (
                    SELECT string_agg(
                        CASE WHEN emp.ocs IS NULL THEN emp.empresa
@@ -193,6 +202,13 @@ def tablero(
             "nombre_conductor": None,
             "empresas": None,
             "tipo_carga": None,
+            # true si este vehículo (mientras aún descarga en 1-18) ya
+            # respondió que SÍ tiene tipos de logística inversa pendientes --
+            # NULL (no preguntado, legacy) y [] ("no aplica") dan False igual.
+            # Así el guarda ve de antemano que este vehículo después va a
+            # pasar al muelle 19/20/21 (ver PUT
+            # /proveedores/{id}/asignar-muelle-inversa).
+            "tiene_logistica_inversa": False,
             # Línea de tiempo completa (mismo orden que DetalleTiempos en
             # Proveedores, frontend ~línea 784-793): cita, WPS, ingreso
             # confirmado, salida de muelle. hora_ingreso ya viaja arriba
@@ -223,6 +239,7 @@ def tablero(
             item["hora_ingreso_confirmado"] = r.hora_ingreso_confirmado
             item["hora_muelle_liberado"] = r.hora_muelle_liberado
             item["muelle_numero"] = r.muelle_numero
+            item["tiene_logistica_inversa"] = bool(r.tipos_logistica_inversa)
             # Base del cálculo de "tiempo excedido": el momento en que el
             # guarda vehicular confirma el ingreso (hora_ingreso_confirmado),
             # no la llegada a portería (hora_ingreso) ni una asignación de
@@ -244,6 +261,116 @@ def tablero(
                     # Cruce de medianoche (hora registrada el día anterior
                     # con el mismo campo TIME) -- no se puede saber cuántos
                     # días exactos pasaron, se evita mostrar un negativo.
+                    minutos = 0
+                item["minutos_ocupado"] = minutos
+                item["alerta_tiempo"] = minutos >= ALERTA_MUELLE_MIN
+        items.append(item)
+
+    return items
+
+
+@router.get("/logistica-inversa")
+def tablero_logistica_inversa(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("muelles", "read")),
+):
+    """Tablero de los muelles 19-21 (logística inversa -- ver migración
+    2026-08-21_proveedores_logistica_inversa_columns.sql): vehículos que ya
+    descargaron en un muelle normal (1-18) y se movieron aquí a recoger
+    estibas/canastillas/devoluciones/donaciones/garantías/otros (ver
+    PUT /proveedores/{id}/asignar-muelle-inversa).
+
+    Endpoint NUEVO y separado de GET /muelles (a propósito, no se mezcla en
+    el mismo payload): el frontend actual de MuellesPage consume GET /muelles
+    esperando directamente una lista plana de 18 posiciones
+    (Array.isArray(r) ? r : (r.items||[])) -- envolver esa respuesta en un
+    objeto {muelles, logistica_inversa} habría roto esa vista sin tocar el
+    frontend a la vez. Mismo criterio de "no romper lo que ya funciona".
+
+    Mismo umbral ALERTA_MUELLE_MIN que 1-18 (2h) -- no se cambia sin
+    confirmación de negocio, aunque para una operación de RECOGIDA (en vez de
+    descargue) ese umbral podría no ser el más adecuado; queda como
+    recomendación a validar con Alejandro/Karen, no se toca aquí.
+
+    No trae `tipo_carga_habitual` ni `zona`: ese concepto no aplica a estos
+    muelles (no son parte del rango físico 1-18 con vocación de carga fija).
+
+    Devuelve una lista plana de 3 posiciones (19, 20, 21), mismo shape que
+    GET /muelles, con estos campos por muelle:
+      id, numero, estado ("ocupado"|"libre"), placa_vehiculo,
+      nombre_conductor, empresas, tipo_carga, tipos_logistica_inversa
+      (lista de tipos que ese vehículo va a recoger), hora_logistica_inversa_asignado,
+      hora_logistica_inversa_liberado (siempre None mientras esté ocupado --
+      ver liberar_muelle_inversa), minutos_ocupado, alerta_tiempo.
+    """
+    rows = db.execute(text("""
+        SELECT p.id, p.placa_vehiculo, p.nombre_conductor, p.tipo_carga,
+               p.tipos_logistica_inversa, p.muelle_logistica_inversa,
+               p.hora_logistica_inversa_asignado, p.hora_logistica_inversa_liberado,
+               (
+                   SELECT string_agg(
+                       CASE WHEN emp.ocs IS NULL THEN emp.empresa
+                            ELSE emp.empresa || ' (' || emp.ocs || ')'
+                       END,
+                       ', ' ORDER BY emp.empresa
+                   )
+                   FROM (
+                       SELECT po.empresa,
+                              string_agg(
+                                  DISTINCT 'OC ' || NULLIF(po.numero_orden_compra, ''),
+                                  ', ' ORDER BY 'OC ' || NULLIF(po.numero_orden_compra, '')
+                              ) AS ocs
+                       FROM proveedores_ordenes po
+                       WHERE po.proveedor_id = p.id
+                       GROUP BY po.empresa
+                   ) emp
+               ) AS empresas
+        FROM proveedores p
+        WHERE p.estado_confirmacion = 'confirmado' AND p.hora_salida IS NULL
+          AND p.muelle_logistica_inversa IS NOT NULL
+        ORDER BY p.hora_logistica_inversa_asignado ASC
+    """)).fetchall()
+
+    ocupantes = {}
+    for r in rows:
+        numero = _normalizar_muelle(r.muelle_logistica_inversa)
+        if numero is None or numero not in MUELLES_LOGISTICA_INVERSA or numero in ocupantes:
+            continue
+        ocupantes[numero] = r
+
+    ahora = datetime.now(_BOG)
+    hoy = ahora.date()
+
+    items = []
+    for numero in MUELLES_LOGISTICA_INVERSA:
+        r = ocupantes.get(numero)
+        item = {
+            "id": str(numero),
+            "numero": numero,
+            "estado": "ocupado" if r is not None else "libre",
+            "placa_vehiculo": None,
+            "nombre_conductor": None,
+            "empresas": None,
+            "tipo_carga": None,
+            "tipos_logistica_inversa": None,
+            "hora_logistica_inversa_asignado": None,
+            "hora_logistica_inversa_liberado": None,
+            "minutos_ocupado": None,
+            "alerta_tiempo": False,
+        }
+        if r is not None:
+            item["placa_vehiculo"] = r.placa_vehiculo
+            item["nombre_conductor"] = r.nombre_conductor
+            item["empresas"] = r.empresas
+            item["tipo_carga"] = r.tipo_carga
+            item["tipos_logistica_inversa"] = r.tipos_logistica_inversa
+            item["hora_logistica_inversa_asignado"] = r.hora_logistica_inversa_asignado
+            item["hora_logistica_inversa_liberado"] = r.hora_logistica_inversa_liberado
+            base_hora = r.hora_logistica_inversa_asignado
+            if base_hora is not None:
+                base_dt = datetime.combine(hoy, base_hora, tzinfo=_BOG)
+                minutos = int((ahora - base_dt).total_seconds() // 60)
+                if minutos < 0:
                     minutos = 0
                 item["minutos_ocupado"] = minutos
                 item["alerta_tiempo"] = minutos >= ALERTA_MUELLE_MIN

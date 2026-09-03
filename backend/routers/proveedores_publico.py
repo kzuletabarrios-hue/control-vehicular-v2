@@ -14,7 +14,7 @@ from routers.proveedores import (
     CAMPOS_VEHICULO, CAMPOS_ORDEN, _clean, _insert_ordenes,
     validar_token_ingreso_qr, crear_token_sesion_registro, validar_token_sesion_registro,
     fecha_valida, _extraer_numero_orden, _raise_error_insercion,
-    SESION_REGISTRO_TTL_SEG,
+    _validar_tipos_logistica_inversa, SESION_REGISTRO_TTL_SEG,
 )
 from sqlalchemy.exc import IntegrityError, DataError
 
@@ -27,6 +27,10 @@ CAMPOS_VEHICULO_PUBLICOS = [
     "telefono_conductor", "tipo_vehiculo", "hora_cita",
     "fecha_pago_arl", "epp_cumple", "tipo_carga", "formato_carga",
     "cantidad_pallets", "manejo_carga",
+    # Logística inversa: obligatorio de responder, aunque sea "no aplica"
+    # (lista vacía) -- ver _validar_tipos_logistica_inversa. Se valida más
+    # abajo en autorregistro() antes de armar `vals`.
+    "tipos_logistica_inversa",
 ]
 # Nota: muelle_descargue NO lo llena el conductor — el guarda lo asigna al
 # confirmar el ingreso (ver PUT /api/proveedores/{id}).
@@ -186,6 +190,7 @@ def autorregistro(
     formato_c   = (vehiculo.get("formato_carga") or "").strip()
     pallets     = (vehiculo.get("cantidad_pallets") or "").strip()
     manejo      = (vehiculo.get("manejo_carga") or "").strip()
+    tipos_li_raw = vehiculo.get("tipos_logistica_inversa")
 
     if not placa:
         raise HTTPException(400, "La placa es obligatoria")
@@ -217,6 +222,9 @@ def autorregistro(
         raise HTTPException(400, "Selecciona quién maneja la carga")
     if not ordenes:
         raise HTTPException(400, "Agrega al menos un proveedor/orden a la que vienes a entregar")
+    # Obligatorio responder sí/no, aunque sea "no aplica" (lista vacía) --
+    # decisión ya confirmada por Karen. Lanza 400 si no vino en el body.
+    tipos_li = _validar_tipos_logistica_inversa(tipos_li_raw, requerido=True)
 
     # El proveedor NUNCA lo escribe el conductor a mano: para cada orden se
     # vuelve a buscar la cita de HOY en el servidor (defensa en profundidad
@@ -264,6 +272,9 @@ def autorregistro(
     # mismo criterio que con `empresa` en cada orden.
     vals["hora_cita"] = hora_cita_autoritativa
     vals["epp_cumple"] = bool(epp)
+    # Ya validado/normalizado arriba (lista limpia, nunca None -- el 400 ya
+    # se lanzó si no vino) -- sobrescribe lo que haya calculado _clean().
+    vals["tipos_logistica_inversa"] = tipos_li
     vals["fecha"] = ahora.date().isoformat()
     vals["hora_ingreso"] = ahora.strftime("%H:%M:%S")
     vals["estado_confirmacion"] = "pendiente"

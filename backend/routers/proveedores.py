@@ -31,7 +31,62 @@ CAMPOS_VEHICULO = [
     # Legacy columns kept nullable for backward compat
     "empresa", "muelle_descargue", "carga_compartida",
     "actividad_a_desarrollar", "dependencia_autoriza",
+    # Logística inversa (migración 2026-08-21_proveedores_logistica_inversa_columns.sql):
+    # lista de tipos (TEXT[]) que el vehículo va a recoger en el muelle 19/20/21
+    # después de descargar. NULL = registro anterior a esta función (no
+    # preguntado); [] = se preguntó, "no aplica"; con valores = aplican esos
+    # tipos. Ver _validar_tipos_logistica_inversa para el catálogo y la regla
+    # de obligatoriedad al registrar una llegada nueva.
+    "tipos_logistica_inversa",
 ]
+
+# Catálogo fijo de tipos de logística inversa (sin CHECK en BD -- ver
+# migración 2026-08-21_proveedores_logistica_inversa_columns.sql, sección
+# "Diseño elegido para tipos": se valida en aplicación, no en Postgres).
+TIPOS_LOGISTICA_INVERSA_CATALOGO = (
+    "estibas", "canastillas", "devoluciones", "donaciones", "garantias", "otros",
+)
+
+
+def _validar_tipos_logistica_inversa(valor, requerido: bool = False):
+    """Valida `tipos_logistica_inversa` contra el catálogo fijo de arriba.
+    `valor` debe ser una lista (posiblemente vacía = "no aplica") o None.
+
+    `requerido=True` se usa SOLO al registrar una llegada nueva (POST
+    /proveedores y POST /proveedores-publico/autorregistro -- decisión ya
+    confirmada por Karen: el campo es obligatorio de responder, aunque sea
+    "no aplica" = lista vacía): si `valor` es None (no vino en el body) se
+    rechaza con un mensaje claro, en vez de dejarlo pasar como NULL, que en
+    esta tabla está reservado exclusivamente para registros anteriores a esta
+    función (nunca para un registro nuevo que simplemente no respondió).
+
+    `requerido=False` se usa en ediciones parciales (PUT /proveedores/{id})
+    donde el campo es opcional -- si no viene, no se toca; si viene, se
+    valida igual.
+
+    Devuelve la lista normalizada (minúsculas, sin espacios, sin duplicados)
+    lista para escribir en la columna TEXT[], o None si `valor` es None y no
+    es requerido."""
+    if valor is None:
+        if requerido:
+            raise HTTPException(400, "Debes indicar si el vehículo va a recoger algo en logística inversa")
+        return None
+    if not isinstance(valor, list):
+        raise HTTPException(400, "tipos_logistica_inversa debe ser una lista de valores")
+    limpio: list[str] = []
+    for v in valor:
+        t = str(v).strip().lower() if v is not None else ""
+        if not t:
+            continue
+        if t not in TIPOS_LOGISTICA_INVERSA_CATALOGO:
+            raise HTTPException(
+                400,
+                f'Tipo de logística inversa inválido: "{v}". '
+                f'Valores permitidos: {", ".join(TIPOS_LOGISTICA_INVERSA_CATALOGO)}.',
+            )
+        if t not in limpio:
+            limpio.append(t)
+    return limpio
 
 CAMPOS_ORDEN = [
     "empresa", "carga_compartida",
@@ -969,6 +1024,11 @@ def crear(
         raise HTTPException(400, "El nombre del conductor es obligatorio")
     if not (vals.get("cedula_conductor") or "").strip():
         raise HTTPException(400, "La cédula del conductor es obligatoria")
+    # Registro manual (guarda): obligatorio responder sí/no logística inversa,
+    # igual que en el autorregistro por QR -- ver _validar_tipos_logistica_inversa.
+    vals["tipos_logistica_inversa"] = _validar_tipos_logistica_inversa(
+        vals.get("tipos_logistica_inversa"), requerido=True
+    )
     cols = ", ".join(vals.keys())
     placeholders = ", ".join(f":{k}" for k in vals.keys())
     try:
@@ -1072,6 +1132,13 @@ def actualizar(
         raise HTTPException(400, "El nombre del conductor no puede quedar vacío")
     if "cedula_conductor" in vals and not (vals["cedula_conductor"] or "").strip():
         raise HTTPException(400, "La cédula del conductor no puede quedar vacía")
+    # Edición parcial: el campo es opcional aquí (la obligatoriedad solo
+    # aplica al registrar la llegada, no a cada PUT posterior) -- si viene,
+    # se valida igual contra el catálogo fijo.
+    if "tipos_logistica_inversa" in vals:
+        vals["tipos_logistica_inversa"] = _validar_tipos_logistica_inversa(
+            vals["tipos_logistica_inversa"], requerido=False
+        )
     vals["id"] = id
 
     sets = ", ".join(f"{c} = :{c}" for c in vals if c != "id")
@@ -1360,6 +1427,25 @@ def confirmar_autorregistro(
     return {"message": "Ingreso confirmado"}
 
 
+def _release_muelle_descargue(db: Session, id: str, muelle_actual: str, hora: str):
+    """UPDATE puro (sin commit/audit) que libera el muelle de descargue -- SQL
+    extraído de liberar_muelle para reutilizarlo también en
+    asignar_muelle_inversa, que libera el muelle de descargue como parte de
+    la misma transición al muelle de logística inversa, sin duplicar la
+    lógica ni arriesgar que las dos copias diverjan con el tiempo."""
+    db.execute(
+        text("""
+            UPDATE proveedores
+            SET muelle_descargue = NULL,
+                muelle_numero = :muelle_numero,
+                hora_muelle_liberado = :hora,
+                updated_at = NOW()
+            WHERE id = :id
+        """),
+        {"id": id, "muelle_numero": muelle_actual, "hora": hora},
+    )
+
+
 @router.put("/{id}/liberar-muelle")
 def liberar_muelle(
     id: str,
@@ -1394,17 +1480,7 @@ def liberar_muelle(
 
     muelle_anterior = row.muelle_descargue
     hora = datetime.now(_BOG).strftime("%H:%M:%S")
-    db.execute(
-        text("""
-            UPDATE proveedores
-            SET muelle_descargue = NULL,
-                muelle_numero = :muelle_numero,
-                hora_muelle_liberado = :hora,
-                updated_at = NOW()
-            WHERE id = :id
-        """),
-        {"id": id, "muelle_numero": muelle_anterior, "hora": hora},
-    )
+    _release_muelle_descargue(db, id, muelle_anterior, hora)
     _audit(
         db, current_user, "LIBERAR_MUELLE", "proveedores", id,
         {"muelle_descargue": muelle_anterior},
@@ -1412,6 +1488,134 @@ def liberar_muelle(
     )
     db.commit()
     return {"message": "Muelle liberado"}
+
+
+# Muelles de logística inversa (19, 20, 21 -- ver migración
+# 2026-08-21_proveedores_logistica_inversa_columns.sql). Copia local a
+# propósito, sin importar routers/muelles.py (mismo criterio ya usado por
+# _audit: no acoplar módulos que hoy no se importan entre sí) -- si el rango
+# cambiara habría que actualizarlo en los dos archivos.
+MUELLES_LOGISTICA_INVERSA = (19, 20, 21)
+
+
+@router.put("/{id}/asignar-muelle-inversa")
+def asignar_muelle_inversa(
+    id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permiso("muelles", "liberar")),
+):
+    """Transición del vehículo del muelle de descargue (1-18) al muelle de
+    logística inversa (19/20/21), donde recoge estibas/canastillas/
+    devoluciones/donaciones/garantías/otros (ver tipos_logistica_inversa).
+    Mismo permiso que liberar_muelle ("muelles":"liberar") -- decisión ya
+    confirmada por Karen: el mismo guarda de bodega que hoy libera el muelle
+    de descargue ejecuta también esta transición, sin permiso nuevo.
+
+    En una sola operación (mismo request, misma transacción):
+    1) Si el muelle de descargue todavía está ocupado (el guarda puede
+       llamar este endpoint directamente sin haber llamado antes
+       liberar-muelle), lo libera con el mismo efecto/columnas que
+       liberar_muelle (reutiliza _release_muelle_descargue, no duplica el
+       SQL). Si ya estaba liberado por una llamada previa, este paso se
+       omite en silencio -- no es un error.
+    2) Asigna muelle_logistica_inversa + hora_logistica_inversa_asignado.
+
+    Body esperado: {"muelle": 19|20|21}.
+    """
+    muelle_raw = body.get("muelle")
+    try:
+        muelle_num = int(muelle_raw)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Indica el número de muelle de logística inversa (19, 20 o 21)")
+    if muelle_num not in MUELLES_LOGISTICA_INVERSA:
+        raise HTTPException(400, "El muelle de logística inversa debe ser 19, 20 o 21")
+
+    row = db.execute(
+        text(
+            "SELECT estado_confirmacion, muelle_descargue, hora_salida, muelle_logistica_inversa "
+            "FROM proveedores WHERE id = :id"
+        ),
+        {"id": id},
+    ).fetchone()
+    if not row:
+        raise HTTPException(404, "Registro no encontrado")
+    if row.estado_confirmacion != "confirmado":
+        raise HTTPException(409, "Este proveedor aún no tiene el ingreso confirmado en muelle.")
+    if row.hora_salida is not None:
+        raise HTTPException(409, "Este proveedor ya registró salida del CEDI")
+    if row.muelle_logistica_inversa:
+        raise HTTPException(409, "Este proveedor ya tiene un muelle de logística inversa asignado")
+
+    hora = datetime.now(_BOG).strftime("%H:%M:%S")
+    muelle_descargue_anterior = row.muelle_descargue
+    if muelle_descargue_anterior:
+        _release_muelle_descargue(db, id, muelle_descargue_anterior, hora)
+
+    db.execute(
+        text("""
+            UPDATE proveedores
+            SET muelle_logistica_inversa = :muelle,
+                hora_logistica_inversa_asignado = :hora,
+                updated_at = NOW()
+            WHERE id = :id
+        """),
+        {"id": id, "muelle": str(muelle_num), "hora": hora},
+    )
+    _audit(
+        db, current_user, "ASIGNAR_MUELLE_INVERSA", "proveedores", id,
+        {"muelle_descargue": muelle_descargue_anterior, "muelle_logistica_inversa": None},
+        {"muelle_descargue": None, "muelle_logistica_inversa": str(muelle_num), "hora_logistica_inversa_asignado": hora},
+    )
+    db.commit()
+    return {"message": "Muelle de logística inversa asignado", "muelle_logistica_inversa": str(muelle_num)}
+
+
+@router.put("/{id}/liberar-muelle-inversa")
+def liberar_muelle_inversa(
+    id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permiso("muelles", "liberar")),
+):
+    """Libera el muelle de logística inversa (19/20/21) cuando el vehículo
+    termina de cargar y sale de ese andén -- mismo patrón/permiso que
+    liberar_muelle, pero sobre muelle_logistica_inversa /
+    hora_logistica_inversa_liberado.
+
+    A diferencia de liberar_muelle, NO guarda una copia histórica tipo
+    muelle_numero: esa 4ª columna (ej. muelle_logistica_inversa_numero) fue
+    evaluada y deliberadamente NO creada en la migración 2026-08-21
+    (asimetría documentada ahí, pendiente de confirmación de negocio) -- si
+    el frontend necesita mostrar "en qué muelle de logística inversa estuvo"
+    después de liberado, hace falta esa columna en una migración posterior."""
+    row = db.execute(
+        text("SELECT muelle_logistica_inversa FROM proveedores WHERE id = :id"),
+        {"id": id},
+    ).fetchone()
+    if not row:
+        raise HTTPException(404, "Registro no encontrado")
+    if not row.muelle_logistica_inversa:
+        raise HTTPException(409, "Este proveedor no tiene un muelle de logística inversa asignado para liberar")
+
+    muelle_anterior = row.muelle_logistica_inversa
+    hora = datetime.now(_BOG).strftime("%H:%M:%S")
+    db.execute(
+        text("""
+            UPDATE proveedores
+            SET muelle_logistica_inversa = NULL,
+                hora_logistica_inversa_liberado = :hora,
+                updated_at = NOW()
+            WHERE id = :id
+        """),
+        {"id": id, "hora": hora},
+    )
+    _audit(
+        db, current_user, "LIBERAR_MUELLE_INVERSA", "proveedores", id,
+        {"muelle_logistica_inversa": muelle_anterior},
+        {"muelle_logistica_inversa": None, "hora_logistica_inversa_liberado": hora},
+    )
+    db.commit()
+    return {"message": "Muelle de logística inversa liberado"}
 
 
 # ── Legacy batch endpoint (kept for backward compat) ──────────────────────────
@@ -1439,6 +1643,13 @@ def crear_batch(
                 raise HTTPException(400, "El nombre del conductor es obligatorio")
             if not (vals.get("cedula_conductor") or "").strip():
                 raise HTTPException(400, "La cédula del conductor es obligatoria")
+            # Endpoint legacy de backward compat (ver comentario de la sección):
+            # a diferencia de crear()/autorregistro() NO se exige aquí (podría
+            # romper integraciones que ya llaman este batch sin conocer el campo
+            # nuevo) -- si viene, igual se valida contra el catálogo fijo.
+            vals["tipos_logistica_inversa"] = _validar_tipos_logistica_inversa(
+                vals.get("tipos_logistica_inversa"), requerido=False
+            )
             cols = ", ".join(vals.keys())
             placeholders = ", ".join(f":{k}" for k in vals.keys())
             db.execute(text(f"INSERT INTO proveedores ({cols}) VALUES ({placeholders})"), vals)
