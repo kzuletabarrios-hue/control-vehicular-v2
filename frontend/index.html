@@ -6227,10 +6227,13 @@ function ProveedorAutorregistroPage({token}){
     errorMsg&&h(Alert,{type:'err',msg:errorMsg,onClose:()=>setErrorMsg('')}),
     h('div',{className:'fcard'},
       h('p',{className:'sec-ttl'},h(Ico,{n:'truck',s:12}),' Datos del vehículo y conductor'),
-      h('div',{className:'fg'},h('label',null,'Placa',h('span',{className:'req'},'*')),
-        h('input',{type:'text',value:vehiculo.placa_vehiculo,onChange:e=>setVehiculo(p=>({...p,placa_vehiculo:e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'')})),placeholder:'ABC123 (letras y luego números, sin espacios ni guiones)'})
-      ),
-      h('div',{className:'fg'},h('label',null,'Nombre conductor',h('span',{className:'req'},'*')),h('input',{type:'text',value:vehiculo.nombre_conductor,onChange:e=>setVehiculo(p=>({...p,nombre_conductor:e.target.value})),onBlur:()=>setVehiculo(p=>({...p,nombre_conductor:capitalizarNombre(p.nombre_conductor)})),placeholder:'Nombre completo'})),
+      // Cédula primero (con tipo de documento): dispara buscarFrecuente()
+      // ANTES de que el conductor escriba nombre/teléfono/tipo de vehículo a
+      // mano, para que esos campos lleguen ya precargados si es un conductor
+      // frecuente (ver buscarFrecuente arriba). Pedido explícito de Karen --
+      // antes cédula era el 3er campo, y el conductor ya había escrito su
+      // nombre a mano antes de llegar ahí, así que el autocompletado de
+      // nombre casi nunca llegaba a tiempo de servir.
       h('div',{className:'fgrid2'},
         h('div',{className:'fg'},h('label',null,'Tipo de documento',h('span',{className:'req'},'*')),
           h('select',{value:vehiculo.tipo_documento,onChange:e=>setVehiculo(p=>({...p,tipo_documento:e.target.value}))},
@@ -6246,6 +6249,10 @@ function ProveedorAutorregistroPage({token}){
             h(Ico,{n:'check',s:12}),'Te reconocimos — completa los datos que falten')
         )
       ),
+      h('div',{className:'fg'},h('label',null,'Placa',h('span',{className:'req'},'*')),
+        h('input',{type:'text',value:vehiculo.placa_vehiculo,onChange:e=>setVehiculo(p=>({...p,placa_vehiculo:e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'')})),placeholder:'ABC123 (letras y luego números, sin espacios ni guiones)'})
+      ),
+      h('div',{className:'fg'},h('label',null,'Nombre conductor',h('span',{className:'req'},'*')),h('input',{type:'text',value:vehiculo.nombre_conductor,onChange:e=>setVehiculo(p=>({...p,nombre_conductor:e.target.value})),onBlur:()=>setVehiculo(p=>({...p,nombre_conductor:capitalizarNombre(p.nombre_conductor)})),placeholder:'Nombre completo'})),
       h('div',{className:'fgrid2'},
         h('div',{className:'fg'},h('label',null,'Teléfono',h('span',{className:'req'},'*')),h('input',{type:'tel',value:vehiculo.telefono_conductor,onChange:e=>setVehiculo(p=>({...p,telefono_conductor:e.target.value})),placeholder:'Número de contacto'})),
         h('div',{className:'fg'},h('label',null,'Tipo vehículo',h('span',{className:'req'},'*')),
