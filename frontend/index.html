@@ -522,7 +522,7 @@ function LogisticaInversaField({ value, onChange, required = true }) {
   const toggleNoAplica = () => onChange(noAplica ? null : []);
 
   return h('div', {className:'fg'},
-    h('label', null, 'Tipos de logística inversa', required && h('span',{className:'req'},'*')),
+    h('label', null, '¿Después del descargue recoge alguno de estos elementos?', required && h('span',{className:'req'},'*')),
     h('p', {style:{fontSize:11,color:'var(--slate)',margin:'-2px 0 2px'}}, 'Marca todas las que apliquen a esta visita.'),
     h('div', {className:'chk-grid'},
       ...TIPOS_LOGISTICA_INVERSA.map(op => {
