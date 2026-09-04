@@ -2123,8 +2123,13 @@ function CargaMasivaPage(){
 
   return h('div',{className:'scroll-body'},
     h('div',{className:'pad'},
-      h('div',{className:'tab-bar',style:{marginBottom:16}},
-        TABS.map(t=>h('button',{key:t.id,className:'tab-btn'+(tab===t.id?' act':''),onClick:()=>setTab(t.id)},t.label))
+      h('div',{style:{display:'flex',gap:6,marginBottom:16,overflowX:'auto',WebkitOverflowScrolling:'touch'}},
+        TABS.map(t=>h('button',{key:t.id,onClick:()=>setTab(t.id),
+          style:{flexShrink:0,padding:'8px 12px',borderRadius:8,fontSize:12,fontWeight:700,border:'1.5px solid',cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap',
+            background:tab===t.id?'var(--navy2)':'none',
+            color:tab===t.id?'#fff':'var(--slate)',
+            borderColor:tab===t.id?'var(--navy2)':'var(--border)'}
+        },t.label))
       ),
 
       h('div',{className:'fcard',style:{marginBottom:12}},
