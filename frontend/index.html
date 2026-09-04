@@ -4281,7 +4281,7 @@ function ProveedoresPage({user,online,addOffline}){
           // registrada), no con el countdown en vivo que usan las demás
           // pestañas -- así el orden no cambia solo porque pasa el tiempo
           // mientras el guarda mira la pantalla.
-          const atrasados=[], aTiempo=[], sinCita=[];
+          const atrasados=[], aTiempo=[], sinCita=[], proximos=[];
           const [ahC,amC]=ahoraHora().split(':').map(Number);
           const ahoraMinC=ahC*60+amC;
           visibles.forEach(r=>{
@@ -4294,7 +4294,11 @@ function ProveedoresPage({user,online,addOffline}){
               // diff<0) -- debe verse tan urgente como quien sí llegó tarde, no
               // perderse dentro de "SIN CITA REGISTRADA". Si la cita aún no vence,
               // sigue siendo sinCita (caso sin resolver todavía, no es error).
+              // Si la cita aún no vence pero está a <=60 min (mismo umbral que
+              // citaAlerta, ~línea 4358), es el aviso preventivo "regístrate a
+              // WPS antes de tu cita" -- no debe perderse en sinCita.
               if(ahoraMinC-citaMin>0){ atrasados.push({r,atrasoMin:ahoraMinC-citaMin,sinLlegar:true}); }
+              else if(citaMin-ahoraMinC<=60){ proximos.push({r,atrasoMin:null,diff:citaMin-ahoraMinC}); }
               else{ sinCita.push({r,atrasoMin:null}); }
               return;
             }
@@ -4314,11 +4318,15 @@ function ProveedoresPage({user,online,addOffline}){
             return porHoraIngreso(a,b);
           };
           atrasados.sort(porUrgenciaAtrasados);
+          // Dentro de proximos: menor diff primero -- la cita más próxima a
+          // vencer es la más urgente de confirmar/registrar.
+          proximos.sort((a,b)=>a.diff-b.diff);
           aTiempo.sort(porHoraIngreso);
           sinCita.sort(porHoraIngreso);
           const grupoHeader = (tipo,count,esPrimero) => {
             const cfg = {
               atrasados:{bg:'#fee2e2',border:'#fca5a5',icon:'alert',iconColor:'#991b1b',label:'ATRASADOS POR INCUMPLIMIENTO DE CITA',textColor:'#991b1b',pillBg:'#fecaca'},
+              proximos:{bg:'#fef2f2',border:'#fecaca',icon:'alert',iconColor:'#b91c1c',label:'PRÓXIMOS A VENCER',textColor:'#b91c1c',pillBg:'#fee2e2'},
               aTiempo:{bg:'#d1fae5',border:'#6ee7b7',icon:'checkCircle',iconColor:'#065f46',label:'A TIEMPO',textColor:'#065f46',pillBg:'#a7f3d0'},
               sinCita:{bg:'#f1f5f9',border:'var(--border)',icon:'clipboard',iconColor:'var(--slate)',label:'SIN CITA REGISTRADA',textColor:'var(--slate)',pillBg:'#e2e8f0'}
             }[tipo];
@@ -4328,22 +4336,25 @@ function ProveedoresPage({user,online,addOffline}){
               h('span',{style:{marginLeft:'auto',background:cfg.pillBg,color:cfg.textColor,borderRadius:20,padding:'1px 8px',fontSize:11,fontWeight:700}},String(count))
             );
           };
-          const cardConfirmar = ({r,atrasoMin,sinLlegar},tipo) => {
-            const style = tipo==='atrasados'
+          const cardConfirmar = ({r,atrasoMin,sinLlegar,diff},tipo) => {
+            const style = tipo==='atrasados'||tipo==='proximos'
               ?{border:'1.5px solid #f87171',background:'#fef2f2'}
               :{border:'1.5px solid #fcd34d',background:'#fffbeb'};
             const pill = tipo==='atrasados'
               ?(sinLlegar
                 ?h('span',{className:'pill pill-red cita-blink',style:{marginBottom:3,marginRight:4,display:'inline-block',fontSize:11,fontWeight:700,padding:'3px 9px'}},`⏰ Cita atrasada — aún no llega (${atrasoMin} min)`)
                 :h('span',{className:'pill pill-red',style:{marginBottom:3,marginRight:4,display:'inline-block',fontSize:11,fontWeight:700,padding:'3px 9px'}},`Llegó tarde a su cita — ${atrasoMin} min de atraso`))
-              :tipo==='aTiempo'
-                ?h('span',{className:'pill pill-green',style:{marginBottom:3,marginRight:4,display:'inline-block',fontSize:11,fontWeight:700,padding:'3px 9px'}},'Llegó a tiempo a su cita')
-                :null;
+              :tipo==='proximos'
+                ?h('span',{className:'pill',style:{marginBottom:3,marginRight:4,display:'inline-block',fontSize:11,fontWeight:700,padding:'3px 9px',background:'#fee2e2',color:'#991b1b',border:'1px solid #fca5a5'}},`⏰ Cita en ${diff} min`)
+                :tipo==='aTiempo'
+                  ?h('span',{className:'pill pill-green',style:{marginBottom:3,marginRight:4,display:'inline-block',fontSize:11,fontWeight:700,padding:'3px 9px'}},'Llegó a tiempo a su cita')
+                  :null;
             return cardFor(r,{style,pill});
           };
           let huboEncabezado=false;
           const bloques=[];
           if(atrasados.length){ bloques.push(grupoHeader('atrasados',atrasados.length,!huboEncabezado)); huboEncabezado=true; atrasados.forEach(item=>bloques.push(cardConfirmar(item,'atrasados'))); }
+          if(proximos.length){ bloques.push(grupoHeader('proximos',proximos.length,!huboEncabezado)); huboEncabezado=true; proximos.forEach(item=>bloques.push(cardConfirmar(item,'proximos'))); }
           if(aTiempo.length){ bloques.push(grupoHeader('aTiempo',aTiempo.length,!huboEncabezado)); huboEncabezado=true; aTiempo.forEach(item=>bloques.push(cardConfirmar(item,'aTiempo'))); }
           if(sinCita.length){ bloques.push(grupoHeader('sinCita',sinCita.length,!huboEncabezado)); huboEncabezado=true; sinCita.forEach(item=>bloques.push(cardConfirmar(item,'sinCita'))); }
           return h(React.Fragment,null,bloques);
