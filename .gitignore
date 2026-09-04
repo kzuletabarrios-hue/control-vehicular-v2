@@ -35,4 +35,5 @@ backend/tmp_bcrypt/
 *.xlsx
 *.xls
 *.zip
+*.pptx
 db_backup/
