@@ -110,11 +110,14 @@
     <tr><th>Fecha</th><th>Cambio</th><th>Quién lo asume</th></tr>
     <tr><td>07 ago 2026</td><td>Estado intermedio "Ingresado WPS" entre "pendiente" y "confirmado" en Proveedores — antes era 1 clic, ahora son 2 clics con 2 decisiones distintas</td><td>Guarda de bodega</td></tr>
     <tr><td>08 ago 2026</td><td>Nuevo botón "Liberar muelle" directamente en Proveedores — antes esta acción solo existía en la app separada de Citas y Muelles</td><td>Guarda de bodega</td></tr>
+    <tr><td>25 ago 2026</td><td>El botón "Confirmar" ahora abre un selector de muelle (libre/ocupado) antes de confirmar — antes confirmaba directo, sin elegir andén ahí mismo</td><td>Guarda de bodega</td></tr>
+    <tr><td>03 sep 2026</td><td>Dos botones nuevos, "Enviar a logística inversa" y "Liberar muelle 19-21", para vehículos que tras descargar pasan a recoger estibas, canastillas, devoluciones o garantías</td><td>Guarda de bodega</td></tr>
+    <tr><td>04 sep 2026</td><td>Se amplía quién puede liberar un muelle (1-18 y 19-21): además de bodega, ahora también guarda vehicular y recorredor externo, con acción nueva directamente en el tablero de Muelles — antes bodega era el único rol que podía hacerlo</td><td>Guarda vehicular y recorredor externo (nuevo)</td></tr>
   </table>
 
   <div class="callout">
     <div class="callout-icon">⚠️</div>
-    <p><strong>Es correcto:</strong> es el guarda de bodega quien libera el muelle, no el coordinador. El coordinador tiene acceso de solo lectura al tablero de muelles — confirma el ingreso desde su lado, pero el cierre físico del andén (liberarlo cuando el vehículo termina de descargar) recae en bodega.</p>
+    <p><strong>Ya no es exclusivo de bodega:</strong> desde el 04 sep 2026, guarda vehicular y recorredor externo también pueden liberar un muelle (antes solo bodega). Lo que sigue sin cambiar: el coordinador conserva acceso de solo lectura al tablero de muelles — confirma el ingreso desde su lado, pero no puede liberar un andén. Ampliar quién libera no es un ajuste cosmético de UI: es una decisión de seguridad, gateada por el mismo permiso auditado (<code>muelles:liberar</code>) que ya usaba bodega, no un botón nuevo sin control.</p>
   </div>
 
   <div class="callout callout-green">
@@ -130,15 +133,15 @@
     <h3>Puntos clave</h3>
     <ul>
       <li>El sistema cierra huecos de seguridad reales: identidad verificable, evidencia física ligada al evento, y responsabilidad nombrada en cada paso sensible.</li>
-      <li>La queja de carga de bodega tiene una causa concreta y verificable en el historial: 2 pasos nuevos agregados el 7 y 8 de agosto de 2026, no una percepción sin fundamento.</li>
-      <li>Es correcto que bodega libera el muelle, no el coordinador — el coordinador tiene solo lectura en esa app.</li>
+      <li>La queja de carga de bodega tiene una causa concreta y verificable en el historial: 4 pasos nuevos agregados entre el 7 de agosto y el 3 de septiembre de 2026, no una percepción sin fundamento.</li>
+      <li>Desde el 04 sep 2026, liberar un muelle ya no es exclusivo de bodega — guarda vehicular y recorredor externo también pueden, con el mismo permiso auditado. El coordinador sigue sin poder: conserva solo lectura en esa app.</li>
       <li>Cada paso nuevo agregado a bodega genera trazabilidad auditada que antes no existía, lo cual también protege al guarda ante disputas.</li>
       <li>Cualquier ajuste al reparto de responsabilidades entre roles requiere autorización de seguridad antes de modificarse en la app.</li>
     </ul>
   </div>
 
   <div style="margin-top:40px;text-align:center;color:#94a3b8;font-size:11px;border-top:1px solid #e2e8f0;padding-top:20px">
-    Nota Interna · Beneficio a Seguridad · Módulo Proveedores y Flota Propia · CEDI R10 · Agosto 2026 · Confidencial
+    Nota Interna · Beneficio a Seguridad · Módulo Proveedores y Flota Propia · CEDI R10 · Septiembre 2026 · Confidencial
   </div>
 
 </div>

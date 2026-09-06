@@ -198,6 +198,11 @@ def tablero(
             "zona": None,
             "tipo_carga_habitual": _tipo_carga_habitual(numero),
             "estado": "ocupado" if r is not None else "libre",
+            # id del proveedor ocupando este muelle -- necesario para que el
+            # frontend pueda llamar PUT /proveedores/{id}/liberar-muelle
+            # desde el tablero (antes se seleccionaba p.id en el SQL pero no
+            # viajaba en el payload).
+            "proveedor_id": None,
             "placa_vehiculo": None,
             "nombre_conductor": None,
             "empresas": None,
@@ -229,6 +234,7 @@ def tablero(
             "alerta_tiempo": False,
         }
         if r is not None:
+            item["proveedor_id"] = r.id
             item["placa_vehiculo"] = r.placa_vehiculo
             item["nombre_conductor"] = r.nombre_conductor
             item["empresas"] = r.empresas
@@ -297,7 +303,7 @@ def tablero_logistica_inversa(
 
     Devuelve una lista plana de 3 posiciones (19, 20, 21), mismo shape que
     GET /muelles, con estos campos por muelle:
-      id, numero, estado ("ocupado"|"libre"), placa_vehiculo,
+      id, numero, estado ("ocupado"|"libre"), proveedor_id, placa_vehiculo,
       nombre_conductor, empresas, tipo_carga, tipos_logistica_inversa
       (lista de tipos que ese vehículo va a recoger), hora_logistica_inversa_asignado,
       hora_logistica_inversa_liberado (siempre None mientras esté ocupado --
@@ -348,6 +354,10 @@ def tablero_logistica_inversa(
             "id": str(numero),
             "numero": numero,
             "estado": "ocupado" if r is not None else "libre",
+            # id del proveedor ocupando este muelle -- necesario para que el
+            # frontend pueda llamar el endpoint de liberación de logística
+            # inversa (ver PUT /proveedores/{id}/liberar-muelle-inversa).
+            "proveedor_id": None,
             "placa_vehiculo": None,
             "nombre_conductor": None,
             "empresas": None,
@@ -359,6 +369,7 @@ def tablero_logistica_inversa(
             "alerta_tiempo": False,
         }
         if r is not None:
+            item["proveedor_id"] = r.id
             item["placa_vehiculo"] = r.placa_vehiculo
             item["nombre_conductor"] = r.nombre_conductor
             item["empresas"] = r.empresas
