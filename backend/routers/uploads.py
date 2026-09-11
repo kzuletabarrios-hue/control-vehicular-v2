@@ -12,12 +12,28 @@ router = APIRouter()
 BUCKET = "fotos"
 
 
-# Fallbacks de desarrollo. La publishable key NO es secreta (solo da acceso
-# al bucket "fotos", publico; las tablas siguen protegidas con RLS), pero si
-# falta la env var se advierte explicitamente en logs para no fallar en
-# silencio con un proyecto de Supabase que no es el de produccion.
+# Fallback de desarrollo solo para la URL del proyecto: NO es secreta (el
+# navegador la ve en cualquier request a Supabase), asi que si falta la env
+# var se advierte explicitamente en logs y se sigue con el fallback para no
+# fallar en silencio con un proyecto que no es el de produccion.
+#
+# La service role key SI es un secreto real: bypassa RLS y las politicas de
+# Storage (el bucket "fotos" solo permite INSERT/DELETE con esta key). Nunca
+# debe hardcodearse en el codigo fuente ni loguearse; vive unicamente en la
+# variable de entorno SUPABASE_SERVICE_ROLE_KEY del servidor.
 _SUPABASE_URL_FALLBACK = "https://vhzxtgrpnztwntoqhfaf.supabase.co"
-_SUPABASE_KEY_FALLBACK = "sb_publishable_2uJ9BDV4zSRAE7z24Ow4ag_xfKHdZXM"
+
+
+def _get_service_role_key() -> str:
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not key:
+        raise RuntimeError(
+            "Falta la variable de entorno SUPABASE_SERVICE_ROLE_KEY. "
+            "Es requerida para subir/borrar objetos en el bucket 'fotos' de "
+            "Supabase Storage y no tiene (ni debe tener) fallback hardcodeado "
+            "por ser un secreto con privilegios de escritura/borrado."
+        )
+    return key
 
 
 def _storage_upload(img_bytes: bytes, filename: str) -> str:
@@ -28,19 +44,18 @@ def _storage_upload(img_bytes: bytes, filename: str) -> str:
         )
     supabase_url = os.environ.get("SUPABASE_URL", _SUPABASE_URL_FALLBACK).rstrip("/")
 
-    if not os.environ.get("SUPABASE_PUBLISHABLE_KEY"):
-        print(
-            "ADVERTENCIA: SUPABASE_PUBLISHABLE_KEY no está definida en las "
-            "variables de entorno, usando fallback de desarrollo hardcodeado."
-        )
-    publishable_key = os.environ.get("SUPABASE_PUBLISHABLE_KEY", _SUPABASE_KEY_FALLBACK)
+    try:
+        service_role_key = _get_service_role_key()
+    except RuntimeError as exc:
+        raise HTTPException(500, str(exc))
 
     upload_url = f"{supabase_url}/storage/v1/object/{BUCKET}/{filename}"
     r = req.post(
         upload_url,
         data=img_bytes,
         headers={
-            "apikey": publishable_key,
+            "apikey": service_role_key,
+            "Authorization": f"Bearer {service_role_key}",
             "Content-Type": "image/jpeg",
         },
         timeout=30,
