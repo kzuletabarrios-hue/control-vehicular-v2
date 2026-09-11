@@ -1,0 +1,211 @@
+// ── VISITANTES PAGE ──
+// Extraído de frontend/index.html (líneas 2281-2462, función
+// VisitantesPage del <script> monolítico, entre el comentario
+// "/* ── VISITANTES PAGE ── */" y "/* ── VISITA VEHICULAR PAGE ── */").
+// Contenido idéntico al original: el código viejo en index.html NO fue
+// tocado ni borrado -- este módulo es una copia autocontenida, lista para
+// que la Fase 6 lo importe cuando quede conectado vía <script
+// type="module">.
+//
+// Importa Ico (core/icons.js), api (core/api-client.js),
+// today/ahoraHora/fmtDate/_tsBog/capitalizarNombre (core/utils.js) y los
+// componentes compartidos Alert, LoadingDots, CameraField, ConfirmSheet
+// (shared/).
+//
+// Depende de React como global UMD (cargado por <script> de CDN en el
+// <head> de index.html), igual que en el monolito original -- no se
+// importa como módulo ES porque React 18 se sirve como build UMD, no ESM.
+
+import { Ico } from '../core/icons.js';
+import { api } from '../core/api-client.js';
+import { today, ahoraHora, fmtDate, _tsBog, capitalizarNombre } from '../core/utils.js';
+import { Alert } from '../shared/Alert.js';
+import { LoadingDots } from '../shared/LoadingDots.js';
+import { CameraField } from '../shared/CameraField.js';
+import { ConfirmSheet } from '../shared/ConfirmSheet.js';
+
+const { useState, useEffect, useCallback } = React;
+const h = React.createElement;
+
+export function VisitantesPage({user,online,addOffline}){
+  const [view,setView]       = useState('list');
+  const [records,setRecords] = useState([]);
+  const [loading,setLoading] = useState(true);
+  const [saving,setSaving]   = useState(false);
+  const [alert,setAlert]     = useState(null);
+  const [confirm,setConfirm] = useState(null);
+  const [selected,setSelected]= useState(null);
+  const [salida,setSalida]         = useState(null);
+  const [horaSalida,setHoraSalida] = useState('');
+  const [fechaSalidaVis,setFechaSalidaVis] = useState('');
+  const [obsVisita,setObsVisita]   = useState('');
+  const [fotoVisita,setFotoVisita] = useState(null);
+  const emptyF = {fecha:today(),cedula:'',nombre:'',empresa:'',empresa_pertenece:'',actividad_a_desarrollar:'',dependencia_autoriza:'',hora_ingreso:ahoraHora(),hora_salida:'',observaciones:'',foto_url:null};
+  const [form,setForm] = useState(emptyF);
+  const [filtro,setFiltro] = useState('pendientes');
+  const [busqueda,setBusqueda] = useState('');
+  const esCoordinador = user?.rol==='coordinador';
+
+  const load = useCallback(()=>{
+    setLoading(true);
+    api.get('/visitantes').then(r=>setRecords(r.items||r)).catch(()=>setAlert({type:'err',msg:'Error cargando datos'})).finally(()=>setLoading(false));
+  },[]);
+  useEffect(()=>load(),[load]);
+
+  const handleSave = async()=>{
+    if(!form.nombre) return setAlert({type:'err',msg:'El nombre es obligatorio'});
+    setSaving(true);
+    const body = Object.fromEntries(Object.entries(form).filter(([,v])=>v!=null&&v!==''));
+    if(!selected){const ts=await _tsBog();body.fecha=ts.fecha;body.hora_ingreso=ts.hora;}
+    try{
+      if(selected) await api.put(`/visitantes/${selected.id}`,body);
+      else await api.post('/visitantes',body);
+      setAlert({type:'ok',msg:'Registro guardado'});
+      setView('list');setForm(emptyF);setSelected(null);load();
+    }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
+    finally{setSaving(false);}
+  };
+
+  if(view==='form') return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{className:'header'},
+      h('div',{className:'header-inner'},
+        h('button',{onClick:()=>{setView('list');setForm(emptyF);setSelected(null);},style:{background:'none',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}},
+          h(Ico,{n:'arrowLeft',s:18}),' Volver'
+        ),
+        h('div',{className:'header-brand'},h('h1',null,esCoordinador?'Ver visitante':(selected?'Editar visitante':'Nuevo visitante')),h('span',null,'Visitantes'))
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'12px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      esCoordinador&&h('p',{style:{fontSize:12,color:'var(--slate)',margin:'0 0 8px'}},'Solo lectura'),
+      h('div',{style:{pointerEvents:esCoordinador?'none':undefined}},
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'users',s:12}),' Datos del visitante'),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
+          h('div',{className:'fg'},h('label',null,'Cédula'),h('input',{type:'text',value:form.cedula,onChange:e=>setForm(p=>({...p,cedula:e.target.value})),placeholder:'Número'}))
+        ),
+        h('div',{className:'fg'},h('label',null,'Nombre',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.nombre,onChange:e=>setForm(p=>({...p,nombre:e.target.value})),onBlur:()=>setForm(p=>({...p,nombre:capitalizarNombre(p.nombre)})),placeholder:'Nombre completo'})),
+        h('div',{className:'fg'},h('label',null,'Empresa a la que pertenece'),h('input',{type:'text',value:form.empresa_pertenece||'',onChange:e=>setForm(p=>({...p,empresa_pertenece:e.target.value})),placeholder:'Empresa del visitante'})),
+        h('div',{className:'fg'},h('label',null,'A quién visita / dependencia'),h('input',{type:'text',value:form.empresa,onChange:e=>setForm(p=>({...p,empresa:e.target.value})),placeholder:'Persona o dependencia a visitar'})),
+        h('div',{className:'fg'},h('label',null,'Actividad a desarrollar'),h('textarea',{value:form.actividad_a_desarrollar||'',onChange:e=>setForm(p=>({...p,actividad_a_desarrollar:e.target.value})),rows:2,placeholder:'Motivo de la visita'})),
+        h('div',{className:'fg'},h('label',null,'Quién autoriza'),h('input',{type:'text',value:form.dependencia_autoriza||'',onChange:e=>setForm(p=>({...p,dependencia_autoriza:e.target.value})),placeholder:'Nombre o dependencia que autoriza'}))
+      ),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'check',s:12}),' Horarios'),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},h('label',null,'Hora ingreso'),h('input',{type:'time',value:form.hora_ingreso,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
+          h('div',{className:'fg'},h('label',null,'Hora salida'),h('input',{type:'time',value:form.hora_salida||'',readOnly:true,placeholder:'Usa el botón "Salida"',style:{background:'#f8fafc',cursor:'default'}}))
+        ),
+        h('div',{className:'fg'},h('label',null,'Observaciones'),h('textarea',{value:form.observaciones,onChange:e=>setForm(p=>({...p,observaciones:e.target.value})),rows:3,placeholder:'—'}))
+      ),
+      h('div',{className:'fcard'},
+        h('p',{className:'sec-ttl'},h(Ico,{n:'camera',s:12}),' Fotografía'),
+        h(CameraField,{value:form.foto_url,onChange:v=>setForm(p=>({...p,foto_url:v}))})
+      )
+      )
+    ),
+    h('div',{className:'sticky-cta'},
+      h('button',{className:'btn-cancel',onClick:()=>{setView('list');setForm(emptyF);setSelected(null);}},h(Ico,{n:'x',s:15})),
+      !esCoordinador&&h('button',{className:'btn-primary',onClick:handleSave,disabled:saving},
+        saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:16}),saving?'Guardando...':'Guardar registro'
+      )
+    )
+  );
+
+  const nPend = records.filter(r=>!r.hora_salida).length;
+  const visibles = records
+    .filter(r=>filtro==='pendientes'?!r.hora_salida:true)
+    .filter(r=>{if(!busqueda.trim())return true;const q=busqueda.trim().toLowerCase();return (r.nombre&&r.nombre.toLowerCase().includes(q))||(r.cedula&&String(r.cedula).includes(q));});
+  return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
+    h('div',{style:{background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0}},
+      h('div',{style:{display:'flex',gap:8,padding:'8px 14px 6px',flexWrap:'wrap'}},
+        h('div',{style:{display:'flex',gap:6,alignItems:'center'}},
+          h('button',{onClick:()=>setFiltro('pendientes'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='pendientes'?'var(--navy)':'transparent',color:filtro==='pendientes'?'#fff':'var(--slate)',borderColor:filtro==='pendientes'?'var(--navy)':'var(--border)'}},`Activos (${nPend})`),
+          h('button',{onClick:()=>setFiltro('todos'),style:{padding:'5px 10px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',border:'1.5px solid',background:filtro==='todos'?'var(--navy)':'transparent',color:filtro==='todos'?'#fff':'var(--slate)',borderColor:filtro==='todos'?'var(--navy)':'var(--border)'}},`Todos (${records.length})`)
+        ),
+        !esCoordinador&&h('button',{onClick:()=>setView('form'),style:{marginLeft:'auto',background:'var(--amber)',border:'none',color:'var(--navy)',borderRadius:8,padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:700,fontFamily:'inherit'}},
+          h(Ico,{n:'plus',s:15}),' Nuevo'
+        ),
+        esCoordinador&&h('p',{style:{fontSize:12,color:'var(--slate)',marginLeft:'auto',alignSelf:'center'}},'Solo lectura')
+      ),
+      h('div',{style:{padding:'0 14px 8px',position:'relative'}},
+        h(Ico,{n:'search',s:14,style:{position:'absolute',left:24,top:'50%',transform:'translateY(-50%)',color:'var(--slate)',pointerEvents:'none'}}),
+        h('input',{type:'text',value:busqueda,onChange:e=>setBusqueda(e.target.value),placeholder:'Buscar nombre o cédula para salida rápida...',style:{width:'100%',paddingLeft:30,fontSize:12,boxSizing:'border-box'}})
+      )
+    ),
+    h('div',{className:'scroll-body',style:{padding:'10px 14px'}},
+      alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
+      loading?h(LoadingDots):
+      visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'users',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='pendientes'?'Sin visitantes activos':'Sin visitantes hoy')):
+      visibles.map(r=>h('div',{key:r.id,className:'list-item'},
+        h('div',{className:'li-icon',style:{background:'#ede9fe'}},
+          h(Ico,{n:'users',s:18,style:{color:'#7c3aed'}})
+        ),
+        h('div',{className:'li-body',onClick:()=>{setForm({...emptyF,...r,hora_ingreso:r.hora_ingreso||'',hora_salida:r.hora_salida||''});setSelected(r);setView('form');}},
+          h('div',{className:'li-title'},r.nombre),
+          h('div',{className:'li-sub'},r.empresa_pertenece||'Sin empresa',r.empresa&&(' · Visita a '+r.empresa)),
+          (r.actividad_a_desarrollar||r.dependencia_autoriza)&&h('div',{className:'li-sub'},
+            [r.actividad_a_desarrollar,r.dependencia_autoriza&&('Autoriza: '+r.dependencia_autoriza)].filter(Boolean).join(' · ')
+          ),
+          r.hora_ingreso&&h('div',{className:'li-sub'},'Ingreso: ',r.hora_ingreso,r.hora_salida&&(' · Salida: '+r.hora_salida))
+        ),
+        h('div',{className:'li-right'},
+          h('span',{className:'li-date'},r.cedula||'—',
+            r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida))
+          ),
+          !esCoordinador&&h('div',{style:{display:'flex',gap:6,marginTop:3,alignItems:'center'}},
+            r.hora_ingreso&&!r.hora_salida&&h('button',{
+              title:'Registrar salida',
+              onClick:(e)=>{e.stopPropagation();setSalida(r);setHoraSalida(ahoraHora());setFechaSalidaVis(today());},
+              style:{background:'#7c3aed',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
+            },'Salida'),
+            !user?.rol?.startsWith('guarda_')&&h('button',{title:'Eliminar',onClick:(e)=>{e.stopPropagation();setConfirm(r.id);},className:'li-act li-act-danger'},h(Ico,{n:'trash',s:14}))
+          )
+        )
+      ))
+    ),
+    salida&&h('div',{className:'overlay',onClick:()=>setSalida(null)},
+      h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
+        h('div',{className:'sheet-header'},
+          h('span',{style:{fontWeight:700,fontSize:15}},'Registrar salida'),
+          h('button',{className:'btn-icon',onClick:()=>setSalida(null)},h(Ico,{n:'x',s:16}))
+        ),
+        h('p',{style:{fontSize:13,color:'var(--slate)',marginBottom:12}},salida.nombre,' · ',salida.empresa_pertenece||salida.empresa||''),
+        h('div',{className:'fgrid2'},
+          h('div',{className:'fg'},
+            h('label',null,'Fecha de salida'),
+            h('input',{type:'date',value:fechaSalidaVis,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})
+          ),
+          h('div',{className:'fg'},
+            h('label',null,'Hora de salida'),
+            h('input',{type:'time',value:horaSalida,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})
+          )
+        ),
+        h('div',{className:'fg'},
+          h('label',null,'Observaciones (opcional)'),
+          h('textarea',{value:obsVisita,onChange:e=>setObsVisita(e.target.value),rows:2,placeholder:'—'})
+        ),
+        h('div',{className:'fg'},
+          h('label',null,'Foto (opcional)'),
+          h(CameraField,{value:fotoVisita,onChange:setFotoVisita})
+        ),
+        h('div',{style:{display:'flex',gap:8,marginTop:14}},
+          h('button',{className:'btn-cancel',onClick:()=>setSalida(null),disabled:saving},'Cancelar'),
+          h('button',{className:'btn-primary',style:{background:'#7c3aed'},disabled:saving,onClick:async()=>{
+            setSaving(true);
+            try{
+            const ts=await _tsBog();const upd={hora_salida:ts.hora,fecha_salida:ts.fecha};
+            if(obsVisita) upd.observaciones=obsVisita;
+            if(fotoVisita) upd.foto_url=fotoVisita;
+            await api.put(`/visitantes/${salida.id}`,upd);
+            setSalida(null);setObsVisita('');setFotoVisita(null);load();setAlert({type:'ok',msg:'Salida registrada'});
+            }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
+            finally{setSaving(false);}
+          }},saving?h('div',{className:'spinner'}):h(Ico,{n:'check',s:16}),saving?'Guardando...':'Confirmar salida')
+        )
+      )
+    ),
+    confirm&&h(ConfirmSheet,{msg:'Se eliminará el registro de visitantes.',onOk:async()=>{await api.del(`/visitantes/${confirm}`);setConfirm(null);load();setAlert({type:'ok',msg:'Eliminado'});},onCancel:()=>setConfirm(null)})
+  );
+}
