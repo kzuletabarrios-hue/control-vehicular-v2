@@ -1100,7 +1100,7 @@ export function ProveedoresPage({user,online,addOffline}){
               etapa&&h('span',{className:`pill ${etapa.cls}`,style:{marginBottom:3,display:'inline-block'}},etapa.txt),
               h('div',{className:'li-title'},r.nombre_conductor||r.placa_vehiculo||'Sin nombre'),
               h('div',{className:'li-sub'},
-                [r.cedula_conductor&&('CC '+r.cedula_conductor),r.placa_vehiculo&&h('strong',{key:'placa',style:{fontWeight:700,color:'var(--text,#0f172a)'}},r.placa_vehiculo),r.tipo_vehiculo,r.muelle_descargue&&('Muelle '+r.muelle_descargue),r.telefono_conductor&&('📞 '+r.telefono_conductor)]
+                [r.cedula_conductor&&('CC '+r.cedula_conductor),r.placa_vehiculo&&h('strong',{key:'placa',style:{fontWeight:700,color:'var(--text,#0f172a)'}},r.placa_vehiculo),r.tipo_vehiculo,r.tipo_carga&&r.tipo_carga,r.muelle_descargue&&('Muelle '+r.muelle_descargue),r.telefono_conductor&&('📞 '+r.telefono_conductor)]
                   .filter(Boolean).reduce((acc,cur,i)=>i===0?[cur]:[...acc,' · ',cur],[])
               ),
               r.hora_cita&&h('div',{className:'li-sub'},'Cita: '+r.hora_cita.slice(0,5)),
