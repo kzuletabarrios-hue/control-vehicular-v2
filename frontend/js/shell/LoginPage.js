@@ -20,7 +20,7 @@ const { useState } = React;
 const h = React.createElement;
 
 export function LoginPage({onLogin}){
-  const [email,setEmail]   = useState('admin@cedirex.com');
+  const [email,setEmail]   = useState('');
   const [pass,setPass]     = useState('');
   const [loading,setLoading]= useState(false);
   const [error,setError]   = useState('');
