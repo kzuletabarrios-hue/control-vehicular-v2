@@ -78,8 +78,8 @@
     <h1>🏭 Guarda de Bodega</h1>
     <p>Guía de uso individual — CEDI R10</p>
     <div class="meta">
-      <div class="meta-item"><span>Versión</span><strong>2.3</strong></div>
-      <div class="meta-item"><span>Fecha</span><strong>Julio 2026</strong></div>
+      <div class="meta-item"><span>Versión</span><strong>2.4</strong></div>
+      <div class="meta-item"><span>Fecha</span><strong>Septiembre 2026</strong></div>
       <div class="meta-item"><span>Clasificación</span><strong>Interno</strong></div>
     </div>
   </div>
@@ -100,8 +100,8 @@
       <li>Registra pallets, contenedores y muelle de cargue</li>
       <li>Busca conductor por cédula o nombre y selecciona tiendas de destino</li>
       <li>Agrega evidencia de rechazo en el módulo Proveedores</li>
-      <li>Libera el muelle cuando un vehículo con cita validada termina de descargar (app de Citas y Muelles, ver sección 6)</li>
       <li>No registra salida ni llegada de vehículos — eso lo hace el guarda vehicular</li>
+      <li>No libera muelles — desde el hallazgo de seguridad de la auditoría ISO 31000, esa tarea pasó a portería vehicular y al recorredor externo, coordinados por radio contigo como coordinador de bodega</li>
     </ul>
   </div>
 
@@ -148,19 +148,9 @@
   </div>
   <div class="warn">No puedes crear nuevos registros de proveedores, exportar a Excel ni eliminar registros. Solo puedes agregar evidencia de rechazo a registros existentes.</div>
 
-  <h2>6. Nueva app: liberar muelles (Citas y Muelles)</h2>
-  <p>Los proveedores que llegan con una cita programada (validada contra el archivo de logística) se coordinan desde una <strong>aplicación aparte</strong>, con el mismo correo y contraseña que ya usas aquí.</p>
-  <div class="app-card">
-    <h3>📋 Citas y Muelles</h3>
-    <div class="url">citas-muelles-cedi-r10.vercel.app</div>
-    <p style="margin-bottom:0;">Ahí es donde el coordinador confirma el ingreso y te asigna el muelle. Tu parte es al final: cuando el vehículo <strong>termina de descargar</strong>, entras a esa app y liberas el muelle.</p>
-  </div>
-  <div class="pasos">
-    <div class="paso"><div class="paso-num">1</div><div class="paso-body"><h4>Entra a Citas y Muelles → pestaña "Muelles"</h4><p>Verás el tablero en vivo con todos los muelles y su estado.</p></div></div>
-    <div class="paso"><div class="paso-num">2</div><div class="paso-body"><h4>Busca el muelle del vehículo que terminó</h4><p>La tarjeta muestra la placa, la empresa y cuánto tiempo lleva ocupado.</p></div></div>
-    <div class="paso"><div class="paso-num">3</div><div class="paso-body"><h4>Toca "Salida del muelle"</h4><p>El muelle queda libre de inmediato para el siguiente vehículo.</p></div></div>
-  </div>
-  <div class="tip">Esto es distinto del proceso de flota propia de este manual (secciones 1-4) — es solo para proveedores con cita validada por QR. El resto de tu trabajo (nuevo registro de flota, evidencia de rechazo) sigue igual, en esta misma aplicación.</div>
+  <h2>6. Liberación de muelles: ya no es tu tarea</h2>
+  <p>La app "Citas y Muelles" (citas-muelles-cedi-r10) se dio de baja — ya no se usa. La coordinación de proveedores con cita programada ahora vive completa en esta misma aplicación.</p>
+  <div class="warn">Cuando un vehículo con cita termina de descargar, ya no entras a ninguna app a liberar el muelle: esa acción la hace portería vehicular o el recorredor externo. Tu parte es avisar por radio, como coordinador de bodega, para que lo hagan de inmediato sin depender de que alguien mire la pantalla.</div>
 
   <h2>7. Consejos importantes</h2>
   <table>
@@ -169,11 +159,10 @@
     <tr><td>Cometí un error en un registro</td><td>Toca el registro y edítalo. Algunos campos solo puede corregirlos el administrador.</td></tr>
     <tr><td>No veo el botón "Nuevo" en Proveedores</td><td>Es normal: solo puedes agregar evidencia de rechazo, no crear registros nuevos de proveedores.</td></tr>
     <tr><td>Un vehículo aparece "En ruta" al iniciar turno</td><td>Notifica al supervisor — es un vehículo pendiente del turno anterior.</td></tr>
-    <tr><td>No encuentro el muelle que busco</td><td>Verifica que estás en la app de Citas y Muelles (sección 6), no en esta — los muelles de proveedores con cita no aparecen aquí.</td></tr>
   </table>
 
   <div style="margin-top:48px;text-align:center;color:#94a3b8;font-size:11px;border-top:1px solid #e2e8f0;padding-top:20px">
-    Manual de Usuario · Guarda de Bodega · CEDI R10 · Versión 2.3 · Julio 2026 · Confidencial — Solo para uso interno
+    Manual de Usuario · Guarda de Bodega · CEDI R10 · Versión 2.4 · Septiembre 2026 · Confidencial — Solo para uso interno
   </div>
 
 </div>

@@ -72,7 +72,7 @@
     <tr><td><strong>Propósito</strong></td><td>Digitalizar y centralizar el registro de vehículos (flota propia y proveedores), personal (contratistas, visitantes) y rondas de seguridad de un centro de distribución, reemplazando registro manual en papel/hojas de cálculo.</td></tr>
     <tr><td><strong>Tipo de aplicación</strong></td><td>Aplicación web progresiva (PWA) — funciona en cualquier celular con navegador, sin instalación.</td></tr>
     <tr><td><strong>Repositorio</strong></td><td><code>control-vehicular-v2</code> (GitHub, rama <code>master</code>)</td></tr>
-    <tr><td><strong>App relacionada</strong></td><td><code>citas-muelles-cedi-r10</code> — app separada que comparte la misma base de datos (tablas de muelles y citas programadas), gestiona citas de logística y asignación/liberación de muelles.</td></tr>
+    <tr><td><strong>App relacionada</strong></td><td><code>citas-muelles-cedi-r10</code> — app separada dada de baja (septiembre 2026); su funcionalidad (carga de citas, asignación/liberación de muelles) quedó absorbida por este proyecto.</td></tr>
   </table>
 
   <h2 class="sec">2. Arquitectura tecnológica</h2>
@@ -139,7 +139,7 @@
     <tr><td><code>bd_proveedores</code> / <code>citas_programadas</code></td><td>Catálogo de empresas + citas importadas del WMS de logística</td></tr>
     <tr><td><code>control_acceso</code> / <code>bd_control_acceso</code></td><td>Registro diario de contratistas + maestro de contratistas</td></tr>
     <tr><td><code>visitantes</code></td><td>Registro de personas externas</td></tr>
-    <tr><td><code>muelles</code> / <code>muelle_eventos</code></td><td>Catálogo de muelles y eventos de ocupación (tablas compartidas con <code>citas-muelles-cedi-r10</code>; hoy sin uso operativo, el tablero deriva de <code>proveedores.muelle_descargue</code>)</td></tr>
+    <tr><td><code>muelles</code> / <code>muelle_eventos</code></td><td>Catálogo de muelles y eventos de ocupación (tablas que quedaron de cuando existía <code>citas-muelles-cedi-r10</code>, ya dada de baja; hoy sin uso operativo, el tablero deriva de <code>proveedores.muelle_descargue</code>)</td></tr>
     <tr><td><code>audit_log</code></td><td>Bitácora de auditoría (quién, cuándo, antes/después)</td></tr>
     <tr><td><code>registros</code></td><td>Tabla genérica heredada de un sistema anterior (AppSheet)</td></tr>
   </table>
