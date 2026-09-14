@@ -25,6 +25,19 @@ ACCESS_EXPIRE  = int(os.getenv("ACCESS_TOKEN_MINUTES", "60"))      # 1 hora
 REFRESH_EXPIRE = int(os.getenv("REFRESH_TOKEN_DAYS",   "30"))      # 30 días
 ALGORITHM      = "HS256"
 
+# ── Bloqueo por fuerza bruta en /login ───────────────────────────
+# Esquema: usuarios.intentos_fallidos (INTEGER) + usuarios.bloqueado_hasta
+# (TIMESTAMPTZ nullable) -- ver supabase/migrations/
+# 20260914150000_usuarios_bloqueo_login_columns.sql (Jorge) para el
+# contrato completo. Umbral/duración son constantes de aplicación
+# (ajustables aquí sin tocar esquema); se mantienen los valores
+# sugeridos por Jorge (5 intentos / 15 min) -- son un punto de partida
+# razonable (bastante margen para un guarda que se equivoca tecleando,
+# corta de más para un script de fuerza bruta) y no hay ningún
+# indicio en este hallazgo que pida otro valor.
+LOGIN_INTENTOS_MAX      = 5
+LOGIN_BLOQUEO_MINUTOS   = 15
+
 
 # ── HELPERS ──────────────────────────────────────────────────────
 
@@ -138,6 +151,26 @@ def require_permiso(modulo: str, accion: str):
 def login(body: dict, request: Request, db: Session = Depends(get_db)):
     """
     Body: { "email": "...", "password": "..." }
+
+    Protegido contra fuerza bruta con bloqueo temporal por cuenta (esquema
+    y contrato de supabase/migrations/20260914150000_usuarios_bloqueo_login_columns.sql,
+    Jorge — hallazgo CRÍTICO de la revisión de seguridad 2026-09):
+    - Si la cuenta YA está bloqueada (bloqueado_hasta en el futuro), se
+      rechaza de inmediato con 423, SIN llamar a verify_password() (no
+      gasta ciclos de bcrypt en una cuenta que de todos modos va a fallar).
+      El bloqueo expira solo: si bloqueado_hasta ya pasó, se trata como
+      no-bloqueada, sin necesidad de ningún job de limpieza.
+    - Password incorrecta con un email que SÍ existe: incrementa
+      intentos_fallidos; al llegar a LOGIN_INTENTOS_MAX se bloquea la
+      cuenta por LOGIN_BLOQUEO_MINUTOS (una sola sentencia UPDATE con
+      CASE, sin leer-modificar-escribir en dos pasos).
+    - Email que NO existe: sigue respondiendo el mismo 401 genérico de
+      siempre, sin tocar ninguna fila de `usuarios` y sin revelar si el
+      email existe (este mecanismo protege la cuenta real contra fuerza
+      bruta de contraseña; no protege contra un atacante probando muchos
+      emails que no existen — eso queda fuera de alcance, ver migración).
+    - Login exitoso: resetea intentos_fallidos/bloqueado_hasta fusionado
+      con el UPDATE de ultimo_acceso que ya existía.
     """
     email    = (body.get("email") or "").strip().lower()
     password = body.get("password") or ""
@@ -148,6 +181,7 @@ def login(body: dict, request: Request, db: Session = Depends(get_db)):
     user = db.execute(
         text("""
             SELECT u.id, u.nombre, u.email, u.password_hash, u.activo,
+                   u.intentos_fallidos, u.bloqueado_hasta,
                    r.nombre AS rol, r.permisos
             FROM usuarios u JOIN roles r ON u.rol_id = r.id
             WHERE u.email = :email
@@ -155,7 +189,35 @@ def login(body: dict, request: Request, db: Session = Depends(get_db)):
         {"email": email}
     ).fetchone()
 
+    ahora = datetime.now(timezone.utc)
+    if user and user.bloqueado_hasta and user.bloqueado_hasta > ahora:
+        restante_seg = max(1, int((user.bloqueado_hasta - ahora).total_seconds()))
+        restante_min = -(-restante_seg // 60)  # redondeo hacia arriba
+        raise HTTPException(
+            status_code=423,
+            detail=(
+                "Cuenta bloqueada temporalmente por múltiples intentos "
+                f"fallidos. Intenta de nuevo en {restante_min} minuto(s)."
+            ),
+            headers={"Retry-After": str(restante_seg)},
+        )
+
     if not user or not verify_password(password, user.password_hash):
+        if user:
+            db.execute(
+                text("""
+                    UPDATE usuarios
+                    SET intentos_fallidos = intentos_fallidos + 1,
+                        bloqueado_hasta = CASE
+                            WHEN intentos_fallidos + 1 >= :max_intentos
+                                THEN NOW() + (CAST(:bloqueo_min AS text) || ' minutes')::interval
+                            ELSE bloqueado_hasta
+                        END
+                    WHERE id = :id
+                """),
+                {"id": str(user.id), "max_intentos": LOGIN_INTENTOS_MAX, "bloqueo_min": LOGIN_BLOQUEO_MINUTOS},
+            )
+            db.commit()
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
 
     if not user.activo:
@@ -184,7 +246,11 @@ def login(body: dict, request: Request, db: Session = Depends(get_db)):
         }
     )
     db.execute(
-        text("UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = :id"),
+        text("""
+            UPDATE usuarios
+            SET ultimo_acceso = NOW(), intentos_fallidos = 0, bloqueado_hasta = NULL
+            WHERE id = :id
+        """),
         {"id": str(user.id)}
     )
     db.commit()
