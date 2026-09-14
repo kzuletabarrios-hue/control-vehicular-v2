@@ -50,18 +50,25 @@
 -- Este repositorio (control-vehicular-v2) pasa a versionar el esquema
 -- de `citas_programadas` y `archivos_citas` porque (a) las CONSUME de
 -- forma real -- FK real vía `proveedores_ordenes.cita_id` -- y (b) ya
--- tenía comentarios versionados sobre ellas desde el 2026-08-05. Esto
--- NO implica que este repo asuma autoridad exclusiva sobre esas dos
--- tablas: siguen siendo de USO COMPARTIDO con la app externa
--- `citas-muelles-cedi-r10` (mismo proyecto Supabase). Cualquier
--- ALTER TABLE futuro sobre `citas_programadas`/`archivos_citas`
--- requiere coordinación previa con quien mantenga esa app. Alejandro
--- confirmó que `citas-muelles-cedi-r10` NO tiene ninguna carpeta de
--- migraciones propia -- por lo tanto, mientras eso no cambie, ESTE
--- repositorio queda como el ÚNICO registro versionado del esquema
--- compartido de esas dos tablas. Quien lea/mantenga este archivo debe
--- tratar ese hecho como una responsabilidad, no como una licencia para
--- cambiarlas unilateralmente.
+-- tenía comentarios versionados sobre ellas desde el 2026-08-05.
+--
+-- CORRECCIÓN (2026-09-14, mismo día): la condición de gobierno original
+-- de este párrafo asumía que `citas-muelles-cedi-r10` seguía en uso
+-- compartido activo con "otro mantenedor" a quien coordinar. Verificado
+-- después con la API de Vercel: esa app NO tiene ningún deploy desde el
+-- 2026-08-05 (más de un mes antes de esta migración), y siempre fue
+-- desplegada por la misma persona dueña de este repo -- nunca hubo un
+-- equipo separado. Los manuales de este mismo repo (docs/*.html,
+-- commit 6bdb224, mismo día) ya documentan que esa app se dio de baja
+-- formalmente en septiembre 2026 y que su funcionalidad quedó
+-- absorbida aquí. Es decir: no hay ningún "otro mantenedor" con quien
+-- coordinar -- este repositorio es hoy el único dueño real, no solo el
+-- único registro versionado, del esquema de `citas_programadas` y
+-- `archivos_citas`. Se deja este archivo y su historial de decisión
+-- intactos (transparencia de auditoría), pero la condición de
+-- "coordinar con quien mantenga esa app" queda sin efecto: no aplica
+-- porque no hay tal persona/equipo. Si `citas-muelles-cedi-r10` se
+-- reactivara alguna vez, esa condición volvería a tener sentido.
 --
 -- ── CÓMO SE OBTUVO ESTE DDL ──────────────────────────────────────
 -- 100% por introspección de SOLO LECTURA contra Supabase producción
