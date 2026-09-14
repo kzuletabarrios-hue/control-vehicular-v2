@@ -1,0 +1,211 @@
+-- ================================================================
+-- Soporte de "logística inversa" en `proveedores`: vehículos que
+-- descargan en un muelle normal (1-18) y LUEGO se mueven a un muelle
+-- distinto (19, 20 o 21) para recoger estibas, canastillas,
+-- devoluciones, donaciones, garantías u otras cosas. Decisión de
+-- Alejandro (2026-08-21): columnas nuevas en `proveedores`, mismo
+-- patrón que el equipo ya usó dos veces para el primer muelle (ver
+-- 2026-08-08_proveedores_muelle_liberado_columns.sql y
+-- 2026-08-11_proveedores_hora_muelle_asignado_column.sql). Se
+-- descarta reactivar `muelles`/`muelle_eventos` (vacías, pertenecen
+-- operativamente a citas-muelles-cedi-r10 sobre el mismo Supabase --
+-- ver backend/routers/muelles.py líneas 1-18).
+--
+-- Decisiones ya confirmadas por Karen (dueña del sistema), no se
+-- reabren aquí:
+--   1. El campo de logística inversa es obligatorio de responder al
+--      registrar la llegada (sí/no, aunque sea "no aplica").
+--   2. Un mismo vehículo puede llevar varios tipos a la vez (ej.
+--      estibas Y devolución en la misma visita).
+--   3. El mismo guarda de bodega que hoy libera el muelle de
+--      descargue (PUT /proveedores/{id}/liberar-muelle) ejecuta la
+--      transición al muelle de logística inversa -- no hace falta
+--      rol/permiso nuevo, reutiliza "muelles":"liberar".
+--
+-- Estado real verificado ANTES de escribir este script: lectura
+-- directa del repositorio (Jorge, 2026-08-21) -- NO se pudo hacer
+-- lectura en vivo contra information_schema de Supabase producción
+-- en esta sesión (sin herramienta de conexión a base de datos
+-- disponible); se reconstruyó el estado efectivo de `proveedores`
+-- a partir de TODAS las migraciones ya aplicadas en
+-- backend/migrations_manual/ (0000 en adelante, que es la fuente de
+-- verdad del esquema desde 2026-08-01) más el drift documentado en
+-- ellas mismas. Columnas confirmadas relevantes para esta migración:
+--   muelle_descargue          TEXT, nullable, sin default (texto libre)
+--   muelle_numero             TEXT, nullable, sin default (histórico,
+--                              2026-08-08)
+--   hora_muelle_asignado      TIME WITHOUT TIME ZONE, nullable
+--                              (2026-08-11, con backfill desde hora_ingreso)
+--   hora_muelle_liberado      TIME WITHOUT TIME ZONE, nullable
+--                              (2026-08-08)
+--   estado_confirmacion       TEXT NOT NULL DEFAULT 'pendiente'
+--                              CHECK IN ('pendiente','ingresado_wps','confirmado')
+-- Ningún nombre de columna nuevo de este script colisiona con lo
+-- anterior (grep del repo completo por "logistica_inversa": 0
+-- resultados antes de este archivo). Dado que no hubo verificación
+-- en vivo, este script es deliberadamente conservador: 100%
+-- idempotente (ADD COLUMN IF NOT EXISTS), sin CHECK, sin FK, sin
+-- backfill -- de modo que si algún supuesto de arriba estuviera
+-- desactualizado, el peor caso es un no-op, nunca una pérdida de
+-- datos. Se recomienda que quien aplique el script corra primero el
+-- SELECT de verificación al final (comentado) contra producción para
+-- confirmar que estas 4 columnas todavía no existen.
+--
+-- ── Diseño elegido para "tipos" (uno-a-muchos por vehículo) ────────
+-- Evaluadas 3 opciones:
+--   a) TEXT[] en `proveedores` (elegida, ver abajo).
+--   b) Tabla de detalle nueva (mismo patrón que `proveedores_ordenes`,
+--      una fila por tipo seleccionado + proveedor_id FK).
+--   c) JSONB.
+--
+-- Se elige (a) TEXT[] `tipos_logistica_inversa`, NO (b) tabla nueva,
+-- por:
+--   - proveedores_ordenes resuelve un "uno a muchos" con entidades
+--     RICAS (cada orden trae su propia empresa, muelle_descargue,
+--     actividad, dependencia, numero_orden_compra, cita_id -- columnas
+--     propias por fila) que además se crean/editan/borran una por una
+--     vía CRUD (ver proveedores.py _insert_ordenes/_actualizar/
+--     _borrar, líneas 932-1042). Los "tipos" de logística inversa NO
+--     tienen atributos propios (no llevan cantidad, hora individual ni
+--     referencia externa por tipo) -- son etiquetas de un catálogo fijo
+--     y pequeño (~6 valores), respondidas UNA vez, en UNA sola acción
+--     (el guarda marca casillas y guarda). Modelarlas como tabla
+--     obligaría a un INSERT/DELETE por casilla marcada/desmarcada más
+--     manejo de huérfanos, para un beneficio nulo frente a un array.
+--   - Es propiedad del VEHÍCULO/visita completa (la parada de
+--     logística inversa), no de una orden/empresa individual --
+--     encaja en `proveedores`, igual que muelle_descargue, no en
+--     proveedores_ordenes.
+--   - Se descarta (c) JSONB: sin estructura anidada que justifique un
+--     documento (no hay pares clave-valor variables por tipo, solo una
+--     lista plana de valores de catálogo fijo) -- TEXT[] es más simple
+--     de escribir/leer desde Python (list <-> array nativo) y más
+--     barato de indexar con GIN para filtros de reporting
+--     ("cuántos vehículos llevaron estibas este mes") vía operador
+--     `&&`/`@>`, sin el costo extra de indexar JSONB para ese mismo
+--     caso de uso.
+--   - Validación: SIN CHECK, mismo criterio laxo que ya usa esta tabla
+--     para texto libre (muelle_descargue, empresa, etc. -- ningún
+--     CHECK de catálogo en esas columnas). Catálogo sugerido para
+--     validar en aplicación (María/Alejandro confirman la lista
+--     definitiva del formulario, NO está fijada por la base de
+--     datos): 'estibas', 'canastillas', 'devoluciones', 'donaciones',
+--     'garantias', 'otros'.
+--
+-- Semántica de valores (para que el "obligatorio, aunque sea 'no
+-- aplica'" del punto 1 de Karen no dependa de una segunda columna
+-- booleana separada -- evita el estado inconsistente de tener
+-- "aplica = true" con tipos vacíos o viceversa):
+--   NULL          -> registro anterior a esta funcionalidad, nunca se
+--                     le preguntó (todas las filas existentes hoy).
+--   '{}' (vacío)  -> se preguntó y la respuesta fue "no aplica".
+--   {'estibas',...} -> se preguntó y aplican esos tipos (1 o más).
+-- María debe escribir SIEMPRE '{}'::text[] o un array con valores al
+-- registrar la llegada (nunca NULL desde el formulario nuevo) -- el
+-- NULL queda reservado para el pasado. La obligatoriedad ("debe
+-- responder") se valida en aplicación, igual que el resto de reglas
+-- de negocio de este módulo (esta tabla no tiene NOT NULL en columnas
+-- de texto libre por diseño ya establecido).
+--
+-- ── Columnas para el segundo muelle (mismo patrón que el primero) ──
+--   muelle_logistica_inversa          TEXT -- texto libre, igual que
+--     muelle_descargue: valor "vivo" mientras el vehículo ocupa el
+--     muelle 19/20/21; se vacía a NULL cuando el guarda libera.
+--   hora_logistica_inversa_asignado   TIME WITHOUT TIME ZONE -- hora
+--     real de llegada/asignación al segundo muelle (equivalente a
+--     hora_muelle_asignado).
+--   hora_logistica_inversa_liberado   TIME WITHOUT TIME ZONE -- hora
+--     de liberación del segundo muelle (equivalente a
+--     hora_muelle_liberado).
+--
+-- ASIMETRÍA a decidir por Alejandro/María (no bloquea esta
+-- migración, se deja registrada): para el PRIMER muelle existen 4
+-- columnas, no 3 -- además de muelle_descargue/hora_muelle_asignado/
+-- hora_muelle_liberado hay un `muelle_numero` que el endpoint
+-- liberar-muelle usa para GUARDAR una copia histórica de qué muelle
+-- era antes de vaciar muelle_descargue a NULL (si no, esa
+-- información se pierde al liberar). Aquí solo se crean las 3
+-- columnas pedidas explícitamente; si el frontend necesita mostrar
+-- "en qué muelle de logística inversa estuvo" DESPUÉS de liberado
+-- (paralelo a como hoy se muestra "Salida de muelle: muelle N"),
+-- hará falta una 4ª columna equivalente a muelle_numero (ej.
+-- `muelle_logistica_inversa_numero`) en una migración posterior --
+-- de momento no se agrega para no anticipar un requerimiento no
+-- confirmado. Es un ADD COLUMN IF NOT EXISTS trivial de sumar
+-- después, sin romper nada de lo que se crea hoy.
+--
+-- ── Bug ya documentado que María NO debe repetir con estos campos ──
+-- En _attach_muelle() (backend/routers/proveedores.py, línea ~161)
+-- hay un bug real ya señalado por Alejandro: `hora_muelle_asignado`
+-- se sobreescribe SIEMPRE de forma incondicional
+--   item["hora_muelle_asignado"] = info.hora_muelle_asignado if info else None
+-- en vez de usar el patrón correcto que sí siguen muelle_numero y
+-- hora_muelle_liberado dos líneas más abajo:
+--   item["muelle_numero"] = item.get("muelle_numero") or (info.muelle_numero if info else None)
+--   item["hora_muelle_liberado"] = item.get("hora_muelle_liberado") or (info.hora_muelle_liberado if info else None)
+-- Si María expone `muelle_logistica_inversa` / `hora_logistica_inversa_asignado`
+-- / `hora_logistica_inversa_liberado` a través de un endpoint que pase
+-- por _attach_muelle() (o escribe una función equivalente para el
+-- segundo muelle), debe usar el patrón `item.get(...) or (...)` -- NUNCA
+-- una asignación incondicional -- o el valor real de estas columnas
+-- quedará siempre en None en la respuesta, igual que le pasó a
+-- hora_muelle_asignado.
+--
+-- Sin backfill: es un evento nuevo, sin historial previo que
+-- reconciliar (no existe hoy ninguna columna de la que derivar estos
+-- 4 valores para filas existentes, a diferencia del backfill de
+-- hora_muelle_asignado <- hora_ingreso del 2026-08-11). Todas las
+-- columnas nacen NULL para las filas existentes.
+--
+-- Riesgo: BAJO. 4 columnas nuevas, nullable, sin default, sin CHECK,
+-- sin FK, sin tocar ninguna columna/constraint existente -- no puede
+-- romper ningún INSERT/UPDATE/SELECT que ya corre en producción
+-- (`SELECT *`/`SELECT p.*` simplemente traerán 4 columnas
+-- adicionales). El índice GIN sobre el array es aditivo y no bloquea
+-- escrituras existentes. Idempotente (ADD COLUMN IF NOT EXISTS /
+-- CREATE INDEX IF NOT EXISTS): segura de re-ejecutar. No requiere
+-- downtime ni bloqueo de tabla relevante en Postgres moderno (ADD
+-- COLUMN nullable sin default es solo catálogo).
+--
+-- Queda pendiente de aplicar hasta que Karen confirme -- según las
+-- reglas del equipo, cualquier cambio de esquema en producción se
+-- reporta explícitamente antes de ejecutarse, aunque el riesgo sea
+-- bajo.
+--
+-- Fecha: 2026-08-21
+-- ================================================================
+
+ALTER TABLE proveedores
+  ADD COLUMN IF NOT EXISTS tipos_logistica_inversa           TEXT[],
+  ADD COLUMN IF NOT EXISTS muelle_logistica_inversa           TEXT,
+  ADD COLUMN IF NOT EXISTS hora_logistica_inversa_asignado    TIME WITHOUT TIME ZONE,
+  ADD COLUMN IF NOT EXISTS hora_logistica_inversa_liberado    TIME WITHOUT TIME ZONE;
+
+CREATE INDEX IF NOT EXISTS idx_prov_tipos_logistica_inversa
+  ON proveedores USING GIN (tipos_logistica_inversa);
+
+INSERT INTO schema_migrations (filename)
+VALUES ('2026-08-21_proveedores_logistica_inversa_columns.sql')
+ON CONFLICT (filename) DO NOTHING;
+
+-- ── VERIFICACIÓN (informativo, no modifica datos) ───────────────
+-- Correr ANTES de aplicar, para confirmar que las columnas no existen
+-- ya bajo otro nombre (drift no documentado, como pasó antes con
+-- estado_confirmacion/hora_ingreso_confirmado):
+--
+-- SELECT column_name, data_type, is_nullable, column_default
+-- FROM information_schema.columns
+-- WHERE table_name = 'proveedores'
+--   AND column_name IN (
+--     'tipos_logistica_inversa', 'muelle_logistica_inversa',
+--     'hora_logistica_inversa_asignado', 'hora_logistica_inversa_liberado'
+--   );
+--
+-- Correr DESPUÉS de aplicar, para confirmar que nacieron todas NULL:
+--
+-- SELECT count(*) AS total,
+--        count(*) FILTER (WHERE tipos_logistica_inversa IS NOT NULL) AS con_tipos,
+--        count(*) FILTER (WHERE muelle_logistica_inversa IS NOT NULL) AS con_muelle2,
+--        count(*) FILTER (WHERE hora_logistica_inversa_asignado IS NOT NULL) AS con_hora_asig2,
+--        count(*) FILTER (WHERE hora_logistica_inversa_liberado IS NOT NULL) AS con_hora_lib2
+-- FROM proveedores;  -- las 4 columnas "con_*" deben dar 0 justo después de aplicar

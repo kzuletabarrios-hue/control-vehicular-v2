@@ -1,0 +1,283 @@
+-- ================================================================
+-- LÉAME -- metodología de consolidación y hallazgos de auditoría
+-- Autor: Jorge Peña (Arquitecto de BD), 2026-09-14.
+--
+-- Este archivo NO ejecuta ningún DDL/DML (es 100% comentario). Se deja
+-- como PRIMER archivo de supabase/migrations/ únicamente para que
+-- quien corra `supabase db reset` / revise el historial encuentre esta
+-- explicación antes que cualquier otro cambio. Es idempotente y
+-- perpetuamente seguro de re-ejecutar (no hace nada).
+--
+-- ── 1. ORIGEN DE ESTOS ARCHIVOS ─────────────────────────────────
+-- Todo el SQL de esta carpeta es el mismo SQL real que ya existía en
+-- el repositorio en dos ubicaciones:
+--   a) database/*.sql            (14 archivos -- el esquema original,
+--      nunca gestionado por Supabase CLI ni por schema_migrations)
+--   b) backend/migrations_manual/*.sql (30 archivos -- el proceso de
+--      auditoría manual con bitácora propia, iniciado 2026-08-01)
+-- No se inventó contenido nuevo en ningún archivo renombrado: cada
+-- archivo de aquí es una COPIA textual de su original, solo renombrado
+-- al formato <timestamp>_<descripcion>.sql que exige Supabase CLI y
+-- reordenado por DEPENDENCIA REAL (qué tabla/función/rol necesita que
+-- otra cosa exista primero), no por fecha de commit a secas -- ver
+-- sección 3 sobre la única excepción a esto.
+--
+-- 42 de los 44 archivos originales (14 de database/ + 30 de
+-- migrations_manual/, menos 2 excluidos -- ver sección 4) están
+-- representados aquí 1:1. Los archivos originales NO se borraron de
+-- su ubicación actual; esta carpeta es la reorganización para Supabase
+-- CLI, no un reemplazo de la auditoría histórica.
+--
+-- A esos 42 se suman 3 archivos NUEVOS (sin equivalente previo en
+-- database/ ni migrations_manual/, porque documentan drift que nunca
+-- tuvo ningún script en absoluto -- ver sección 2):
+--   - 20260804100000_schema_tablas_huerfanas_drift.sql
+--   - 20260804110000_alta_formal_coordinador_retroactivo.sql
+--   - 20260914140000_revoca_asignar_no_autorizado_guarda_vehicular.sql
+-- Total: 45 archivos de contenido + este LEAME = 46.
+--
+-- ── 2. DRIFT ENCONTRADO (objetos reales en producción que NO existen
+--    en NINGÚN script de git, ni en database/ ni en migrations_manual/) ──
+--
+-- Confirmado por lectura de solo lectura contra Supabase producción
+-- (información_schema, pg_constraint, pg_indexes, pg_policies,
+-- storage.buckets/objects) el 2026-09-14, cruzado línea por línea
+-- contra los 44 scripts de git:
+--
+--   a) 8 TABLAS completas sin CREATE TABLE en ningún script:
+--      muelles, muelle_eventos, configuracion, sustancias,
+--      herramientas, conductores_frecuentes, citas_programadas,
+--      archivos_citas.
+--      - citas_programadas y archivos_citas SÍ están documentadas
+--        (COMMENT ON, sin CREATE TABLE) en
+--        2026-08-05_documenta_citas_programadas_existente.sql y
+--        2026-08-07_auditoria_fase51_unificacion_citas_qr.sql (esta
+--        última también documenta `configuracion`) -- Jorge (el mismo
+--        rol, sesión anterior) ya había detectado y dejado constancia
+--        de ese drift parcialmente.
+--      - muelles, muelle_eventos, sustancias, herramientas y
+--        conductores_frecuentes NO tenían NINGUNA mención previa en
+--        migrations_manual/ -- eran drift nuevo, encontrado en esta
+--        auditoría (2026-09-14).
+--      ESTADO: RESUELTO. Alejandro revisó y aprobó (2026-09-14) la
+--      reconstrucción de las 8 tablas vía introspección de solo
+--      lectura -- ver 20260804100000_schema_tablas_huerfanas_drift.sql
+--      (incluye la condición de gobierno sobre citas_programadas/
+--      archivos_citas, compartidas con citas-muelles-cedi-r10).
+--
+--   b) 2 COLUMNAS de proveedores_ordenes sin ALTER TABLE en ningún
+--      script: cita_id (uuid, FK -> citas_programadas.id ON DELETE SET
+--      NULL) y numero_orden_compra (text). Documentadas vía COMMENT ON
+--      COLUMN en 2026-08-06_indice_proveedores_ordenes_cita_id.sql
+--      (que sí asume que ya existen), pero el ALTER TABLE que las creó
+--      no estaba en ningún lado.
+--      ESTADO: RESUELTO en el mismo archivo del punto (a),
+--      20260804100000_schema_tablas_huerfanas_drift.sql.
+--
+--   c) rol `coordinador` (id=9 en producción): usado y modificado por
+--      al menos 3 migraciones ya incluidas en supabase/migrations/
+--      (2026-08-07_verifica_rol_coordinador_solo_lectura.sql,
+--      2026-08-07_permiso_citas_export.sql,
+--      2026-08-11_permiso_visitantes_acceso_coordinador.sql), pero SIN
+--      ningún INSERT INTO roles versionado en git -- a diferencia de
+--      guarda_bodega/guarda_peatonal/guarda_vehicular, que sí
+--      recibieron su "alta formal retroactiva" el 2026-08-01,
+--      'coordinador' nunca tuvo ese mismo tratamiento. Drift nuevo, no
+--      reportado en ninguna migración previa a esta auditoría.
+--      ESTADO: RESUELTO. Alejandro aprobó (2026-09-14) la alta formal
+--      retroactiva con el jsonb real leído de producción -- ver
+--      20260804110000_alta_formal_coordinador_retroactivo.sql.
+--
+--   d) permisos->'muelles' del rol guarda_vehicular tenía 3 valores en
+--      producción: ["asignar","liberar","read"]. Solo "read"
+--      (2026-08-25) y "liberar" (2026-09-04) estaban explicados por
+--      una migración versionada -- "asignar" no aparecía en ningún
+--      script de git ni fue pedido por ninguna migración leída. Karen
+--      confirmó explícitamente (2026-09-14) que no lo reconoce ni
+--      autorizó -- se trató como posible hallazgo de seguridad, se
+--      investigó (audit_log sin filas de `roles` en 30.663 filas
+--      totales -- consistente con que ningún cambio de rol de este
+--      proyecto pasa por API auditada, no concluyente por sí solo;
+--      grep exhaustivo de backend/frontend: "muelles:asignar" es una
+--      acción MUERTA en este repo desde el commit c4b2a2a, 2026-07-10,
+--      que eliminó el único endpoint que la usaba -- diseñado en el
+--      commit 7119a25, mismo día, exclusivamente para coordinador/
+--      admin, nunca para guarda_vehicular).
+--      ESTADO: RESUELTO. Karen aplicó la reversión manualmente vía SQL
+--      Editor de Supabase el 2026-09-14 (quedó ["liberar","read"],
+--      verificado por Jorge con SELECT de solo lectura) -- documentado
+--      en 20260914140000_revoca_asignar_no_autorizado_guarda_vehicular.sql.
+--
+--   e) RLS: las 31 tablas de `public` (incluida schema_migrations)
+--      tienen Row Level Security ACTIVADO en producción, pero SOLO
+--      existe 1 migración que activa RLS explícitamente
+--      (2026-09-11_activa_rls_schema_migrations.sql, alcance: una sola
+--      tabla). Las otras 30 tienen RLS activo sin que ningún script lo
+--      documente, y NINGUNA tabla tiene ninguna policy (0 filas en
+--      pg_policies para todo el schema public). En la práctica esto no
+--      cambia el comportamiento de la app hoy: el backend se conecta
+--      con el rol `postgres` (dueño de las tablas), que por diseño de
+--      Postgres NO está sujeto a RLS salvo FORCE ROW LEVEL SECURITY
+--      (confirmado: relforcerowsecurity = false en las 31 tablas). Si
+--      en el futuro algo se conecta con un rol distinto (anon/
+--      authenticated, p.ej. Supabase client-side), hoy NO tiene acceso
+--      a ninguna tabla (deny-by-default, RLS on sin policies). Se dejó
+--      registrado por transparencia, no requiere acción -- el
+--      comportamiento observado es consistente en las 31 tablas, no
+--      parece un error aislado.
+--
+--   f) 4 de los 30 archivos de migrations_manual/ NO están registrados
+--      en la tabla schema_migrations aunque 3 de ellos SÍ modificaron
+--      producción (verificado leyendo el estado real, no solo el
+--      archivo):
+--        - 2026-08-07_verifica_rol_coordinador_solo_lectura.sql: NO
+--          aplicado (el COMMENT ON COLUMN que debía dejar no existe en
+--          producción -- pg_description vacío). Es documentación pura,
+--          sin efecto de datos/esquema; no hay riesgo de reconstrucción
+--          incompleta.
+--        - 2026-08-25_permiso_muelles_read_guarda_vehicular.sql: SÍ
+--          aplicado ("read" está presente en producción) pero su
+--          propio INSERT INTO schema_migrations nunca corrió -- gap de
+--          auditoría, no de esquema.
+--        - 2026-08-07_reconciliacion_fecha_turno_rondas.sql: NO
+--          aplicado -- y es CORRECTO que no lo esté: el propio archivo
+--          se declara "PROPUESTA, NO APLICADA, PENDIENTE DE APROBACIÓN
+--          DE KAREN" en su encabezado. Confirmado con una consulta de
+--          solo lectura: los 80 mismatches de fecha_turno que
+--          diagnosticó siguen presentes hoy, sin el UNIQUE constraint
+--          creado. Por eso NO se incluye en esta carpeta -- ver sección
+--          4.
+--        - 2026-09-07_cierra_bucket_fotos_escritura_publica.sql: el
+--          propio archivo declara que NO se autorregistra en
+--          schema_migrations a propósito (toca `storage`, no
+--          `public`). No se incluye aquí -- ver sección 4.
+--
+-- ── 3. ÚNICA EXCEPCIÓN AL ORDEN CRONOLÓGICO REAL ────────────────
+--
+-- 20260601101440_roles_guarda_alta_formal_retroactivo.sql es una copia
+-- de backend/migrations_manual/2026-08-01_roles_guarda_alta_formal.sql
+-- (aplicado en producción real el 2026-08-05), pero aquí se reubica
+-- justo después del esquema de auth (2026-06-01) y ANTES de
+-- 20260616233250_rondas_novedades.sql. Motivo: los roles
+-- guarda_bodega/guarda_peatonal/guarda_vehicular se crearon en
+-- producción fuera de git en algún momento antes de 2026-06-16 (la
+-- referencia más antigua a ellos, vía UPDATE roles ... WHERE nombre
+-- IN (...), es justamente en database/migration_rondas_novedades.sql).
+-- Si este archivo se dejara en su fecha real de aplicación (agosto),
+-- las 5 migraciones de junio que hacen UPDATE roles sobre esos 3
+-- roles serían no-ops de 0 filas en un ambiente reconstruido desde
+-- cero -- el alta formal (que trae el jsonb FINAL ya fusionado, leído
+-- de producción el 2026-08-01) igual deja el resultado correcto al
+-- final, pero es más fiel y más simple de razonar si el rol existe
+-- desde el principio. Verificado que este reordenamiento es seguro:
+-- todos los UPDATE posteriores sobre estos 3 roles usan patrones
+-- idempotentes (ON CONFLICT DO NOTHING / jsonb_set con merge /
+-- jsonb_agg DISTINCT), nunca un INSERT simple que pudiera duplicar.
+--
+-- ── 4. ARCHIVOS EXCLUIDOS A PROPÓSITO de supabase/migrations/ ──────
+--
+-- Estos 2 archivos de backend/migrations_manual/ NO se copiaron aquí
+-- -- seguirían aplicándose automáticamente con `supabase db reset` /
+-- `supabase migration up`, y ninguno de los dos está listo para
+-- correr sin intervención humana:
+--
+--   - 2026-08-07_reconciliacion_fecha_turno_rondas.sql: propuesta NO
+--     aprobada por Karen a la fecha de esta auditoría (2026-09-14).
+--     Reescribe datos de auditoría de seguridad (histórico real de
+--     rondas). No debe auto-aplicarse en ningún ambiente hasta esa
+--     aprobación explícita.
+--   - 2026-09-07_cierra_bucket_fotos_escritura_publica.sql: el propio
+--     archivo declara que usa nombres de policy PLACEHOLDER (no
+--     confirmados contra el proyecto real) y que requiere ejecutar un
+--     diagnóstico manual antes de adaptar los DROP POLICY. Automatizar
+--     esto tal cual daría una falsa sensación de "ya se cerró el
+--     hallazgo" sin haber tocado nada real.
+--
+-- Ambos siguen existiendo, sin cambios, en
+-- backend/migrations_manual/ -- no se movieron ni se borraron.
+--
+-- ── 5. VALIDACIÓN REAL DE PUNTA A PUNTA (2026-09-14, María) ─────────
+--
+-- Los 3 puntos que antes bloqueaban una reconstrucción desde cero (8
+-- tablas + 2 columnas huérfanas, alta de `coordinador`, permiso
+-- "asignar" no autorizado) ya estaban resueltos y versionados -- ver
+-- sección 2. Pero el análisis de dependencias de Jorge hasta ese punto
+-- era MANUAL (lectura estatuto por estatuto, sin ejecutar nada) -- por
+-- eso se pidió a María levantar un entorno de pruebas local real
+-- (Postgres aislado, sin Docker) y correr las migraciones EN SERIO
+-- contra una base vacía. Eso encontró 4 problemas reales que el
+-- análisis manual no había detectado (3 los encontró María corriendo
+-- `supabase db reset`, uno lo encontró/corrigió ella misma en el
+-- mismo pase):
+--
+--   1. 20260627205543_proveedores_ordenes.sql: `COALESCE(carga_compartida,
+--      FALSE)` mezclaba TEXT (proveedores.carga_compartida, real desde
+--      2026-06-01, confirmado sin cambios) con BOOLEAN
+--      (proveedores_ordenes.carga_compartida) -- Postgres lo rechaza
+--      ("COALESCE types text and boolean cannot be matched"),
+--      reproducido también contra producción real con una consulta de
+--      solo lectura. Corregido con `::boolean` explícito -- valores
+--      reales verificados ('true'/'false'/NULL), cast seguro.
+--
+--   2. proveedores.origen e idx_proveedores_ordenes_cita_id: 2 objetos
+--      huérfanos ADICIONALES que el hallazgo original (sección 2a/2b)
+--      no capturó -- ambos comentados por
+--      20260807183041_auditoria_fase51_unificacion_citas_qr.sql (COMMENT
+--      ON COLUMN / COMMENT ON INDEX) pero sin ALTER TABLE/CREATE INDEX
+--      versionado en ningún lado. Agregados a
+--      20260804100000_schema_tablas_huerfanas_drift.sql (secciones 9-10
+--      de ese archivo), con su definición real verificada contra
+--      producción.
+--
+--   3. control_acceso/flota_propia/proveedores/visitantes.creado_por_fk:
+--      columna huérfana (UUID, FK -> usuarios(id) ON DELETE SET NULL,
+--      "columna muerta" sin uso en código -- ya señalada como tal en
+--      20260807220625_proveedores_estado_ingresado_wps.sql, pero nunca
+--      con su propio ALTER TABLE) que
+--      20260911130929_indices_llaves_foraneas.sql indexa sin que nadie
+--      la cree antes. Nuevo archivo:
+--      20260911130900_creado_por_fk_columnas_huerfanas.sql.
+--
+--   4. `public.schema_migrations` no existía todavía cuando
+--      20260601101440_roles_guarda_alta_formal_retroactivo.sql (y,
+--      tras el fix de hoy, también 20260804100000 y 20260804110000)
+--      intentaban autorregistrarse con `INSERT INTO schema_migrations`
+--      -- la tabla se crea recién en 20260805161509. En producción real
+--      nunca falló porque la tabla ya existía de antes de que esos
+--      scripts corrieran fuera de orden cronológico (ver sección 3).
+--      María encontró y corrigió esto ella misma:
+--      20260601101435_schema_migrations_bootstrap.sql adelanta SOLO la
+--      definición de la tabla (idéntica, CREATE TABLE IF NOT EXISTS) a
+--      un punto anterior a la primera migración que la necesita -- no
+--      toca el contenido de ningún archivo existente.
+--
+-- Los 4 se investigaron con lectura de solo lectura contra producción
+-- (confirmando tipo/definición real antes de escribir cada fix, nunca
+-- por analogía) y Karen autorizó el cierre -- ninguno implicó escribir
+-- nada en producción, solo corregir los archivos de
+-- supabase/migrations/. Los headers de advertencia de los archivos que
+-- dependían de estos objetos (20260805202430, 20260806105156,
+-- 20260806115339, 20260807183041, 20260911130929) se actualizaron para
+-- reflejar que la dependencia ya se resuelve automáticamente en la
+-- secuencia.
+--
+-- Lo único que sigue fuera de esta carpeta a propósito son los 2
+-- archivos de la sección 4 (reconciliación de rondas pendiente de
+-- aprobación de Karen, y cierre de policies de Storage con placeholders
+-- sin confirmar) -- ninguno de los dos bloquea que el resto del esquema
+-- funcione, ambos siguen intactos en backend/migrations_manual/.
+--
+-- NIVEL DE CONFIANZA DE JORGE: alto pero no absoluto. Tras estos 4
+-- hallazgos hice una segunda pasada manual completa (grep exhaustivo de
+-- todo COALESCE(, COMMENT ON, CREATE INDEX/UNIQUE INDEX y REFERENCES
+-- en toda la carpeta, verificando que cada objeto referenciado se cree
+-- antes en la secuencia) y no encontré nada adicional -- pero sigue
+-- siendo un análisis manual, no una ejecución real: no tengo Postgres
+-- ni la CLI de Supabase disponibles en este entorno para correrlo yo
+-- mismo de punta a punta. Dado que el análisis manual anterior YA
+-- falló en detectar estos 4 problemas antes de que María los corriera
+-- de verdad, recomiendo EXPLÍCITAMENTE que María vuelva a correr
+-- `supabase db reset` (46+4 = 50 migraciones + seed) contra una base
+-- vacía nueva antes de dar esto por cerrado -- es la única forma de
+-- confirmarlo con certeza real, no solo con lectura de código.
+-- ================================================================

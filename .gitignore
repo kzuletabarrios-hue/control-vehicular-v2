@@ -37,3 +37,9 @@ backend/tmp_bcrypt/
 *.zip
 *.pptx
 db_backup/
+
+# Postgres local de pruebas (entorno de tests, ver scripts/dev_test_db.sh).
+# Cluster completo con datos binarios -- nunca se versiona. Nota: esto NO
+# afecta a backend/.env.test (las credenciales), que SÍ se versiona a
+# propósito porque son fijas, locales y sin valor real (ver ese archivo).
+.devstack/
