@@ -1111,7 +1111,7 @@ export function ProveedoresPage({user,online,addOffline}){
               h('div',{className:'li-sub'},empLabel),
               ords.length>1&&h('span',{style:{fontSize:10,background:'#dbeafe',color:'#1d4ed8',borderRadius:4,padding:'1px 6px',fontWeight:700,display:'inline-block',marginTop:2}},ords.length+' órdenes')
             ),
-            h('div',{className:'li-right'},
+            h('div',{className:'li-right li-right-prov'},
               h('span',{className:'li-date'},fmtDate(r.fecha),
                 r.fecha_salida&&r.fecha_salida!==r.fecha&&h('span',{style:{display:'block',fontSize:9,color:'#059669',fontWeight:600}},'Sale: '+fmtDate(r.fecha_salida))
               ),
@@ -1238,8 +1238,8 @@ export function ProveedoresPage({user,online,addOffline}){
               :{border:'1.5px solid #fcd34d',background:'#fffbeb'};
             const pill = tipo==='atrasados'
               ?(sinLlegar
-                ?h('span',{className:'pill pill-red cita-blink',style:{marginBottom:3,marginRight:4,display:'inline-block',fontSize:11,fontWeight:700,padding:'3px 9px'}},`⏰ Cita atrasada — aún no llega (${atrasoMin} min)`)
-                :h('span',{className:'pill pill-red',style:{marginBottom:3,marginRight:4,display:'inline-block',fontSize:11,fontWeight:700,padding:'3px 9px'}},`Llegó tarde a su cita — ${atrasoMin} min de atraso`))
+                ?h('span',{className:'pill pill-red cita-blink',style:{marginBottom:3,marginRight:4,display:'inline-block',fontSize:11,fontWeight:700,padding:'3px 9px',whiteSpace:'normal',maxWidth:220,lineHeight:1.35}},`⏰ Cita atrasada — aún no llega (${atrasoMin} min)`)
+                :h('span',{className:'pill pill-red',style:{marginBottom:3,marginRight:4,display:'inline-block',fontSize:11,fontWeight:700,padding:'3px 9px',whiteSpace:'normal',maxWidth:220,lineHeight:1.35}},`Llegó tarde a su cita — ${atrasoMin} min de atraso`))
               :tipo==='proximos'
                 ?h('span',{className:'pill',style:{marginBottom:3,marginRight:4,display:'inline-block',fontSize:11,fontWeight:700,padding:'3px 9px',background:'#fee2e2',color:'#991b1b',border:'1px solid #fca5a5'}},`⏰ Cita en ${diff} min`)
                 :tipo==='aTiempo'
@@ -1271,7 +1271,7 @@ export function ProveedoresPage({user,online,addOffline}){
           const citaProxima = !!citaAlerta;
           return cardFor(r,{
             style: citaProxima?{border:'1.5px solid #f87171',background:'#fef2f2'}:pendConf?{border:'1.5px solid #fcd34d',background:'#fffbeb'}:null,
-            pill: citaAlerta&&h('span',{className:'pill'+(citaAlerta.diff<0?' cita-blink':''),style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#fee2e2',color:'#991b1b',border:'1px solid #fca5a5'}},citaAlerta.diff>=0?`⏰ Cita en ${citaAlerta.diff} min`:`⏰ Cita atrasada ${Math.abs(citaAlerta.diff)} min`)
+            pill: citaAlerta&&h('span',{className:'pill'+(citaAlerta.diff<0?' cita-blink':''),style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#fee2e2',color:'#991b1b',border:'1px solid #fca5a5',whiteSpace:'normal',maxWidth:220,lineHeight:1.35}},citaAlerta.diff>=0?`⏰ Cita en ${citaAlerta.diff} min`:`⏰ Cita atrasada ${Math.abs(citaAlerta.diff)} min`)
           });
         });
       })()

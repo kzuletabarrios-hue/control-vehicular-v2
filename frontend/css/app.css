@@ -139,7 +139,14 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 .btn-outline:hover{border-color:var(--navy);color:var(--navy)}
 
 /* ── LIST ── */
-.list-item{background:var(--white);border-radius:var(--radius-sm);padding:12px 13px;margin-bottom:8px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;box-shadow:0 1px 4px rgba(0,0,0,0.05);cursor:pointer;transition:transform .1s}
+/* align-items:flex-start (antes center) -- cuando li-body crece mucho en
+   alto (varias pills + varias líneas de texto, caso denso de Proveedores),
+   centrar contra esa altura dejaba li-icon y li-right flotando a mitad de
+   tarjeta. flex-start los ancla arriba, junto al inicio del contenido, que
+   es el comportamiento correcto también para el resto de páginas que
+   comparten esta clase (Acceso, Flota, Ronda, Visitantes, etc.) cuando el
+   texto es largo. */
+.list-item{background:var(--white);border-radius:var(--radius-sm);padding:12px 13px;margin-bottom:8px;display:flex;flex-wrap:wrap;align-items:flex-start;gap:10px;box-shadow:0 1px 4px rgba(0,0,0,0.05);cursor:pointer;transition:transform .1s}
 .list-item:active{transform:scale(0.98)}
 .li-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .li-icon svg{width:18px;height:18px}
@@ -148,6 +155,19 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 .li-sub{font-size:11px;color:var(--slate);margin-top:1px}
 .li-route{font-size:10px;color:#2563eb;margin-top:2px}
 .li-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;max-width:100%}
+/* .li-right-prov: variante acotada SOLO a Proveedores (className="li-right
+   li-right-prov"), no se toca .li-right global porque el resto de páginas
+   que la comparten (Acceso, Flota, ItemAcceso, VisitaVehicular, Visitantes,
+   Ronda, tabs de BaseDatos) solo muestran 1-2 botones cortos o un pill y
+   nunca compiten por espacio con li-body. Proveedores es el único caso con
+   hasta 8 acciones condicionales ("Ingresado WPS", "Confirmar", "Deshacer",
+   "Salida", "Liberar muelle", "Enviar a logística inversa", etc.) más fecha
+   de entrada/salida -- sin un max-width, ese contenido nunca cede ancho a
+   li-body en pantallas angostas (~360-400px) y el texto largo (empresas,
+   pill de atraso) termina partiéndose palabra por palabra. 45% deja
+   suficiente ancho a li-body y el botonera envuelve en varias filas
+   gracias al flexWrap:wrap que ya trae el contenedor inline en el JS. */
+.li-right-prov{max-width:45%}
 .li-date{font-size:10px;color:var(--slate)}
 /* ── LIST ROW ACTION BUTTONS (Eliminar/Desactivar/Duplicar) ── */
 /* Objetivo: acercarse a un área táctil de 44×44 sin romper el alto compacto de las filas de lista (~38-58px). 30×30 duplica el área de click anterior (~18px) y agrega borde+fondo como affordance visual. */
