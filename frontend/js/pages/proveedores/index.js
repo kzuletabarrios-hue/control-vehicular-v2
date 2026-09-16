@@ -1222,7 +1222,7 @@ export function ProveedoresPage({user,online,addOffline}){
           const grupoHeader = (tipo,count,esPrimero) => {
             const cfg = {
               atrasados:{bg:'#fee2e2',border:'#fca5a5',icon:'alert',iconColor:'#991b1b',label:'ATRASADOS POR INCUMPLIMIENTO DE CITA',textColor:'#991b1b',pillBg:'#fecaca'},
-              proximos:{bg:'#fef2f2',border:'#fecaca',icon:'alert',iconColor:'#b91c1c',label:'PRÓXIMOS A VENCER',textColor:'#b91c1c',pillBg:'#fee2e2'},
+              proximos:{bg:'#fffbeb',border:'#fcd34d',icon:'alert',iconColor:'#92400e',label:'PRÓXIMOS A VENCER',textColor:'#92400e',pillBg:'#fef3c7'},
               aTiempo:{bg:'#d1fae5',border:'#6ee7b7',icon:'checkCircle',iconColor:'#065f46',label:'A TIEMPO',textColor:'#065f46',pillBg:'#a7f3d0'},
               sinCita:{bg:'#f1f5f9',border:'var(--border)',icon:'clipboard',iconColor:'var(--slate)',label:'SIN CITA REGISTRADA',textColor:'var(--slate)',pillBg:'#e2e8f0'}
             }[tipo];
@@ -1233,7 +1233,7 @@ export function ProveedoresPage({user,online,addOffline}){
             );
           };
           const cardConfirmar = ({r,atrasoMin,sinLlegar,diff},tipo) => {
-            const style = tipo==='atrasados'||tipo==='proximos'
+            const style = tipo==='atrasados'
               ?{border:'1.5px solid #f87171',background:'#fef2f2'}
               :{border:'1.5px solid #fcd34d',background:'#fffbeb'};
             const pill = tipo==='atrasados'
@@ -1241,7 +1241,7 @@ export function ProveedoresPage({user,online,addOffline}){
                 ?h('span',{className:'pill pill-red cita-blink',style:{marginBottom:3,marginRight:4,display:'inline-block',fontSize:11,fontWeight:700,padding:'3px 9px',whiteSpace:'normal',maxWidth:220,lineHeight:1.35}},`⏰ Cita atrasada — aún no llega (${atrasoMin} min)`)
                 :h('span',{className:'pill pill-red',style:{marginBottom:3,marginRight:4,display:'inline-block',fontSize:11,fontWeight:700,padding:'3px 9px',whiteSpace:'normal',maxWidth:220,lineHeight:1.35}},`Llegó tarde a su cita — ${atrasoMin} min de atraso`))
               :tipo==='proximos'
-                ?h('span',{className:'pill',style:{marginBottom:3,marginRight:4,display:'inline-block',fontSize:11,fontWeight:700,padding:'3px 9px',background:'#fee2e2',color:'#991b1b',border:'1px solid #fca5a5'}},`⏰ Cita en ${diff} min`)
+                ?h('span',{className:'pill pill-amber cita-blink-suave',style:{marginBottom:3,marginRight:4,display:'inline-block',fontSize:11,fontWeight:700,padding:'3px 9px',background:'#fef3c7',color:'#92400e',border:'1px solid #fcd34d',whiteSpace:'normal',maxWidth:220,lineHeight:1.35}},`🔔 Registrar en WPS — cita en ${diff} min`)
                 :tipo==='aTiempo'
                   ?h('span',{className:'pill pill-green',style:{marginBottom:3,marginRight:4,display:'inline-block',fontSize:11,fontWeight:700,padding:'3px 9px'}},'Llegó a tiempo a su cita')
                   :null;
@@ -1269,9 +1269,12 @@ export function ProveedoresPage({user,online,addOffline}){
             return diff<=60 ? {diff} : null;
           })() : null;
           const citaProxima = !!citaAlerta;
+          const citaVencida = citaProxima && citaAlerta.diff<0;
           return cardFor(r,{
-            style: citaProxima?{border:'1.5px solid #f87171',background:'#fef2f2'}:pendConf?{border:'1.5px solid #fcd34d',background:'#fffbeb'}:null,
-            pill: citaAlerta&&h('span',{className:'pill'+(citaAlerta.diff<0?' cita-blink':''),style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#fee2e2',color:'#991b1b',border:'1px solid #fca5a5',whiteSpace:'normal',maxWidth:220,lineHeight:1.35}},citaAlerta.diff>=0?`⏰ Cita en ${citaAlerta.diff} min`:`⏰ Cita atrasada ${Math.abs(citaAlerta.diff)} min`)
+            style: citaVencida?{border:'1.5px solid #f87171',background:'#fef2f2'}:(citaProxima||pendConf)?{border:'1.5px solid #fcd34d',background:'#fffbeb'}:null,
+            pill: citaAlerta&&(citaVencida
+              ?h('span',{className:'pill pill-red cita-blink',style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#fee2e2',color:'#991b1b',border:'1px solid #fca5a5',whiteSpace:'normal',maxWidth:220,lineHeight:1.35}},`⏰ Cita atrasada ${Math.abs(citaAlerta.diff)} min`)
+              :h('span',{className:'pill pill-amber cita-blink-suave',style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#fef3c7',color:'#92400e',border:'1px solid #fcd34d',whiteSpace:'normal',maxWidth:220,lineHeight:1.35}},`🔔 Registrar en WPS — cita en ${citaAlerta.diff} min`))
           });
         });
       })()
