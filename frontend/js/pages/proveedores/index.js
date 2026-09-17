@@ -93,7 +93,7 @@ export function ProveedoresPage({user,online,addOffline}){
   const [deshacerWps,setDeshacerWps] = useState(null);
   const [deshacerConf,setDeshacerConf] = useState(null);
   const [muelleSheet,setMuelleSheet] = useState(null); // registro en tablero de "elegir muelle" (ver ConfirmarMuelleSheet)
-  const [muelleInversaSheet,setMuelleInversaSheet] = useState(null); // registro en tablero de "elegir muelle" de logística inversa (19-21)
+  const [muelleInversaSheet,setMuelleInversaSheet] = useState(null); // registro en tablero de "elegir muelle" de logística inversa (20-22)
   const [liberarMuelleInversa,setLiberarMuelleInversa] = useState(null);
   const [selected,setSelected] = useState(null);
   const [salida,setSalida]     = useState(null);
@@ -114,9 +114,9 @@ export function ProveedoresPage({user,online,addOffline}){
   const formatosCarga = ['Paletizada','Granel','Mixta'];
   const manejosCarga = ['Conductor con certificado de montacargas','Reciservicios','Ercol','Operador logístico externo'];
   // Patrón observado en datos históricos (no una regla formal): Refrigerada
-  // suele descargar en muelles 1-6, Seca en 13-18. Mixta no tiene patrón
+  // suele descargar en muelles 1-6, Seca en 13-19. Mixta no tiene patrón
   // claro, por eso no aparece acá -- ver aviso no bloqueante más abajo.
-  const MUELLES_HABITUALES = {Refrigerada:[1,6], Seca:[13,18]};
+  const MUELLES_HABITUALES = {Refrigerada:[1,6], Seca:[13,19]};
 
   /* ── EDIT FORM STATE ── */
   const emptyF = {fecha:today(),placa_vehiculo:'',nombre_conductor:'',tipo_documento:'CC',cedula_conductor:'',telefono_conductor:'',tipo_vehiculo:'',hora_ingreso:ahoraHora(),hora_ingreso_confirmado:'',hora_salida:'',muelle_descargue:'',fecha_pago_arl:'',epp_cumple:'',tipo_carga:'',formato_carga:'',cantidad_pallets:'',manejo_carga:'',observaciones:'',foto_url:null};

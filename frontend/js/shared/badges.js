@@ -51,7 +51,7 @@ export function TipoCargaBadgeMini({tipo}){
 // Badge de los tipos de logística inversa (estibas/canastillas/devoluciones/...)
 // respondidos por el conductor -- reutiliza el catálogo global
 // TIPOS_LOGISTICA_INVERSA (importado de LogisticaInversaField.js) para
-// traducir value -> label. Se usa tanto en el detalle del tablero 19-21
+// traducir value -> label. Se usa tanto en el detalle del tablero 20-22
 // (MuelleDetallePanelInversa) como en la card de Proveedores.
 export function LogisticaInversaBadge({tipos, style}){
   if(!Array.isArray(tipos) || tipos.length===0) return null;

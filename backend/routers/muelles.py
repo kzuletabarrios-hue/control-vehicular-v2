@@ -78,24 +78,28 @@ router = APIRouter()
 _BOG = timezone(timedelta(hours=-5))
 ALERTA_MUELLE_MIN = 120  # ajustado por Karen: 2 horas (antes 90 min / citas-muelles-cedi-r10 sigue en 90)
 
-# Universo fijo de muelles 1-18. De muelle_descargue (texto libre) solo se
+# Universo fijo de muelles 1-19 (el 19 se agregó como muelle de descargue
+# normal, carga habitual Seca -- antes reservado para logística inversa, ver
+# MUELLES_LOGISTICA_INVERSA abajo). De muelle_descargue (texto libre) solo se
 # puede derivar quién está ocupando un muelle, nunca quién está libre --
 # sin esta lista fija no habría forma de mostrar "libre" en el tablero.
-MUELLES_NUMEROS = list(range(1, 19))
+MUELLES_NUMEROS = list(range(1, 20))
 
-# Muelles de logística inversa (19-21, ver migración
-# 2026-08-21_proveedores_logistica_inversa_columns.sql): vehículos que ya
-# descargaron en un muelle normal (1-18) y se mueven aquí a recoger
+# Muelles de logística inversa (20-22, ver migración
+# 2026-08-21_proveedores_logistica_inversa_columns.sql; rango corrido de
+# 19-21 a 20-22 para liberar el 19 como muelle de descargue normal --
+# decisión de Karen/Alejandro): vehículos que ya descargaron en un muelle
+# normal (1-19) y se mueven aquí a recoger
 # estibas/canastillas/devoluciones/donaciones/garantías/otros. Universo fijo
 # por el mismo motivo que MUELLES_NUMEROS (derivar "libre" de una columna de
 # texto libre no es posible sin una lista fija).
-MUELLES_LOGISTICA_INVERSA = [19, 20, 21]
+MUELLES_LOGISTICA_INVERSA = [20, 21, 22]
 
 # TODO: retirar este mapeo y volver al JOIN contra
 # muelles.tipo_carga_habitual en cuanto esa tabla tenga datos operativos
 # reales (hoy está vacía, el JOIN devolvería NULL siempre). Rango exacto
 # portado de MUELLES_HABITUALES en frontend/index.html (~línea 2934).
-MUELLES_HABITUALES = {"Refrigerada": (1, 6), "Seca": (13, 18)}
+MUELLES_HABITUALES = {"Refrigerada": (1, 6), "Seca": (13, 19)}
 
 
 def _tipo_carga_habitual(numero: int):
@@ -207,11 +211,11 @@ def tablero(
             "nombre_conductor": None,
             "empresas": None,
             "tipo_carga": None,
-            # true si este vehículo (mientras aún descarga en 1-18) ya
+            # true si este vehículo (mientras aún descarga en 1-19) ya
             # respondió que SÍ tiene tipos de logística inversa pendientes --
             # NULL (no preguntado, legacy) y [] ("no aplica") dan False igual.
             # Así el guarda ve de antemano que este vehículo después va a
-            # pasar al muelle 19/20/21 (ver PUT
+            # pasar al muelle 20/21/22 (ver PUT
             # /proveedores/{id}/asignar-muelle-inversa).
             "tiene_logistica_inversa": False,
             # Línea de tiempo completa (mismo orden que DetalleTiempos en
@@ -280,28 +284,28 @@ def tablero_logistica_inversa(
     db: Session = Depends(get_db),
     _: dict = Depends(require_permiso("muelles", "read")),
 ):
-    """Tablero de los muelles 19-21 (logística inversa -- ver migración
+    """Tablero de los muelles 20-22 (logística inversa -- ver migración
     2026-08-21_proveedores_logistica_inversa_columns.sql): vehículos que ya
-    descargaron en un muelle normal (1-18) y se movieron aquí a recoger
+    descargaron en un muelle normal (1-19) y se movieron aquí a recoger
     estibas/canastillas/devoluciones/donaciones/garantías/otros (ver
     PUT /proveedores/{id}/asignar-muelle-inversa).
 
     Endpoint NUEVO y separado de GET /muelles (a propósito, no se mezcla en
     el mismo payload): el frontend actual de MuellesPage consume GET /muelles
-    esperando directamente una lista plana de 18 posiciones
+    esperando directamente una lista plana de 19 posiciones
     (Array.isArray(r) ? r : (r.items||[])) -- envolver esa respuesta en un
     objeto {muelles, logistica_inversa} habría roto esa vista sin tocar el
     frontend a la vez. Mismo criterio de "no romper lo que ya funciona".
 
-    Mismo umbral ALERTA_MUELLE_MIN que 1-18 (2h) -- no se cambia sin
+    Mismo umbral ALERTA_MUELLE_MIN que 1-19 (2h) -- no se cambia sin
     confirmación de negocio, aunque para una operación de RECOGIDA (en vez de
     descargue) ese umbral podría no ser el más adecuado; queda como
     recomendación a validar con Alejandro/Karen, no se toca aquí.
 
     No trae `tipo_carga_habitual` ni `zona`: ese concepto no aplica a estos
-    muelles (no son parte del rango físico 1-18 con vocación de carga fija).
+    muelles (no son parte del rango físico 1-19 con vocación de carga fija).
 
-    Devuelve una lista plana de 3 posiciones (19, 20, 21), mismo shape que
+    Devuelve una lista plana de 3 posiciones (20, 21, 22), mismo shape que
     GET /muelles, con estos campos por muelle:
       id, numero, estado ("ocupado"|"libre"), proveedor_id, placa_vehiculo,
       nombre_conductor, empresas, tipo_carga, tipos_logistica_inversa

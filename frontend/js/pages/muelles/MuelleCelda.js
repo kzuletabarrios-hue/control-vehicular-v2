@@ -6,8 +6,8 @@
 // para que la Fase 6 lo importe cuando quede conectado vía
 // <script type="module">.
 //
-// Se usa en dos tableros del monolito: MuellesPage (muelles 1-18) y
-// MuellesLogisticaInversaSection (muelles 19-21, ver LogisticaInversaSection.js)
+// Se usa en dos tableros del monolito: MuellesPage (muelles 1-19) y
+// MuellesLogisticaInversaSection (muelles 20-22, ver LogisticaInversaSection.js)
 // -- por eso vive en su propio archivo en vez de anidarse dentro de
 // index.js o de LogisticaInversaSection.js.
 //

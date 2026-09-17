@@ -1,4 +1,4 @@
-// ── LOGÍSTICA INVERSA SECTION (tablero de muelles 19-21) ──
+// ── LOGÍSTICA INVERSA SECTION (tablero de muelles 20-22) ──
 // Extraído de frontend/index.html (líneas 6063-6290, comentarios + funciones
 // MuelleLineaTiempoInversa, MuelleDetallePanelInversa y
 // MuellesLogisticaInversaSection). Contenido idéntico al original: el
@@ -14,13 +14,13 @@
 // estructura de carpetas del encargo.
 //
 // `MuelleLineaTiempoInversa` y `MuelleDetallePanelInversa` son de uso
-// exclusivo de esta sección (el tablero 19-21) -- no están en la lista de
+// exclusivo de esta sección (el tablero 20-22) -- no están en la lista de
 // archivos del encargo porque no se usan en ningún otro lado del módulo de
 // muelles, así que se quedan aquí como helpers privados del archivo, mismo
 // criterio que MuelleBotonConfirmar dentro de shared/ConfirmarMuelleSheet.js.
 //
 // Reutiliza MuelleCelda (./MuelleCelda.js, el mismo componente de celda que
-// usa el tablero 1-18 en index.js) y hhmmT/LineaTiempoPasos (core/utils.js,
+// usa el tablero 1-19 en index.js) y hhmmT/LineaTiempoPasos (core/utils.js,
 // promovidas ahí en la Fase 5 lote 7 paso 0 -- antes se importaban desde
 // ./MuelleDetallePanel.js, que las duplicaba temporalmente) -- no se
 // duplican dentro de este módulo de muelles.
@@ -47,11 +47,11 @@ import { MuelleCelda } from './MuelleCelda.js';
 const { useState, useCallback } = React;
 const h = React.createElement;
 
-// Timeline y panel de detalle propios del tablero 19-21 -- mismo patrón que
+// Timeline y panel de detalle propios del tablero 20-22 -- mismo patrón que
 // MuelleLineaTiempo/MuelleDetallePanel pero con el subconjunto de pasos y
 // campos que expone /muelles/logistica-inversa (sin zona/tipo_carga_habitual,
 // con tipos_logistica_inversa y sus dos horas propias). Se mantienen
-// separados de los originales para no alterar el tablero 1-18.
+// separados de los originales para no alterar el tablero 1-19.
 function MuelleLineaTiempoInversa({muelle:m}){
   const pasos = [
     {icon:'mapPin', titulo:'Asignado a logística inversa', hora:hhmmT(m.hora_logistica_inversa_asignado),
@@ -100,10 +100,10 @@ function MuelleDetallePanelInversa({muelle:m, onCerrar, puedeLiberar, onLiberar}
   );
 }
 
-// Sección independiente del tablero 19-21 (logística inversa) -- mismo
+// Sección independiente del tablero 20-22 (logística inversa) -- mismo
 // patrón de polling/estado que MuellesPage pero aislada en su propio
 // componente porque consume un endpoint distinto (/muelles/logistica-inversa)
-// y no comparte estado con el tablero 1-18. Se monta como último hijo del
+// y no comparte estado con el tablero 1-19. Se monta como último hijo del
 // .scroll-body de MuellesPage.
 export function MuellesLogisticaInversaSection({user}){
   const [muelles,setMuelles] = useState([]);
@@ -131,10 +131,10 @@ export function MuellesLogisticaInversaSection({user}){
         h(Ico,{n:'package',s:14})
       ),
       h('h2',{className:'syne',style:{fontSize:15,fontWeight:800,color:'var(--navy)',margin:0}},'Logística inversa'),
-      h('span',{className:'pill pill-navy',style:{fontWeight:800}},'Muelles 19–21')
+      h('span',{className:'pill pill-navy',style:{fontWeight:800}},'Muelles 20–22')
     ),
     h('p',{style:{fontSize:11,color:'var(--slate)',margin:'4px 0 10px'}},
-      'Vehículos que ya descargaron en 1–18 y pasaron aquí a recoger estibas, canastillas, devoluciones u otros.'
+      'Vehículos que ya descargaron en 1–19 y pasaron aquí a recoger estibas, canastillas, devoluciones u otros.'
     ),
     !loading&&!error&&h('p',{style:{fontSize:11,color:'var(--text2)',fontWeight:700,marginBottom:6}},
       `${ocupados} ocupado${ocupados===1?'':'s'} de ${muelles.length}`

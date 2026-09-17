@@ -17,7 +17,7 @@
 // Este archivo es el punto de entrada de la carpeta pages/muelles/: importa
 // y compone MuelleCelda (./MuelleCelda.js), MuelleDetallePanel
 // (./MuelleDetallePanel.js) y MuellesLogisticaInversaSection
-// (./LogisticaInversaSection.js, la sección del tablero 19-21 montada como
+// (./LogisticaInversaSection.js, la sección del tablero 20-22 montada como
 // último hijo del .scroll-body).
 //
 // Importa Ico (core/icons.js), api (core/api-client.js), puede

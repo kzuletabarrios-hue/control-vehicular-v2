@@ -32,7 +32,7 @@ CAMPOS_VEHICULO = [
     "empresa", "muelle_descargue", "carga_compartida",
     "actividad_a_desarrollar", "dependencia_autoriza",
     # Logística inversa (migración 2026-08-21_proveedores_logistica_inversa_columns.sql):
-    # lista de tipos (TEXT[]) que el vehículo va a recoger en el muelle 19/20/21
+    # lista de tipos (TEXT[]) que el vehículo va a recoger en el muelle 20/21/22
     # después de descargar. NULL = registro anterior a esta función (no
     # preguntado); [] = se preguntó, "no aplica"; con valores = aplican esos
     # tipos. Ver _validar_tipos_logistica_inversa para el catálogo y la regla
@@ -1374,7 +1374,7 @@ def confirmar_autorregistro(
     # a propósito: si no viene (o llega vacío), el comportamiento es
     # exactamente el de siempre -- confirma sin tocar muelle_descargue, que
     # bodega puede asignar más tarde desde la pantalla de Muelles. No se
-    # valida el rango 1-18 acá: el valor sale de un botón del tablero, no de
+    # valida el rango 1-19 acá: el valor sale de un botón del tablero, no de
     # texto libre (mismo criterio laxo que ya tiene esta columna en el resto
     # del archivo, ver `actualizar` arriba).
     muelle = (body or {}).get("muelle_descargue")
@@ -1490,12 +1490,13 @@ def liberar_muelle(
     return {"message": "Muelle liberado"}
 
 
-# Muelles de logística inversa (19, 20, 21 -- ver migración
-# 2026-08-21_proveedores_logistica_inversa_columns.sql). Copia local a
-# propósito, sin importar routers/muelles.py (mismo criterio ya usado por
-# _audit: no acoplar módulos que hoy no se importan entre sí) -- si el rango
-# cambiara habría que actualizarlo en los dos archivos.
-MUELLES_LOGISTICA_INVERSA = (19, 20, 21)
+# Muelles de logística inversa (20, 21, 22 -- ver migración
+# 2026-08-21_proveedores_logistica_inversa_columns.sql; rango corrido de
+# 19-21 a 20-22 para liberar el 19 como muelle de descargue normal).
+# Copia local a propósito, sin importar routers/muelles.py (mismo criterio
+# ya usado por _audit: no acoplar módulos que hoy no se importan entre sí)
+# -- si el rango cambiara habría que actualizarlo en los dos archivos.
+MUELLES_LOGISTICA_INVERSA = (20, 21, 22)
 
 
 @router.put("/{id}/asignar-muelle-inversa")
@@ -1505,8 +1506,8 @@ def asignar_muelle_inversa(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permiso("muelles", "liberar")),
 ):
-    """Transición del vehículo del muelle de descargue (1-18) al muelle de
-    logística inversa (19/20/21), donde recoge estibas/canastillas/
+    """Transición del vehículo del muelle de descargue (1-19) al muelle de
+    logística inversa (20/21/22), donde recoge estibas/canastillas/
     devoluciones/donaciones/garantías/otros (ver tipos_logistica_inversa).
     Mismo permiso que liberar_muelle ("muelles":"liberar") -- decisión ya
     confirmada por Karen: el mismo guarda de bodega que hoy libera el muelle
@@ -1521,15 +1522,15 @@ def asignar_muelle_inversa(
        omite en silencio -- no es un error.
     2) Asigna muelle_logistica_inversa + hora_logistica_inversa_asignado.
 
-    Body esperado: {"muelle": 19|20|21}.
+    Body esperado: {"muelle": 20|21|22}.
     """
     muelle_raw = body.get("muelle")
     try:
         muelle_num = int(muelle_raw)
     except (TypeError, ValueError):
-        raise HTTPException(400, "Indica el número de muelle de logística inversa (19, 20 o 21)")
+        raise HTTPException(400, "Indica el número de muelle de logística inversa (20, 21 o 22)")
     if muelle_num not in MUELLES_LOGISTICA_INVERSA:
-        raise HTTPException(400, "El muelle de logística inversa debe ser 19, 20 o 21")
+        raise HTTPException(400, "El muelle de logística inversa debe ser 20, 21 o 22")
 
     row = db.execute(
         text(
@@ -1577,7 +1578,7 @@ def liberar_muelle_inversa(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permiso("muelles", "liberar")),
 ):
-    """Libera el muelle de logística inversa (19/20/21) cuando el vehículo
+    """Libera el muelle de logística inversa (20/21/22) cuando el vehículo
     termina de cargar y sale de ese andén -- mismo patrón/permiso que
     liberar_muelle, pero sobre muelle_logistica_inversa /
     hora_logistica_inversa_liberado.
