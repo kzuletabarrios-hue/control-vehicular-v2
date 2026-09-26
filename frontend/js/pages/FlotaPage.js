@@ -252,9 +252,12 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
       alert&&h(Alert,{...alert,onClose:()=>setAlert(null)}),
       loading?h(LoadingDots):
       visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'truck',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='pendientes'?'Sin vehículos activos':'Sin registros hoy')):
-      visibles.map(r=>h('div',{key:r.id,className:'list-item'},
+      // Coordinador: toda la tarjeta abre el detalle (no tiene botones en
+      // li-right). Los demás roles siguen con el click solo en li-body porque
+      // sus botones de Duplicar/Eliminar no detienen la propagación.
+      visibles.map(r=>h('div',{key:r.id,className:'list-item',onClick:esCoordinador?()=>abrirDetalle(r):undefined},
         h('div',{className:'li-icon',style:{background:'#dbeafe'}},h(Ico,{n:'truck',s:18,c:'',style:{color:'#1d4ed8'}})),
-        h('div',{className:'li-body',onClick:()=>{ if(esVehicular||esCoordinador){abrirDetalle(r);}else{setForm({...emptyF,...r});setSelected(r);setView('form');} }},
+        h('div',{className:'li-body',onClick:esCoordinador?undefined:()=>{ if(esVehicular){abrirDetalle(r);}else{setForm({...emptyF,...r});setSelected(r);setView('form');} }},
           h('div',{className:'li-title'},r.placa,
             h('span',{style:{fontSize:10,fontWeight:600,marginLeft:6,padding:'2px 6px',borderRadius:4,
               background:r.hora_llegada?'#d1fae5':r.hora_salida_cedi?'#fef3c7':'#dbeafe',
