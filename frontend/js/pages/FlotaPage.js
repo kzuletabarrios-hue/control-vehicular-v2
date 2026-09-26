@@ -254,7 +254,7 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
       visibles.length===0?h('div',{className:'empty'},h(Ico,{n:'truck',s:44}),h('p',null,busqueda.trim()?'Sin resultados para "'+busqueda.trim()+'"':filtro==='pendientes'?'Sin vehículos activos':'Sin registros hoy')):
       visibles.map(r=>h('div',{key:r.id,className:'list-item'},
         h('div',{className:'li-icon',style:{background:'#dbeafe'}},h(Ico,{n:'truck',s:18,c:'',style:{color:'#1d4ed8'}})),
-        h('div',{className:'li-body',onClick:esCoordinador?undefined:()=>{ if(esVehicular){abrirDetalle(r);}else{setForm({...emptyF,...r});setSelected(r);setView('form');} }},
+        h('div',{className:'li-body',onClick:()=>{ if(esVehicular||esCoordinador){abrirDetalle(r);}else{setForm({...emptyF,...r});setSelected(r);setView('form');} }},
           h('div',{className:'li-title'},r.placa,
             h('span',{style:{fontSize:10,fontWeight:600,marginLeft:6,padding:'2px 6px',borderRadius:4,
               background:r.hora_llegada?'#d1fae5':r.hora_salida_cedi?'#fef3c7':'#dbeafe',
@@ -402,6 +402,7 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
       h('div',{className:'sheet',onClick:e=>e.stopPropagation()},
         h('div',{className:'sheet-header'},
           h('span',{style:{fontWeight:700,fontSize:15}},detalleVeh.placa),
+          esCoordinador&&h('span',{style:{fontSize:12,color:'var(--slate)',marginLeft:'auto',alignSelf:'center'}},'Solo lectura'),
           h('button',{className:'btn-icon',onClick:()=>setDetalleVeh(null)},h(Ico,{n:'x',s:16}))
         ),
         h('p',{style:{fontSize:13,color:'var(--slate)',marginBottom:4}},detalleVeh.conductor_nombre||detalleVeh.conductor||'Sin conductor'),
@@ -440,7 +441,7 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
                 );
           })()
         ),
-        h('div',{style:{marginTop:10,background:'#f8fafc',borderRadius:10,padding:'12px 14px'}},
+        h('div',{style:{marginTop:10,background:'#f8fafc',borderRadius:10,padding:'12px 14px',pointerEvents:esCoordinador?'none':undefined}},
           h('p',{style:{fontSize:11,fontWeight:700,color:'var(--navy)',marginBottom:8,textTransform:'uppercase',letterSpacing:'0.05em'}},'Sellos'),
           h('div',{className:'fgrid2',style:{alignItems:'flex-end'}},
             h('div',{className:'fg',style:{margin:0}},
@@ -525,15 +526,15 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
             )
           )
         ),
-        !detalleVeh.hora_salida_cedi&&h('div',{className:'fg',style:{marginTop:10}},
+        !detalleVeh.hora_salida_cedi&&h('div',{className:'fg',style:{marginTop:10,pointerEvents:esCoordinador?'none':undefined}},
           h('label',null,'Temperatura °C (opcional)'),
           h('input',{type:'number',step:'0.1',value:tempSalida,onChange:e=>setTempSalida(e.target.value),placeholder:'Ej: 4.5'})
         ),
-        !detalleVeh.hora_salida_cedi&&h('div',{className:'fg',style:{marginTop:10}},
+        !detalleVeh.hora_salida_cedi&&h('div',{className:'fg',style:{marginTop:10,pointerEvents:esCoordinador?'none':undefined}},
           h('label',null,'Observaciones (opcional)'),
           h('textarea',{value:obsSalida,onChange:e=>setObsSalida(e.target.value),rows:2,placeholder:'—'})
         ),
-        detalleVeh.hora_salida_cedi&&!detalleVeh.hora_llegada&&h('div',{className:'fg',style:{marginTop:10}},
+        detalleVeh.hora_salida_cedi&&!detalleVeh.hora_llegada&&h('div',{className:'fg',style:{marginTop:10,pointerEvents:esCoordinador?'none':undefined}},
           h('label',null,'Última tienda visitada (opcional)'),
           h('select',{value:ultimaTiendaLleg,onChange:e=>setUltimaTiendaLleg(e.target.value)},
             h('option',{value:''},'Seleccionar...'),
@@ -543,12 +544,12 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
             })
           )
         ),
-        detalleVeh.hora_salida_cedi&&!detalleVeh.hora_llegada&&h('div',{className:'fg',style:{marginTop:10}},
+        detalleVeh.hora_salida_cedi&&!detalleVeh.hora_llegada&&h('div',{className:'fg',style:{marginTop:10,pointerEvents:esCoordinador?'none':undefined}},
           h('label',null,'Observaciones llegada (opcional)'),
           h('textarea',{value:obsLleg,onChange:e=>setObsLleg(e.target.value),rows:2,placeholder:'—'})
         ),
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
-          !detalleVeh.hora_salida_cedi&&h('button',{className:'btn-primary',style:{background:'#059669',flex:1},onClick:async()=>{
+          !detalleVeh.hora_salida_cedi&&!esCoordinador&&h('button',{className:'btn-primary',style:{background:'#059669',flex:1},onClick:async()=>{
             const sello=(selloSalida||detalleVeh.sello||'').trim();
             if(!sello) return setAlert({type:'err',msg:'Ingresa el N° de sello de salida antes de registrar'});
             try{
@@ -560,7 +561,7 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
               setDetalleVeh(null);setSelloSalida('');setTempSalida('');setObsSalida('');load();setAlert({type:'ok',msg:'Salida registrada ✓'});
             }catch(e){setAlert({type:'err',msg:'Error al registrar salida'});}
           }},h(Ico,{n:'truck',s:14}),' Registrar salida'),
-          detalleVeh.hora_salida_cedi&&!detalleVeh.hora_llegada&&h('button',{className:'btn-primary',style:{flex:1},onClick:async()=>{
+          detalleVeh.hora_salida_cedi&&!detalleVeh.hora_llegada&&!esCoordinador&&h('button',{className:'btn-primary',style:{flex:1},onClick:async()=>{
             const sello=(detalleVeh.sello_entrada||selloEntradaDetalle||'').trim();
             if(!sello) return setAlert({type:'err',msg:'Ingresa el N° de sello de entrada antes de registrar llegada'});
             const ts=await _tsBog();
