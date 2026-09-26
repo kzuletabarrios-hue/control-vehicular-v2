@@ -33,7 +33,24 @@ backend/routers/flota.py (require_permiso por módulo/acción):
   3. Control: el rol 'admin' (flota: ["read","write","delete","export"])
      no se ve afectado por el clamp (no está en
      ROLES_SOLO_LECTURA_EN_ESTA_APP) y puede operar el CRUD completo de
-     flota de punta a punta.
+     flota de punta a punta, incluida la creación real vía POST
+     /api/flota (ver nota histórica más abajo sobre el drift de
+     columnas ya regularizado por Jorge en
+     supabase/migrations/20260926120000_flota_propia_columnas_huerfanas_salida_llegada.sql).
+
+Nota histórica (resuelta): hasta el 2026-09-26 este archivo tenía un
+test marcado xfail porque backend/routers/flota.py::crear incluye en
+su lista `campos` las columnas 'tipo_sello', 'tipo_sello_entrada',
+'obs_salida', 'foto_salida', 'obs_llegada', 'foto_llegada', que
+entonces no existían en el esquema LOCAL de pruebas (aunque sí en
+producción). Se verificó contra information_schema de Supabase
+producción que esas columnas SÍ existen ahí -- no era un bug de
+flota.py, sino drift de migraciones no versionadas. La migración
+20260926120000 las agrega (ADD COLUMN IF NOT EXISTS) e iguala el
+esquema local al de producción, así que POST /api/flota ya funciona
+para cualquier rol con permiso de escritura. El test xfail fue
+reemplazado por test_admin_crea_flota_via_post_201 (positivo, no
+xfail) más abajo.
 """
 import json
 import uuid
@@ -364,11 +381,10 @@ def test_admin_puede_editar_y_eliminar_flota(token_admin, registro_flota):
     diferencia de coordinador en los tests de la sección 1.
 
     Nota: el registro se crea aquí por SQL directo (fixture
-    `registro_flota`), no vía POST /api/flota -- ver
-    `test_crear_flota_falla_por_bug_preexistente_de_columnas_inexistentes`
-    más abajo: ese endpoint tiene un bug preexistente, no relacionado con
-    el clamp de coordinador, que lo rompe para CUALQUIER rol (incluido
-    admin)."""
+    `registro_flota`) para mantener este test enfocado únicamente en
+    editar/eliminar, sin acoplarlo a la creación -- la creación real
+    vía POST /api/flota se prueba de forma aislada en
+    test_admin_crea_flota_via_post_201 más abajo."""
     headers = _bearer(token_admin)
 
     resp_editar = client.put(
@@ -387,25 +403,60 @@ def test_admin_puede_editar_y_eliminar_flota(token_admin, registro_flota):
     assert resp_confirmar.status_code == 404
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "BUG PREEXISTENTE en backend/routers/flota.py::crear (no relacionado "
-        "con el clamp de coordinador de esta tarea): la lista `campos` incluye "
-        "'tipo_sello', 'tipo_sello_entrada', 'obs_salida', 'foto_salida', "
-        "'obs_llegada', 'foto_llegada', columnas que NO existen en "
-        "flota_propia (ver supabase/migrations/20260601101420_schema_base.sql "
-        "+ 20260626114921_fecha_salida_llegada.sql -- ningún ALTER TABLE las "
-        "agrega). vals = {c: body.get(c) for c in campos} las incluye SIEMPRE "
-        "(aunque sea None), así que el INSERT falla con UndefinedColumn "
-        "(500) para CUALQUIER rol, incluido admin -- no es un problema de "
-        "permisos. Reportado a María/Jorge; este test debe pasar a xfail "
-        "resuelto (y perder este marcador) el día que se corrija la lista "
-        "`campos` o se agreguen esas columnas al esquema."
-    ),
-)
-def test_crear_flota_falla_por_bug_preexistente_de_columnas_inexistentes(token_admin):
-    resp = client.post(
-        "/api/flota", json={"fecha": "2026-01-01", "placa": "QA-ADMIN-BUG-COLUMNAS"}, headers=_bearer(token_admin)
-    )
-    assert resp.status_code == 201, resp.text
+def test_admin_crea_flota_via_post_201(token_admin):
+    """Positivo real (reemplaza al xfail histórico, ver nota de cabecera
+    del archivo): admin crea un registro de flota vía POST /api/flota,
+    incluyendo valores en las columnas que hasta el 2026-09-26 eran
+    drift no versionado (tipo_sello, tipo_sello_entrada, obs_salida,
+    foto_salida, obs_llegada, foto_llegada) -- ejercita exactamente el
+    INSERT completo de backend/routers/flota.py::crear contra las 8
+    columnas regularizadas por
+    supabase/migrations/20260926120000_flota_propia_columnas_huerfanas_salida_llegada.sql."""
+    rid = None
+    try:
+        resp = client.post(
+            "/api/flota",
+            json={
+                "fecha": "2026-01-01",
+                "placa": "QA-ADMIN-POST-001",
+                "tipo_sello": "plomo",
+                "tipo_sello_entrada": "plastico",
+                "obs_salida": "salida de prueba QA",
+                "foto_salida": "https://example.test/salida.jpg",
+                "obs_llegada": "llegada de prueba QA",
+                "foto_llegada": "https://example.test/llegada.jpg",
+            },
+            headers=_bearer(token_admin),
+        )
+        assert resp.status_code == 201, resp.text
+        body = resp.json()
+        assert "id" in body
+        rid = body["id"]
+
+        # El registro debe existir de verdad en BD, con las columnas
+        # antes-huérfanas correctamente guardadas.
+        db = SessionLocal()
+        row = db.execute(
+            text("SELECT * FROM flota_propia WHERE id = :id"), {"id": rid}
+        ).fetchone()
+        db.close()
+        assert row is not None
+        assert row.placa == "QA-ADMIN-POST-001"
+        assert row.tipo_sello == "plomo"
+        assert row.tipo_sello_entrada == "plastico"
+        assert row.obs_salida == "salida de prueba QA"
+        assert row.foto_salida == "https://example.test/salida.jpg"
+        assert row.obs_llegada == "llegada de prueba QA"
+        assert row.foto_llegada == "https://example.test/llegada.jpg"
+
+        # También lo debe ver el propio endpoint de lectura.
+        resp_get = client.get(f"/api/flota/{rid}", headers=_bearer(token_admin))
+        assert resp_get.status_code == 200
+        assert resp_get.json()["placa"] == "QA-ADMIN-POST-001"
+    finally:
+        if rid:
+            db = SessionLocal()
+            db.execute(text("DELETE FROM audit_log WHERE tabla = 'flota_propia' AND registro_id = :id"), {"id": rid})
+            db.execute(text("DELETE FROM flota_propia WHERE id = :id"), {"id": rid})
+            db.commit()
+            db.close()
