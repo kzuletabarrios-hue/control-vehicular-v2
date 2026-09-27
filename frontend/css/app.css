@@ -449,3 +449,42 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
   /* Content */
   .app-main{flex:1;min-width:0}
 }
+
+/* ── ESTADÍSTICAS (pestaña "Estadísticas", estilo Power BI) ──
+   Paleta sobria y consistente definida una sola vez acá: reutiliza las
+   variables de color ya existentes en :root (--navy2, --amber-ish, etc. no
+   hay amber var propia, se usa el hex directo como en .pill-amber) para que
+   esta pestaña no introduzca una paleta nueva y desentonada con el resto de
+   la app. Grid mobile-first: 1 columna para las tarjetas de gráfica (más
+   legible en celular con ejes de hasta 24/31 categorías); el KPI-strip usa
+   2 columnas incluso en celular porque son solo un número grande + label
+   corta (igual criterio que .sgrid del Home), no el mismo criterio de
+   "1 columna" pedido para las gráficas. */
+.kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.kpi-card{background:var(--white);border-radius:var(--radius-sm);padding:12px 12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);display:flex;flex-direction:column;gap:3px;min-width:0}
+.kpi-lbl{font-size:9.5px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi-val{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;line-height:1.15}
+.kpi-sub{font-size:9.5px;color:var(--slate)}
+.chart-grid{display:grid;grid-template-columns:1fr;gap:12px}
+.chart-card{background:var(--white);border-radius:var(--radius-sm);padding:14px;box-shadow:0 1px 4px rgba(0,0,0,0.06);min-width:0}
+.chart-card-ttl{font-size:10px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+.chart-empty{display:flex;align-items:center;justify-content:center;height:180px;color:var(--slate);font-size:12px;text-align:center;padding:0 12px}
+.range-chip{padding:7px 14px;border-radius:20px;font-size:12px;font-weight:600;border:1.5px solid;cursor:pointer;font-family:inherit;transition:all .15s}
+.range-chip:disabled{opacity:.6;cursor:default}
+
+@media(min-width:640px){
+  .kpi-grid{grid-template-columns:repeat(4,1fr)}
+  .chart-grid{grid-template-columns:repeat(2,1fr)}
+  .chart-card-full{grid-column:1 / -1}
+}
+
+/* Repetido a propósito en su propio bloque @media(min-width:1024px) -- debe
+   quedar DESPUÉS del bloque de 640px de arriba (y después del bloque
+   original de 1024px más arriba en este archivo) para ganar la cascada a
+   ese ancho: mismo número de columnas de KPI que en tablet, pero 3
+   columnas de gráfica en vez de 2 (pedido explícito: "1 columna en
+   celular, 2-3 en escritorio"). */
+@media(min-width:1024px){
+  .chart-grid{grid-template-columns:repeat(3,1fr)}
+  .chart-card-full{grid-column:1 / -1}
+}

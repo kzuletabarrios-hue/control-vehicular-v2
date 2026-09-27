@@ -21,6 +21,11 @@ import { puede, fmtDate } from '../core/utils.js';
 import { StatCard } from '../shared/StatCard.js';
 import { DetalleLista } from '../shared/DetalleLista.js';
 import { LoadingDots } from '../shared/LoadingDots.js';
+// Panel nuevo, cargado bajo demanda: solo se monta (y solo entonces hace su
+// fetch inicial) cuando tab==='estadisticas'. No participa del polling de
+// 120s de esta página -- ver EstadisticasPanel.js para el detalle de carga
+// y refresco manual.
+import { EstadisticasPanel } from './EstadisticasPanel.js';
 
 const { useState, useEffect } = React;
 const h = React.createElement;
@@ -44,6 +49,14 @@ export function HomePage({setPage,user}){
   const isGuardaVehicular = rol==='guarda_vehicular';
   const isRecorredor      = rol==='recorredor_externo';
   const isCoordinador     = rol==='coordinador';
+  // Pestaña "Estadísticas" (estilo Power BI, docs/estadisticas_contrato.md):
+  // visión gerencial/operativa amplia sobre un rango de fechas, no una cola
+  // de trabajo del turno -- por eso solo admin/supervisor/operador (=isAdmin)
+  // y coordinador la ven. Los guardas de puesto (bodega/peatonal/vehicular)
+  // y el recorredor externo no la necesitan para su turno y quedan fuera,
+  // igual que ya quedan fuera de "Indicadores" (showTiempoAutoregistro) más
+  // abajo por el mismo criterio.
+  const showEstadisticas  = isAdmin||isCoordinador;
 
   const cargar = ()=>api.get('/dashboard/resumen').then(setResumen).catch(()=>{});
   // Home es la pantalla menos operativa de las 4 con polling: 2 min y se
@@ -108,7 +121,8 @@ export function HomePage({setPage,user}){
     ),
     showDashboard&&h('div',{className:'dash-section',style:{display:'flex',gap:6,paddingTop:6,paddingBottom:10}},
       tabBtn('dashboard','Dashboard','clipboard'),
-      tabBtn('modulos','Módulos','home')
+      tabBtn('modulos','Módulos','home'),
+      showEstadisticas&&tabBtn('estadisticas','Estadísticas','barChart')
     ),
     tab==='dashboard'&&showDashboard&&h('div',null,
       resumen&&(showFlotaStats||showAccesoStats||showProvStats)&&h('div',{className:'dash-section'},
@@ -199,6 +213,7 @@ export function HomePage({setPage,user}){
         h(LoadingDots)
       )
     ),
+    tab==='estadisticas'&&showEstadisticas&&h(EstadisticasPanel),
     (tab==='modulos'||isRecorredor)&&h('div',{className:'pad'},
       h('p',{className:'sec-ttl'},h(Ico,{n:'home',s:12}),' Módulos'),
       h('div',{className:'mgrid'},
