@@ -17,5 +17,9 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
+# Railway ejecuta su "Custom Start Command" sin shell y uvicorn recibiría
+# "$PORT" literal; este reemplazo del ejecutable sustituye la variable.
+RUN cp uvicorn_port.py /usr/local/bin/uvicorn && chmod +x /usr/local/bin/uvicorn
+
 # Forma shell para que se expanda $PORT, que asigna Railway.
 CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
