@@ -61,7 +61,8 @@
     <h2>Documento de referencia técnica — arquitectura, módulos, seguridad e infraestructura</h2>
     <div class="meta">
       <div class="meta-item"><span>Versión API</span><strong>2.1.0</strong></div>
-      <div class="meta-item"><span>Última actualización</span><strong>Agosto 2026</strong></div>
+      <div class="meta-item"><span>En producción desde</span><strong>12 de junio de 2026</strong></div>
+      <div class="meta-item"><span>Última actualización</span><strong>1 de octubre de 2026</strong></div>
       <div class="meta-item"><span>Clasificación</span><strong>Interno</strong></div>
     </div>
   </div>
@@ -71,7 +72,9 @@
     <tr><td style="width:220px"><strong>Nombre</strong></td><td>Sistema de Control de Acceso y Operaciones CEDI R10</td></tr>
     <tr><td><strong>Propósito</strong></td><td>Digitalizar y centralizar el registro de vehículos (flota propia y proveedores), personal (contratistas, visitantes) y rondas de seguridad de un centro de distribución, reemplazando registro manual en papel/hojas de cálculo.</td></tr>
     <tr><td><strong>Tipo de aplicación</strong></td><td>Aplicación web progresiva (PWA) — funciona en cualquier celular con navegador, sin instalación.</td></tr>
-    <tr><td><strong>Repositorio</strong></td><td><code>control-vehicular-v2</code> (GitHub, rama <code>master</code>)</td></tr>
+    <tr><td><strong>Repositorio</strong></td><td><code>control-vehicular-v2</code> (GitHub, rama <code>master</code>) — 341+ cambios versionados desde el 1 de junio de 2026</td></tr>
+    <tr><td><strong>Dirección de la app</strong></td><td><code>control-vehicular-v2.vercel.app</code></td></tr>
+    <tr><td><strong>Usuarios</strong></td><td>26 usuarios activos en 7 roles (septiembre 2026)</td></tr>
     <tr><td><strong>App relacionada</strong></td><td><code>citas-muelles-cedi-r10</code> — app separada dada de baja (septiembre 2026); su funcionalidad (carga de citas, asignación/liberación de muelles) quedó absorbida por este proyecto.</td></tr>
   </table>
 
@@ -80,16 +83,16 @@
     <div class="stack-card">
       <h4>Backend</h4>
       <span class="tag">Python 3.12</span><span class="tag">FastAPI</span><span class="tag">SQLAlchemy 2.x</span><span class="tag">psycopg2</span><span class="tag">PyJWT</span><span class="tag">bcrypt</span><span class="tag">openpyxl</span><span class="tag">qrcode</span>
-      <p style="margin-top:8px">API REST bajo <code>/api</code>, autenticación JWT por token Bearer. Desplegado en Railway con auto-deploy desde GitHub.</p>
+      <p style="margin-top:8px">API REST bajo <code>/api</code>, autenticación JWT por token Bearer. Desplegado en Railway (plan Hobby) con auto-deploy desde la rama <code>master</code>; la imagen se construye con <code>backend/Dockerfile</code>.</p>
     </div>
     <div class="stack-card">
       <h4>Frontend</h4>
-      <span class="tag tag-green">React 18</span><span class="tag tag-green">HTML/CSS puro</span><span class="tag tag-green">Sin build step</span>
-      <p style="margin-top:8px">Un solo archivo <code>index.html</code>, componentes vía <code>h(...)</code> (sin JSX/bundler). Desplegado en Vercel CDN.</p>
+      <span class="tag tag-green">React 18</span><span class="tag tag-green">HTML/CSS puro</span><span class="tag tag-green">Sin build step</span><span class="tag tag-green">Chart.js 4</span>
+      <p style="margin-top:8px"><code>index.html</code> más módulos JavaScript por carpeta (<code>core</code>, <code>pages</code>, <code>shell</code>, <code>shared</code>), componentes vía <code>h(...)</code> (sin JSX/bundler). Chart.js se carga solo al abrir la pestaña Estadísticas. Desplegado en Vercel CDN con auto-deploy desde <code>master</code>.</p>
     </div>
     <div class="stack-card">
       <h4>Base de datos</h4>
-      <span class="tag">PostgreSQL</span><span class="tag">Supabase (managed)</span>
+      <span class="tag">PostgreSQL 17</span><span class="tag">Supabase Pro</span><span class="tag">São Paulo (sa-east-1)</span>
       <p style="margin-top:8px">Conexión estándar vía <code>DATABASE_URL</code> (SQLAlchemy + psycopg2), sin dependencias propietarias de Supabase en las consultas — portable a cualquier Postgres. <code>NullPool</code> (sin conexiones persistentes, compatible con el transaction pooler de Supabase).</p>
     </div>
     <div class="stack-card">
@@ -102,18 +105,20 @@
   <h3>Autenticación y autorización</h3>
   <table>
     <tr><td style="width:220px"><strong>Contraseñas</strong></td><td>bcrypt, costo 12. Mínimo 8 caracteres.</td></tr>
+    <tr><td><strong>Bloqueo por fuerza bruta</strong></td><td>La cuenta se bloquea 15 minutos tras 5 intentos fallidos de inicio de sesión (septiembre 2026).</td></tr>
     <tr><td><strong>Sesión</strong></td><td>Access token JWT (HS256, expira en 60 min) + refresh token opaco guardado en tabla <code>sesiones</code> (revocable, expira en 30 días, ligado a IP/user-agent).</td></tr>
     <tr><td><strong>Permisos</strong></td><td>Modelo <code>{módulo: [acciones]}</code> en JSONB por rol (tabla <code>roles</code>), revalidado contra base de datos en cada request — no se confía únicamente en el contenido del token.</td></tr>
-    <tr><td><strong>Auditoría</strong></td><td>Tabla <code>audit_log</code>: usuario, acción, tabla, datos antes/después, timestamp — en Flota Propia y Proveedores.</td></tr>
+    <tr><td><strong>Auditoría</strong></td><td>Tabla <code>audit_log</code>: usuario, acción, tabla, datos antes/después, timestamp — en Flota Propia, Proveedores, Citas y Control de Acceso. Más de 37.000 registros a septiembre de 2026.</td></tr>
+    <tr><td><strong>Solo lectura forzada</strong></td><td>El rol Coordinador se recorta a solo lectura en el backend aunque la tabla <code>roles</code> le asigne escritura, y está cubierto por pruebas automáticas.</td></tr>
   </table>
 
   <h2 class="sec">3. Roles operativos (9)</h2>
   <div class="badge-row">
     <span class="badge">Admin</span><span class="badge">Supervisor</span><span class="badge">Coordinador</span><span class="badge">Guarda Bodega</span><span class="badge">Guarda Vehicular</span><span class="badge">Guarda Peatonal</span><span class="badge">Recorredor (rondas)</span><span class="badge">Operador</span><span class="badge">Consulta</span>
   </div>
-  <p>Cada rol solo ve y opera los módulos que le corresponden. Ningún guarda puede eliminar registros. Coordinador tiene acceso de solo lectura a Flota Propia, Proveedores, Visitantes y Control de Acceso.</p>
+  <p>Cada rol solo ve y opera los módulos que le corresponden. Ningún guarda puede eliminar registros. Coordinador tiene acceso de solo lectura a Flota Propia (incluido el detalle con horarios de salida y llegada), Proveedores, Visitantes y Control de Acceso. La pestaña Estadísticas la ven Admin, Supervisor, Operador y Coordinador.</p>
 
-  <h2 class="sec">4. Módulos del sistema (13)</h2>
+  <h2 class="sec">4. Módulos del sistema (14)</h2>
   <div class="modulos">
     <div class="modulo"><div class="n">01</div><div><h5>Flota Propia</h5><p>Ciclo bodega → salida → regreso, con sellos y fotos</p></div></div>
     <div class="modulo"><div class="n">02</div><div><h5>Proveedores</h5><p>Registro manual + autorregistro QR, citas WMS, muelles</p></div></div>
@@ -128,6 +133,7 @@
     <div class="modulo"><div class="n">11</div><div><h5>Novedades</h5><p>Incidencias detectadas en recorridos</p></div></div>
     <div class="modulo"><div class="n">12</div><div><h5>Panel Rondero</h5><p>Supervisión en vivo del cumplimiento de rondas</p></div></div>
     <div class="modulo"><div class="n">13</div><div><h5>Reportes / Muelles</h5><p>Exportación Excel y tablero de ocupación de muelles</p></div></div>
+    <div class="modulo"><div class="n">14</div><div><h5>Estadísticas</h5><p>Tablero tipo Power BI: tendencia diaria, horas pico, tiempo en muelle, rutas de flota y cumplimiento de sellos (septiembre 2026)</p></div></div>
   </div>
 
   <h2 class="sec">5. Modelo de datos — tablas principales</h2>
@@ -149,30 +155,48 @@
     <tr><th>Aspecto</th><th>Estado</th></tr>
     <tr><td>Inyección SQL</td><td>No encontrada — todas las consultas parametrizadas, nombres de columna siempre de whitelist fija en código, nunca de input del usuario</td></tr>
     <tr><td>Contraseñas / tokens</td><td>bcrypt costo 12, JWT con clave validada al arrancar, refresh tokens revocables</td></tr>
-    <tr><td>Rate limiting en login</td><td><strong>No implementado</strong> — sin límite de intentos, punto pendiente de mayor prioridad</td></tr>
+    <tr><td>Rate limiting en login</td><td><strong>Implementado</strong> (septiembre 2026): bloqueo de 15 minutos tras 5 intentos fallidos</td></tr>
     <tr><td>Subida de archivos</td><td>Sin validación de tipo/tamaño real en <code>/upload-foto</code> — cualquier usuario autenticado puede subir</td></tr>
     <tr><td>Documentación de API</td><td><code>/docs</code> (Swagger) público sin autenticación — expone el mapa completo de endpoints</td></tr>
     <tr><td>CORS</td><td>Abierto a cualquier origen, mitigado porque la auth es por Bearer token, no cookies</td></tr>
+    <tr><td>Pruebas automatizadas</td><td>48 pruebas (pytest) sobre una base de datos local aislada, con bloqueo automático si apuntan a producción: inicio de sesión, permisos por rol y estadísticas</td></tr>
+    <tr><td>Estadísticas por API</td><td>Los guardas no ven la pestaña, pero su permiso <code>dashboard:read</code> les permite consultar <code>/api/dashboard/estadisticas</code> directamente. Solo expone totales, sin datos personales; pendiente un permiso separado</td></tr>
   </table>
 
   <h2 class="sec">7. Capacidad e infraestructura</h2>
   <div class="grid2">
     <div class="stack-card">
-      <h4>Supabase (free tier)</h4>
-      <p>500 MB almacenamiento BD · +10,000 registros de texto soportados · 1 GB almacenamiento de fotos</p>
+      <h4>Supabase (plan Pro)</h4>
+      <p>Sin pausa automática por inactividad. Base de datos actual: 89 MB. Revisar en el panel de Supabase la capacidad incluida y la retención de respaldos del plan.</p>
     </div>
     <div class="stack-card">
       <h4>Volumen real observado</h4>
-      <p>+1,800 registros/mes entre todos los módulos (Control Acceso concentra el mayor volumen por registrar entrada y salida por separado)</p>
+      <p>≈ 7.500 registros en los últimos 30 días: 2.839 de control de acceso, 1.570 de proveedores, 1.340 de flota, 1.102 de rondas y 613 de visitantes (al 1 de octubre de 2026).</p>
+    </div>
+    <div class="stack-card">
+      <h4>Railway (plan Hobby)</h4>
+      <p>Servidor del backend. Plan pago activado el 29 de septiembre de 2026, al vencer la prueba gratuita.</p>
+    </div>
+    <div class="stack-card">
+      <h4>Monitoreo</h4>
+      <p>UptimeRobot revisa cada 5 minutos el servidor (<code>/health</code>) y la app, y avisa por correo si no responden. Activo desde el 30 de septiembre de 2026.</p>
     </div>
   </div>
 
-  <div class="callout callout-red">
-    <strong>Riesgo de infraestructura conocido y ya materializado:</strong> el proyecto de Supabase corre en plan gratuito, que pausa automáticamente por inactividad — ya causó una caída completa de producción (agosto 2026). Reanudar es posible sin costo mientras no pase de cierto tiempo pausado, pero el riesgo de que se repita permanece mientras se siga en free tier. Decisión pendiente: pasar a plan pago (~$25 USD/mes) o migrar la base de datos a otro proveedor sin auto-pausa silenciosa (evaluado: Neon).
+  <h3>Historial de interrupciones conocidas</h3>
+  <table>
+    <tr><th>Fecha</th><th>Causa</th><th>Duración</th><th>Acción tomada</th></tr>
+    <tr><td>Agosto 2026</td><td>Supabase en plan gratuito pausó el proyecto por inactividad</td><td>Caída completa (sin medición exacta)</td><td>Se pasó Supabase a plan Pro, que no pausa</td></tr>
+    <tr><td>30 sep 2026</td><td>Actualización del servidor: el comando de arranque guardado en Railway no reconocía el puerto con el nuevo Dockerfile</td><td>≈ 35 minutos (10:50 a 11:25 a. m.)</td><td>Corregido el mismo día; se instaló el monitor de disponibilidad</td></tr>
+  </table>
+  <p>Antes del 30 de septiembre no había monitoreo, así que pudo haber cortes breves no registrados. El modo sin conexión de los celulares guarda los registros durante un corte y los envía al volver la conexión.</p>
+
+  <div class="callout">
+    <strong>Riesgos pendientes:</strong> (1) las cuentas de GitHub, Supabase, Vercel, Railway y UptimeRobot están a nombre personal de la desarrolladora; se recomienda pasarlas a la empresa. (2) Los datos personales (cédulas, nombres, fotos) se alojan en São Paulo, Brasil; falta validar con el área jurídica el cumplimiento de la Ley 1581 de habeas data. (3) <code>/docs</code> público, CORS abierto y subida de fotos sin validar tipo ni tamaño siguen pendientes (sección 6).
   </div>
 
   <div style="margin-top:36px;text-align:center;color:#94a3b8;font-size:11px;border-top:1px solid #e2e8f0;padding-top:18px">
-    Ficha Técnica · Sistema de Control de Acceso y Operaciones · CEDI R10 · Agosto 2026 · Confidencial — uso interno
+    Ficha Técnica · Sistema de Control de Acceso y Operaciones · CEDI R10 · Octubre 2026 · Confidencial — uso interno
   </div>
 
 </div>
