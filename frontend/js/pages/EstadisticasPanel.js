@@ -45,6 +45,9 @@ const COLORS = {
   contenedores:   '#d97706',
   selloSalida:    '#059669',
   selloEntrada:   '#0891b2',
+  tipoDigital:    '#2563eb', // azul: coherente con el badge "Digital" de FlotaPage.js (#dbeafe/#1e40af)
+  tipoPlastico:   '#d97706', // ámbar: coherente con el badge "Plástico" de FlotaPage.js (#fef9c3/#854d0e)
+  tipoSinTipo:    '#64748b', // gris, pedido explícito para "Sin tipo"
 };
 
 // ── Carga bajo demanda de Chart.js (UMD, auto-registra todos los
@@ -279,6 +282,72 @@ function buildSellosConfig(stats){
   };
 }
 
+// ── Donut de tipo de sello (Salida/Entrada): 3 categorías fijas
+// Digital/Plástico/Sin tipo. `counts` es el objeto {digital, plastico,
+// sin_tipo} de una sola dirección (salida o entrada) -- se pasa
+// directamente como `stats` a ChartCanvas, que simplemente reenvía ese
+// valor a buildConfig sin interpretarlo (mismo contrato genérico que ya
+// usan el resto de las gráficas de este archivo). ──
+function buildTipoSelloDonutConfig(counts){
+  const vals = [counts?.digital||0, counts?.plastico||0, counts?.sin_tipo||0];
+  const total = vals[0]+vals[1]+vals[2];
+  return {
+    type:'doughnut',
+    data:{
+      labels:['Digital','Plástico','Sin tipo'],
+      datasets:[{data:vals, backgroundColor:[COLORS.tipoDigital, COLORS.tipoPlastico, COLORS.tipoSinTipo]}]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false}, // la leyenda con cantidad/% ya la pinta TipoSelloResumen debajo
+        tooltip:{callbacks:{label:ctx=>{
+          const v = ctx.parsed;
+          const pct = total ? Math.round(v/total*1000)/10 : 0;
+          return `${ctx.label}: ${v} (${pct}%)`;
+        }}}
+      }
+    }
+  };
+}
+
+// Lista Digital/Plástico/Sin tipo con cantidad y % siempre visibles (no
+// depende de hover sobre el donut -- importante en celular, que es el
+// dispositivo principal de guardas/operadores de esta app).
+function TipoSelloResumen({counts}){
+  const total = (counts?.digital||0)+(counts?.plastico||0)+(counts?.sin_tipo||0);
+  const pct = n => total ? (Math.round(n/total*1000)/10) : 0;
+  const filas = [
+    {label:'Digital',  n:counts?.digital||0,  color:COLORS.tipoDigital},
+    {label:'Plástico', n:counts?.plastico||0, color:COLORS.tipoPlastico},
+    {label:'Sin tipo', n:counts?.sin_tipo||0, color:COLORS.tipoSinTipo},
+  ];
+  return h('div',{style:{display:'flex',flexDirection:'column',gap:4,marginTop:8}},
+    filas.map(f=>h('div',{key:f.label,style:{display:'flex',alignItems:'center',gap:6,fontSize:11}},
+      h('span',{style:{width:8,height:8,borderRadius:2,background:f.color,flexShrink:0}}),
+      h('span',{style:{color:'var(--slate)'}}, f.label),
+      h('span',{style:{marginLeft:'auto',fontWeight:700}}, `${f.n} (${pct(f.n)}%)`)
+    ))
+  );
+}
+
+// Una mitad de la tarjeta "Tipo de sello" (Salida o Entrada): dibuja el
+// donut + resumen si hay al menos 1 viaje en esa categoría, o el mismo
+// estado vacío textual de ChartCard si total=0 (ej. rango sin viajes con
+// llegada, aunque sí haya salidas).
+function TipoSelloMitad({titulo, counts, ready}){
+  const total = (counts?.digital||0)+(counts?.plastico||0)+(counts?.sin_tipo||0);
+  return h('div',null,
+    h('p',{style:{fontSize:11,fontWeight:700,color:'var(--slate)',marginBottom:6,textTransform:'uppercase',letterSpacing:.4}}, titulo),
+    total===0
+      ? h('div',{className:'chart-empty',style:{height:140}},'Sin datos en el rango')
+      : h('div',null,
+          h(ChartCanvas,{buildConfig:buildTipoSelloDonutConfig, stats:counts, ready, height:140}),
+          h(TipoSelloResumen,{counts})
+        )
+  );
+}
+
 export function EstadisticasPanel(){
   const [chartReady,setChartReady] = useState(!!window.Chart);
   const [chartError,setChartError] = useState('');
@@ -356,6 +425,13 @@ export function EstadisticasPanel(){
   const topPlacasVacio  = !stats || (stats.tiempo_ruta_flota?.top_placas||[]).length===0;
   const cargaVacia      = !stats || (stats.carga_despachada_por_dia||[]).every(r=>!r.pallets&&!r.contenedores);
   const sellosVacio     = !stats || (stats.cumplimiento_sellos?.global?.total_viajes||0)===0;
+  // tipo_sello_salida/tipo_sello_entrada son campos nuevos (sección F del
+  // contrato) -- el backend de producción detrás del enlace de prueba de
+  // Vercel puede no traerlos todavía. Si ninguno de los dos vino en la
+  // respuesta, se trata como "sin datos" en vez de romper con undefined.
+  const tipoSelloSalida   = stats?.cumplimiento_sellos?.global?.tipo_sello_salida;
+  const tipoSelloEntrada  = stats?.cumplimiento_sellos?.global?.tipo_sello_entrada;
+  const tipoSelloVacio    = !stats || (tipoSelloSalida===undefined && tipoSelloEntrada===undefined);
 
   return h('div',{className:'pad'},
     h('p',{className:'sec-ttl'},h(Ico,{n:'barChart',s:12}),' Estadísticas'),
@@ -447,6 +523,12 @@ export function EstadisticasPanel(){
         ),
         h(ChartCard,{title:'Flota · cumplimiento de sellos por día', empty:sellosVacio},
           h(ChartCanvas,{buildConfig:buildSellosConfig, stats, ready:chartReady})
+        ),
+        h(ChartCard,{title:'Tipo de sello', empty:tipoSelloVacio},
+          h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}},
+            h(TipoSelloMitad,{titulo:'Salida',  counts:tipoSelloSalida,  ready:chartReady}),
+            h(TipoSelloMitad,{titulo:'Entrada', counts:tipoSelloEntrada, ready:chartReady})
+          )
         )
       )
     )

@@ -504,6 +504,43 @@ FROM flota_propia
 WHERE fecha BETWEEN :desde AND :hasta;
 ```
 
+**Actualización de María (backend, 2026-10-02) — desglose por tipo de sello
+en `global`**: se agregó al mismo `SELECT` global (mismo `FROM`/`WHERE`, sin
+tocar la query `por_dia` de abajo) el conteo por tipo de sello Digital vs.
+Plástico, para la nueva tarjeta "Tipo de sello" de Laura en la pestaña
+Estadísticas:
+
+```sql
+    COUNT(*) FILTER (WHERE tipo_sello = 'Digital') AS tipo_salida_digital,
+    COUNT(*) FILTER (WHERE tipo_sello = 'Plástico') AS tipo_salida_plastico,
+    COUNT(*) FILTER (WHERE tipo_sello IS NULL OR btrim(tipo_sello) = '') AS tipo_salida_sin_tipo,
+    COUNT(*) FILTER (WHERE hora_llegada IS NOT NULL AND tipo_sello_entrada = 'Digital') AS tipo_entrada_digital,
+    COUNT(*) FILTER (WHERE hora_llegada IS NOT NULL AND tipo_sello_entrada = 'Plástico') AS tipo_entrada_plastico,
+    COUNT(*) FILTER (
+        WHERE hora_llegada IS NOT NULL
+          AND (tipo_sello_entrada IS NULL OR btrim(tipo_sello_entrada) = '')
+    ) AS tipo_entrada_sin_tipo
+```
+
+Reglas, consistentes con el resto de la sección F:
+
+- Valores exactos `'Digital'` y `'Plástico'` (con tilde) — los mismos
+  literales que ya guarda/compara `frontend/js/pages/FlotaPage.js`
+  (`PUT /flota/{id}` con `tipo_sello`/`tipo_sello_entrada`). **No** se
+  normaliza con `UPPER()`/`unaccent()`: hacerlo divergiría silenciosamente
+  de lo que el frontend ya escribe y compara hoy.
+- `tipo_sello_entrada` hereda el mismo filtro `hora_llegada IS NOT NULL` que
+  `con_sello_entrada`/`pct_sello_entrada` — un viaje aún en ruta no cuenta en
+  ninguna de las 3 categorías de entrada, aunque ya traiga un
+  `tipo_sello_entrada` cargado de antemano.
+- `NULL` y `''` (vacío) cuentan igual como `sin_tipo` — mismo criterio
+  `btrim(...) = ''` que ya usa `con_sello_salida`/`con_sello_entrada`.
+- Las 3 categorías de cada dirección siempre reconcilian con el total de esa
+  dirección: `digital + plastico + sin_tipo == total_viajes` (salida) /
+  `== viajes_con_llegada` (entrada).
+- **Solo se agrega a `global`**, no a `por_dia` (no fue pedido y la query
+  `por_dia` no se modificó).
+
 Por día (relleno con `0`/`null` según corresponda cuando no hay viajes ese
 día — porcentaje sin denominador queda `null`, nunca `0` falso):
 
@@ -632,7 +669,17 @@ Reglas generales de tipos:
       "pct_sello_salida": 99.9,
       "viajes_con_llegada": 3928,
       "con_sello_entrada": 3900,
-      "pct_sello_entrada": 99.3
+      "pct_sello_entrada": 99.3,
+      "tipo_sello_salida": {
+        "digital": 3012,
+        "plastico": 935,
+        "sin_tipo": 4
+      },
+      "tipo_sello_entrada": {
+        "digital": 2890,
+        "plastico": 1010,
+        "sin_tipo": 28
+      }
     },
     "por_dia": [
       {
@@ -676,6 +723,12 @@ Reglas generales de tipos:
   número de muestras siempre está disponible.
 - Todos los porcentajes ya vienen redondeados a 1 decimal en SQL — no
   recalcular ni volver a redondear en frontend ni en backend.
+- `cumplimiento_sellos.global.tipo_sello_salida`/`tipo_sello_entrada` son
+  campos nuevos (2026-10-02), **solo en `global`**, con forma fija
+  `{"digital": int, "plastico": int, "sin_tipo": int}`. El frontend debe
+  tolerar que un backend desplegado antes de este cambio no los traiga
+  todavía (`undefined`) — usar optional chaining y mostrar el mismo estado
+  "Sin datos en el rango" del resto de las tarjetas, nunca romper.
 
 ---
 
@@ -721,5 +774,7 @@ por `fecha_salida` empiezan a pesar, el candidato sería:
 | E | ninguno (SUM ignora NULL) | — | agregación tolerante a huecos de captura |
 | F (salida) | ninguno | — | `sello` no vacío/no NULL cuenta como cumplimiento |
 | F (entrada) | `hora_llegada IS NOT NULL` (solo viajes que ya llegaron) | — | pedido explícito: no penalizar viajes aún en ruta |
+| F (tipo_sello_salida) | ninguno adicional | — | valores exactos `'Digital'`/`'Plástico'`; `NULL`/`''` → `sin_tipo` |
+| F (tipo_sello_entrada) | `hora_llegada IS NOT NULL` (mismo criterio que con_sello_entrada) | — | no contar tipo de entrada de un viaje aún en ruta |
 
 Fin del contrato.
