@@ -109,15 +109,18 @@ def _delete_proveedor(pid):
 
 
 def _insert_flota_edge(fecha, placa="QA-EDGE-D", fecha_salida=None, hora_salida_cedi=None,
-                        fecha_llegada=None, hora_llegada=None):
+                        fecha_llegada=None, hora_llegada=None,
+                        tipo_sello=None, tipo_sello_entrada=None):
     db = SessionLocal()
     fid = str(uuid.uuid4())
     db.execute(text("""
-        INSERT INTO flota_propia (id, fecha, placa, fecha_salida, hora_salida_cedi, fecha_llegada, hora_llegada)
-        VALUES (:id, :fecha, :placa, :fs, :hsc, :fl, :hl)
+        INSERT INTO flota_propia (id, fecha, placa, fecha_salida, hora_salida_cedi, fecha_llegada, hora_llegada,
+                                   tipo_sello, tipo_sello_entrada)
+        VALUES (:id, :fecha, :placa, :fs, :hsc, :fl, :hl, :ts, :tse)
     """), {
         "id": fid, "fecha": fecha, "placa": placa,
         "fs": fecha_salida, "hsc": hora_salida_cedi, "fl": fecha_llegada, "hl": hora_llegada,
+        "ts": tipo_sello, "tse": tipo_sello_entrada,
     })
     db.commit()
     db.close()
@@ -202,7 +205,17 @@ def test_estadisticas_sin_parametros_200_forma_correcta(token_admin):
     assert set(f["global"].keys()) == {
         "total_viajes", "con_sello_salida", "pct_sello_salida",
         "viajes_con_llegada", "con_sello_entrada", "pct_sello_entrada",
+        "tipo_sello_salida", "tipo_sello_entrada",
     }
+    # Desglose por tipo de sello: forma fija {digital, plastico, sin_tipo},
+    # y la suma de las 3 categorías debe reconciliar con total_viajes /
+    # viajes_con_llegada (todo viaje cae en exactamente una categoría).
+    assert set(f["global"]["tipo_sello_salida"].keys()) == {"digital", "plastico", "sin_tipo"}
+    assert set(f["global"]["tipo_sello_entrada"].keys()) == {"digital", "plastico", "sin_tipo"}
+    tss = f["global"]["tipo_sello_salida"]
+    tse = f["global"]["tipo_sello_entrada"]
+    assert tss["digital"] + tss["plastico"] + tss["sin_tipo"] == f["global"]["total_viajes"]
+    assert tse["digital"] + tse["plastico"] + tse["sin_tipo"] == f["global"]["viajes_con_llegada"]
     assert len(f["por_dia"]) == 31
     for fila_f in f["por_dia"]:
         if fila_f["total_viajes"] == 0:
@@ -380,6 +393,8 @@ def test_estadisticas_un_dia_sin_datos_null_y_longitudes_correctas(token_admin):
     assert f["global"] == {
         "total_viajes": 0, "con_sello_salida": 0, "pct_sello_salida": None,
         "viajes_con_llegada": 0, "con_sello_entrada": 0, "pct_sello_entrada": None,
+        "tipo_sello_salida": {"digital": 0, "plastico": 0, "sin_tipo": 0},
+        "tipo_sello_entrada": {"digital": 0, "plastico": 0, "sin_tipo": 0},
     }
     assert f["por_dia"] == [{
         "fecha": dia, "total_viajes": 0, "con_sello_salida": 0, "pct_sello_salida": None,
@@ -524,6 +539,69 @@ def test_estadisticas_ruta_mas_de_48h_excluido_de_n_validos(token_admin):
         assert dd["top_placas"] == []
     finally:
         _delete_flota(fid)
+
+
+# ── Casos límite: desglose por tipo de sello (digital/plástico/sin_tipo) ──
+
+
+def test_estadisticas_tipo_sello_desglose_global_y_filtro_de_llegada(token_admin):
+    """Cubre las 3 categorías de tipo_sello_salida/tipo_sello_entrada
+    (digital, plastico, sin_tipo -- NULL y '' cuentan igual como sin_tipo)
+    y verifica que el filtro `hora_llegada IS NOT NULL` de la entrada
+    también aplique al desglose por tipo: un viaje con
+    tipo_sello_entrada='Digital' pero sin llegada (en ruta todavía) NO
+    debe sumar a tipo_sello_entrada.digital ni a ninguna otra categoría de
+    entrada -- mismo criterio ya usado por con_sello_entrada/pct_sello_entrada
+    (contrato, sección 5: 'no penalizar viajes aún en ruta')."""
+    dia = "2029-04-01"
+    f = date.fromisoformat(dia)
+    fids = []
+    try:
+        # 1) Salida Digital, SIN llegada todavía -- pese a traer
+        #    tipo_sello_entrada='Digital' ya cargado, no debe contar en
+        #    ninguna categoría de entrada porque hora_llegada es NULL.
+        fids.append(_insert_flota_edge(
+            fecha=f, placa="QA-SELLO-1", hora_llegada=None,
+            tipo_sello="Digital", tipo_sello_entrada="Digital",
+        ))
+        # 2) Salida Plástico, llegada con entrada Digital.
+        fids.append(_insert_flota_edge(
+            fecha=f, placa="QA-SELLO-2", hora_llegada=time(10, 0),
+            tipo_sello="Plástico", tipo_sello_entrada="Digital",
+        ))
+        # 3) Salida sin tipo (NULL), llegada con entrada Plástico.
+        fids.append(_insert_flota_edge(
+            fecha=f, placa="QA-SELLO-3", hora_llegada=time(11, 0),
+            tipo_sello=None, tipo_sello_entrada="Plástico",
+        ))
+        # 4) Salida sin tipo ('' vacío), llegada sin tipo de entrada (NULL).
+        fids.append(_insert_flota_edge(
+            fecha=f, placa="QA-SELLO-4", hora_llegada=time(12, 0),
+            tipo_sello="", tipo_sello_entrada=None,
+        ))
+        # 5) Salida Digital, llegada sin tipo de entrada ('' vacío).
+        fids.append(_insert_flota_edge(
+            fecha=f, placa="QA-SELLO-5", hora_llegada=time(13, 0),
+            tipo_sello="Digital", tipo_sello_entrada="",
+        ))
+
+        resp = client.get(
+            "/api/dashboard/estadisticas",
+            params={"fecha_desde": dia, "fecha_hasta": dia},
+            headers=_bearer(token_admin),
+        )
+        assert resp.status_code == 200, resp.text
+        g = resp.json()["cumplimiento_sellos"]["global"]
+
+        assert g["total_viajes"] == 5
+        assert g["tipo_sello_salida"] == {"digital": 2, "plastico": 1, "sin_tipo": 2}
+
+        # viajes_con_llegada excluye el caso 1 (hora_llegada NULL) -> 4.
+        assert g["viajes_con_llegada"] == 4
+        assert g["tipo_sello_entrada"] == {"digital": 1, "plastico": 1, "sin_tipo": 2}
+    finally:
+        for fid in fids:
+            _delete_flota(fid)
 
 
 def test_estadisticas_ruta_negativa_excluida_de_n_validos(token_admin):

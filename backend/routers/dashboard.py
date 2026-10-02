@@ -666,7 +666,20 @@ def estadisticas(
                       AND sello_entrada IS NOT NULL AND btrim(sello_entrada) <> ''
                 )
                 / NULLIF(COUNT(*) FILTER (WHERE hora_llegada IS NOT NULL), 0)
-            , 1) AS pct_sello_entrada
+            , 1) AS pct_sello_entrada,
+            -- Desglose por tipo de sello (valores exactos 'Digital'/'Plástico',
+            -- mismos literales que usa FlotaPage.js -- no se normaliza con
+            -- UPPER/unaccent a propósito, para no divergir de lo que ya
+            -- guarda/compara el frontend).
+            COUNT(*) FILTER (WHERE tipo_sello = 'Digital') AS tipo_salida_digital,
+            COUNT(*) FILTER (WHERE tipo_sello = 'Plástico') AS tipo_salida_plastico,
+            COUNT(*) FILTER (WHERE tipo_sello IS NULL OR btrim(tipo_sello) = '') AS tipo_salida_sin_tipo,
+            COUNT(*) FILTER (WHERE hora_llegada IS NOT NULL AND tipo_sello_entrada = 'Digital') AS tipo_entrada_digital,
+            COUNT(*) FILTER (WHERE hora_llegada IS NOT NULL AND tipo_sello_entrada = 'Plástico') AS tipo_entrada_plastico,
+            COUNT(*) FILTER (
+                WHERE hora_llegada IS NOT NULL
+                  AND (tipo_sello_entrada IS NULL OR btrim(tipo_sello_entrada) = '')
+            ) AS tipo_entrada_sin_tipo
         FROM flota_propia
         WHERE fecha BETWEEN :desde AND :hasta
     """), params).mappings().one()
@@ -710,6 +723,16 @@ def estadisticas(
             "viajes_con_llegada": f_global["viajes_con_llegada"],
             "con_sello_entrada":  f_global["con_sello_entrada"],
             "pct_sello_entrada":  _num(f_global["pct_sello_entrada"]),
+            "tipo_sello_salida": {
+                "digital":  f_global["tipo_salida_digital"],
+                "plastico": f_global["tipo_salida_plastico"],
+                "sin_tipo": f_global["tipo_salida_sin_tipo"],
+            },
+            "tipo_sello_entrada": {
+                "digital":  f_global["tipo_entrada_digital"],
+                "plastico": f_global["tipo_entrada_plastico"],
+                "sin_tipo": f_global["tipo_entrada_sin_tipo"],
+            },
         },
         "por_dia": [
             {
