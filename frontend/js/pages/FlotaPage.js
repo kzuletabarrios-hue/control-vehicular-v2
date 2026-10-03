@@ -60,6 +60,11 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
   const esCoordinador = user?.rol==='coordinador';
   const [cedulaBusq,setCedulaBusq]   = useState('');
   const [sugerCond,setSugerCond]     = useState([]);
+  // Maestro de placas (vehículos activos). Se guarda en el celular para que
+  // el selector funcione sin conexión. Una placa fuera del maestro se puede
+  // guardar igual, pero queda marcada como "no verificada" para revisión.
+  const [vehiculos,setVehiculos] = useState(()=>{try{return JSON.parse(localStorage.getItem('cv_vehiculos')||'[]');}catch{return [];}});
+  const [sugerPlaca,setSugerPlaca] = useState([]);
   const emptyF = {fecha:today(),placa:'',conductor:'',codigo_conductor:'',n_pallets:'',n_contenedores:'',cant_volumen_externo:'',muelle_cargue:'',tienda_1:'',tienda_2:'',tienda_3:'',tienda_4:'',tienda_5:'',ultima_tienda:'',protocolo:'',sello:'',tipo_sello:'',sello_entrada:'',tipo_sello_entrada:'',hora_salida_muelle:ahoraHora(),temperatura:'',hora_salida_cedi:'',hora_llegada:'',observacion:'',foto_url:null};
   const [form,setForm]         = useState(emptyF);
   const [filtro,setFiltro]      = useState('pendientes');
@@ -76,7 +81,14 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
     setCedulaBusq(c.n_cedula||'');
     setSugerCond([]);
   };
-  const limpiarForm = ()=>{setForm(emptyF);setSelected(null);setCedulaBusq('');setSugerCond([]);};
+  const normPlaca = v => String(v||'').replace(/[\s-]+/g,'').toUpperCase();
+  const escribirPlaca = (val)=>{
+    const p = normPlaca(val);
+    setForm(f=>({...f,placa:p}));
+    setSugerPlaca(p ? vehiculos.filter(v=>v.placa.includes(p)).slice(0,8) : []);
+  };
+  const placaFueraMaestro = !!form.placa && vehiculos.length>0 && !vehiculos.some(v=>v.placa===form.placa);
+  const limpiarForm = ()=>{setForm(emptyF);setSelected(null);setCedulaBusq('');setSugerCond([]);setSugerPlaca([]);};
 
   const load = useCallback(()=>{
     Promise.all([api.get('/flota'),api.get('/conductores?activo=true&limit=200')])
@@ -89,6 +101,12 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
   // background para no seguir consultando /flota, /conductores y
   // /maestros/distribucion con la pestaña oculta.
   useVisibilityPolling(load, 60000, [load]);
+  useEffect(()=>{
+    api.get('/flota/vehiculos').then(v=>{
+      setVehiculos(v);
+      try{localStorage.setItem('cv_vehiculos',JSON.stringify(v));}catch{}
+    }).catch(()=>{});
+  },[]);
 
   // Abre el detalle completo (hora, fecha, tiendas/ruta, sellos) para un
   // registro. Se usa tanto al tocar la lista como al abrirlo desde la
@@ -121,9 +139,9 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
   );
 
   const handleSave = async()=>{
-    if(!form.placa) return setAlert({type:'err',msg:'La placa es obligatoria'});
+    if(!normPlaca(form.placa)) return setAlert({type:'err',msg:'La placa es obligatoria'});
     setSaving(true);
-    const body = Object.fromEntries(Object.entries(form).filter(([,v])=>v!=null&&v!==''));
+    const body = Object.fromEntries(Object.entries({...form,placa:normPlaca(form.placa)}).filter(([,v])=>v!=null&&v!==''));
     if(!selected){const ts=await _tsBog();body.fecha=ts.fecha;body.hora_salida_muelle=ts.hora;}
     try{
       if(!online){
@@ -161,7 +179,15 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
         h('p',{className:'sec-ttl'},h(Ico,{n:'truck',s:12}),' Vehículo y conductor'),
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},h('label',null,'Fecha',h('span',{className:'req'},'*')),h('input',{type:'date',value:form.fecha,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
-          h('div',{className:'fg'},h('label',null,'Placa',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.placa,onChange:e=>setForm(p=>({...p,placa:e.target.value.toUpperCase()})),placeholder:'ABC-123'}))
+          h('div',{className:'fg',style:{position:'relative'}},h('label',null,'Placa',h('span',{className:'req'},'*')),
+            h('input',{type:'text',value:form.placa,onChange:e=>escribirPlaca(e.target.value),onFocus:e=>escribirPlaca(e.target.value),onBlur:()=>setTimeout(()=>setSugerPlaca([]),150),placeholder:'Buscar placa...',autoComplete:'off'}),
+            sugerPlaca.length>0&&h('div',{style:{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid var(--border)',borderRadius:8,zIndex:50,boxShadow:'var(--shadow)',maxHeight:180,overflowY:'auto'}},
+              sugerPlaca.map(v=>h('div',{key:v.placa,onMouseDown:e=>e.preventDefault(),onClick:()=>{setForm(f=>({...f,placa:v.placa}));setSugerPlaca([]);},style:{padding:'10px 12px',cursor:'pointer',borderBottom:'1px solid var(--border)',fontSize:13}},
+                h('strong',null,v.placa),v.tipo&&h('span',{style:{color:'var(--slate)',marginLeft:6,fontSize:11}},v.tipo)))
+            ),
+            placaFueraMaestro&&h('p',{style:{fontSize:11,color:'#92400e',background:'#fef3c7',borderRadius:6,padding:'6px 8px',margin:'6px 0 0'}},
+              'Esta placa no está en la lista oficial. Se puede guardar, pero quedará marcada para revisión. Revisa que esté bien escrita.')
+          )
         ),
         h('div',{className:'fg',style:{position:'relative'}},
           h('label',null,'Cédula conductor'),
@@ -262,7 +288,8 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
             h('span',{style:{fontSize:10,fontWeight:600,marginLeft:6,padding:'2px 6px',borderRadius:4,
               background:r.hora_llegada?'#d1fae5':r.hora_salida_cedi?'#fef3c7':'#dbeafe',
               color:r.hora_llegada?'#065f46':r.hora_salida_cedi?'#92400e':'#1e40af'
-            }},r.hora_llegada?'Regresó':r.hora_salida_cedi?'En ruta':'En bodega')
+            }},r.hora_llegada?'Regresó':r.hora_salida_cedi?'En ruta':'En bodega'),
+            r.placa_no_verificada&&!user?.rol?.startsWith('guarda_')&&h('span',{title:'La placa no está en el maestro de vehículos',style:{fontSize:10,fontWeight:600,marginLeft:4,padding:'2px 6px',borderRadius:4,background:'#fee2e2',color:'#991b1b'}},'Placa no verificada')
           ),
           h('div',{className:'li-sub'},r.conductor_nombre||r.conductor||'Sin conductor'),
           r.ultima_tienda_nombre&&h('div',{className:'li-route'},'→ '+r.ultima_tienda_nombre)

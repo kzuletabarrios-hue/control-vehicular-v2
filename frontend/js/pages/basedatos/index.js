@@ -17,6 +17,7 @@ import { TiendasTab } from './TiendasTab.js';
 import { ConductoresTab } from './ConductoresTab.js';
 import { UsuariosTab } from './UsuariosTab.js';
 import { ConductoresFrecuentesTab } from './ConductoresFrecuentesTab.js';
+import { VehiculosTab } from './VehiculosTab.js';
 
 const { useState } = React;
 const h = React.createElement;
@@ -30,7 +31,7 @@ export function BaseDatosPage({user}){
     {id:'tiendas',     label:'Tiendas'},
     {id:'conductores', label:'Conductores'},
     {id:'cond-frec',   label:'Frecuentes'},
-    ...(isAdmin?[{id:'usuarios',label:'Usuarios'}]:[]),
+    ...(isAdmin?[{id:'vehiculos',label:'Vehículos'},{id:'usuarios',label:'Usuarios'}]:[]),
   ];
   return h('div',{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},
     h('div',{style:{display:'flex',gap:6,padding:'10px 14px',background:'var(--white)',borderBottom:'1px solid var(--border)',flexShrink:0,overflowX:'auto',WebkitOverflowScrolling:'touch'}},
@@ -46,6 +47,7 @@ export function BaseDatosPage({user}){
     tab==='tiendas'     && h(TiendasTab),
     tab==='conductores' && h(ConductoresTab),
     tab==='cond-frec'   && h(ConductoresFrecuentesTab),
+    tab==='vehiculos'   && isAdmin && h(VehiculosTab),
     tab==='usuarios'    && h(UsuariosTab)
   );
 }
