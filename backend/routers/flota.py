@@ -5,6 +5,7 @@ from sqlalchemy import text
 
 from database import get_db
 from routers.auth import get_current_user, require_permiso
+from utils_placas import normalizar_placa
 
 router = APIRouter()
 
@@ -30,9 +31,11 @@ def listar(
     where_sql = ' AND '.join(where)
     rows = db.execute(text(f"""
         WITH base AS (
-            SELECT f.*, c.conductor AS nombre_conductor_bd
+            SELECT f.*, c.conductor AS nombre_conductor_bd,
+                   (f.placa IS NOT NULL AND v.placa IS NULL) AS placa_no_verificada
             FROM flota_propia f
             LEFT JOIN conductores c ON f.codigo_conductor = c.codigo
+            LEFT JOIN vehiculos v ON v.placa = f.placa AND v.activo = TRUE
             WHERE {where_sql}
         )
         SELECT * FROM base WHERE hora_llegada IS NULL
@@ -53,6 +56,21 @@ def listar(
     return {"total": total, "items": [dict(r._mapping) for r in rows]}
 
 
+# Lista de placas del maestro para el selector del formulario de Flota.
+# Va antes de "/{id}" para que la ruta no se interprete como un id. Usa
+# flota:read (no maestros:read) porque la necesitan los guardas que
+# registran salidas, que no tienen acceso a Base de Datos.
+@router.get("/vehiculos")
+def vehiculos_activos(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("flota", "read")),
+):
+    rows = db.execute(text(
+        "SELECT placa, tipo FROM vehiculos WHERE activo = TRUE ORDER BY placa"
+    )).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
 @router.get("/{id}")
 def obtener(
     id: str,
@@ -60,7 +78,13 @@ def obtener(
     _: dict = Depends(require_permiso("flota", "read")),
 ):
     row = db.execute(
-        text("SELECT * FROM flota_propia WHERE id = :id"), {"id": id}
+        text("""
+            SELECT f.*, (f.placa IS NOT NULL AND v.placa IS NULL) AS placa_no_verificada
+            FROM flota_propia f
+            LEFT JOIN vehiculos v ON v.placa = f.placa AND v.activo = TRUE
+            WHERE f.id = :id
+        """),
+        {"id": id},
     ).fetchone()
     if not row:
         raise HTTPException(404, "Registro no encontrado")
@@ -87,6 +111,7 @@ def crear(
         "obs_salida", "foto_salida", "obs_llegada", "foto_llegada",
     ]
     vals = {c: body.get(c) for c in campos}
+    vals["placa"] = normalizar_placa(vals.get("placa"))
     vals["id"] = rid
     vals["creado_por"] = current_user["id"]
 
@@ -129,6 +154,8 @@ def actualizar(
     vals = {c: body[c] for c in campos if c in body}
     if not vals:
         raise HTTPException(400, "Sin campos para actualizar")
+    if "placa" in vals:
+        vals["placa"] = normalizar_placa(vals["placa"])
     vals["id"] = id
 
     sets = ", ".join(f"{c} = :{c}" for c in vals if c != "id")

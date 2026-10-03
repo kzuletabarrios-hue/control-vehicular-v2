@@ -441,7 +441,7 @@ def test_admin_crea_flota_via_post_201(token_admin):
         ).fetchone()
         db.close()
         assert row is not None
-        assert row.placa == "QA-ADMIN-POST-001"
+        assert row.placa == "QAADMINPOST001"  # el backend normaliza la placa (sin guiones)
         assert row.tipo_sello == "plomo"
         assert row.tipo_sello_entrada == "plastico"
         assert row.obs_salida == "salida de prueba QA"
@@ -452,7 +452,7 @@ def test_admin_crea_flota_via_post_201(token_admin):
         # También lo debe ver el propio endpoint de lectura.
         resp_get = client.get(f"/api/flota/{rid}", headers=_bearer(token_admin))
         assert resp_get.status_code == 200
-        assert resp_get.json()["placa"] == "QA-ADMIN-POST-001"
+        assert resp_get.json()["placa"] == "QAADMINPOST001"
     finally:
         if rid:
             db = SessionLocal()

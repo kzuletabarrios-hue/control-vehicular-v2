@@ -3,9 +3,11 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from database import get_db
 from routers.auth import require_permiso
+from utils_placas import normalizar_placa
 
 router = APIRouter()
 
@@ -337,3 +339,134 @@ def desactivar_conductor_frecuente(
     db.execute(text("UPDATE conductores_frecuentes SET activo = FALSE, updated_at = NOW() WHERE id = :id"), {"id": id})
     db.commit()
     return {"message": "Conductor marcado como inactivo"}
+
+
+# ── MAESTRO DE VEHÍCULOS (alta individual) ───────────────────────
+# Pestaña "Vehículos" de Base de Datos (decisión de la usuaria 2026-10-02,
+# punto 3): admin/supervisor agregan, editan tipo/marca y desactivan
+# vehículos del maestro `vehiculos` -- la misma tabla que ya alimenta la
+# carga masiva (routers/carga_masiva.py) y que backend/routers/flota.py
+# usa para calcular `placa_no_verificada`. No se agregan columnas: la
+# tabla ya tiene placa UNIQUE (supabase/migrations/20260607112557_vehiculos.sql).
+#
+# Permiso: se reutiliza "maestros" (igual que el resto de este archivo)
+# en vez de crear un módulo nuevo -- es exactamente la misma naturaleza
+# de dato (catálogo de referencia administrado por admin/supervisor) que
+# distribución/proveedores/control-acceso ya gestionados aquí. `admin` ya
+# tenía maestros:write/delete; a `supervisor` (antes solo maestros:read)
+# se le amplía con la migración
+# supabase/migrations/20261002090000_permiso_maestros_write_supervisor.sql
+# para que de verdad pueda agregar/editar/desactivar, no solo ver la lista.
+
+CAMPOS_VEHICULO = ["placa", "marca", "modelo", "color", "anio", "tipo", "capacidad"]
+
+
+def _normalizar_body_vehiculo(body: dict, requerir_placa: bool) -> dict:
+    vals = {c: body[c] for c in CAMPOS_VEHICULO if c in body}
+    if "placa" in vals:
+        placa = normalizar_placa(vals["placa"])
+        if not placa and requerir_placa:
+            raise HTTPException(400, "La placa es requerida")
+        vals["placa"] = placa
+    elif requerir_placa:
+        raise HTTPException(400, "La placa es requerida")
+    if "anio" in vals and vals["anio"] not in (None, ""):
+        try:
+            vals["anio"] = int(vals["anio"])
+        except (TypeError, ValueError):
+            raise HTTPException(400, "El año debe ser un número")
+    for c in ("marca", "modelo", "color", "tipo", "capacidad"):
+        if c in vals and vals[c] is not None:
+            vals[c] = str(vals[c]).strip() or None
+    return vals
+
+
+def _raise_error_vehiculo(db: Session, e: IntegrityError):
+    db.rollback()
+    if "vehiculos_placa_key" in str(e.orig) or "placa" in str(e.orig).lower():
+        raise HTTPException(409, "Ya existe un vehículo con esa placa en el maestro")
+    raise HTTPException(400, "No se pudo guardar el vehículo: revisa los datos")
+
+
+@router.get("/vehiculos")
+def listar_vehiculos_maestro(
+    q: str = None,
+    activo: bool = None,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("maestros", "read")),
+):
+    where = ["1=1"]
+    params = {}
+    if activo is not None:
+        where.append("activo = :activo")
+        params["activo"] = activo
+    if q:
+        where.append("(placa ILIKE :q OR marca ILIKE :q OR tipo ILIKE :q)")
+        params["q"] = f"%{q}%"
+
+    rows = db.execute(text(f"""
+        SELECT * FROM vehiculos
+        WHERE {' AND '.join(where)}
+        ORDER BY activo DESC, (tipo IS NULL OR tipo = '') DESC, placa ASC
+    """), params).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+@router.post("/vehiculos", status_code=201)
+def crear_vehiculo_maestro(
+    body: dict,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("maestros", "write")),
+):
+    vals = _normalizar_body_vehiculo(body, requerir_placa=True)
+    rid = str(uuid.uuid4())
+    vals["id"] = rid
+    vals["activo"] = body.get("activo", True)
+    cols = ", ".join(vals.keys())
+    placeholders = ", ".join(f":{k}" for k in vals.keys())
+    try:
+        db.execute(text(f"INSERT INTO vehiculos ({cols}) VALUES ({placeholders})"), vals)
+        db.commit()
+    except IntegrityError as e:
+        _raise_error_vehiculo(db, e)
+    return {"id": rid, "message": "Vehículo agregado al maestro"}
+
+
+@router.put("/vehiculos/{id}")
+def actualizar_vehiculo_maestro(
+    id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("maestros", "write")),
+):
+    existe = db.execute(text("SELECT id FROM vehiculos WHERE id = :id"), {"id": id}).fetchone()
+    if not existe:
+        raise HTTPException(404, "Vehículo no encontrado")
+
+    vals = _normalizar_body_vehiculo(body, requerir_placa=False)
+    if "activo" in body:
+        vals["activo"] = bool(body["activo"])
+    if not vals:
+        raise HTTPException(400, "Sin campos para actualizar")
+    vals["id"] = id
+    sets = ", ".join(f"{c} = :{c}" for c in vals if c != "id")
+    try:
+        db.execute(text(f"UPDATE vehiculos SET {sets}, updated_at = NOW() WHERE id = :id"), vals)
+        db.commit()
+    except IntegrityError as e:
+        _raise_error_vehiculo(db, e)
+    return {"message": "Vehículo actualizado"}
+
+
+@router.delete("/vehiculos/{id}")
+def desactivar_vehiculo_maestro(
+    id: str,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_permiso("maestros", "delete")),
+):
+    existe = db.execute(text("SELECT id FROM vehiculos WHERE id = :id"), {"id": id}).fetchone()
+    if not existe:
+        raise HTTPException(404, "Vehículo no encontrado")
+    db.execute(text("UPDATE vehiculos SET activo = FALSE, updated_at = NOW() WHERE id = :id"), {"id": id})
+    db.commit()
+    return {"message": "Vehículo desactivado"}
