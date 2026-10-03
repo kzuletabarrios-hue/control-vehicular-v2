@@ -176,6 +176,13 @@ export function ProveedoresPage({user,online,addOffline}){
   // background.
   useVisibilityPolling(load, 60000, [load]);
 
+  // Límite para considerar "tarde" a un proveedor (decisión 2026-10-03): fin
+  // de su franja + tolerancia. Cita 7:00-8:00 con 15 min -> tarde desde 8:15.
+  // Sin cita enlazada (hora digitada a mano) se usa hora_cita como fin.
+  const minDe = t => { const [hh,mm] = String(t).slice(0,5).split(':').map(Number); return hh*60+mm; };
+  const limiteCitaMin = r => minDe(r.cita_hora_fin || r.hora_cita) + (r.cita_tolerancia_min ?? 15);
+  const ahoraMin = () => minDe(ahoraHora());
+
   // Suena una alerta cuando a un proveedor por confirmar le falten ≤5 min para
   // su hora de cita (declarada por el conductor). Una sola vez por registro.
   const avisados5min = useRef(new Set());
@@ -207,9 +214,7 @@ export function ProveedoresPage({user,online,addOffline}){
     const ahoraMs = Date.now();
     records.forEach(r=>{
       if(r.estado_confirmacion!=='pendiente' || !r.hora_cita) return;
-      const [ch,cm] = r.hora_cita.split(':').map(Number);
-      const [ah,am] = ahoraHora().split(':').map(Number);
-      const diff = (ch*60+cm) - (ah*60+am);
+      const diff = limiteCitaMin(r) - ahoraMin();
       if(diff<0){
         activosIds.add(r.id);
         const ultimo = avisadosAtraso.current.get(r.id);
@@ -1172,7 +1177,7 @@ export function ProveedoresPage({user,online,addOffline}){
         };
 
         if(filtro==='confirmar'){
-          // Agrupación por puntualidad (spec Laura, tolerancia 5 min).
+          // Agrupación por puntualidad: atrasado solo después del fin de la franja + tolerancia (limiteCitaMin, decisión 2026-10-03).
           // atrasoMin se calcula con hora_ingreso REAL (llegada a portería
           // registrada), no con el countdown en vivo que usan las demás
           // pestañas -- así el orden no cambia solo porque pasa el tiempo
@@ -1193,14 +1198,15 @@ export function ProveedoresPage({user,online,addOffline}){
               // Si la cita aún no vence pero está a <=60 min (mismo umbral que
               // citaAlerta, ~línea 4358), es el aviso preventivo "regístrate a
               // WPS antes de tu cita" -- no debe perderse en sinCita.
-              if(ahoraMinC-citaMin>0){ atrasados.push({r,atrasoMin:ahoraMinC-citaMin,sinLlegar:true}); }
+              const limite = limiteCitaMin(r);
+              if(ahoraMinC>limite){ atrasados.push({r,atrasoMin:ahoraMinC-limite,sinLlegar:true}); }
               else if(citaMin-ahoraMinC<=60){ proximos.push({r,atrasoMin:null,diff:citaMin-ahoraMinC}); }
               else{ sinCita.push({r,atrasoMin:null}); }
               return;
             }
             const [ih,im]=r.hora_ingreso.split(':').map(Number);
-            const atrasoMin=(ih*60+im)-citaMin;
-            (atrasoMin>5?atrasados:aTiempo).push({r,atrasoMin});
+            const atrasoMin=(ih*60+im)-limiteCitaMin(r);
+            (atrasoMin>0?atrasados:aTiempo).push({r,atrasoMin});
           });
           const porHoraIngreso=(a,b)=>a.r.hora_ingreso<b.r.hora_ingreso?-1:a.r.hora_ingreso>b.r.hora_ingreso?1:0;
           // Dentro de atrasados: quien todavía no llega (sinLlegar) primero -- sigue
@@ -1263,18 +1269,19 @@ export function ProveedoresPage({user,online,addOffline}){
           // sigue en 'pendiente'). Se mantiene activa aunque la hora ya haya
           // pasado (diff negativo): sigue sin confirmarse, sigue alertando.
           const citaAlerta = (pendConf && r.hora_cita) ? (()=>{
-            const [ch,cm] = r.hora_cita.split(':').map(Number);
-            const [ah,am] = ahoraHora().split(':').map(Number);
-            const diff = (ch*60+cm) - (ah*60+am);
+            const ahora = ahoraMin();
+            const diff = minDe(r.hora_cita) - ahora;          // hasta el inicio de la franja
+            const atraso = ahora - limiteCitaMin(r);          // > 0: pasó fin de franja + tolerancia
+            if(atraso>0) return {diff, atraso};
             return diff<=60 ? {diff} : null;
           })() : null;
           const citaProxima = !!citaAlerta;
-          const citaVencida = citaProxima && citaAlerta.diff<0;
+          const citaVencida = citaProxima && citaAlerta.atraso>0;
           return cardFor(r,{
             style: citaVencida?{border:'1.5px solid #f87171',background:'#fef2f2'}:(citaProxima||pendConf)?{border:'1.5px solid #fcd34d',background:'#fffbeb'}:null,
             pill: citaAlerta&&(citaVencida
-              ?h('span',{className:'pill pill-red cita-blink',style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#fee2e2',color:'#991b1b',border:'1px solid #fca5a5',whiteSpace:'normal',maxWidth:220,lineHeight:1.35}},`⏰ Cita atrasada ${Math.abs(citaAlerta.diff)} min`)
-              :h('span',{className:'pill pill-amber cita-blink-suave',style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#fef3c7',color:'#92400e',border:'1px solid #fcd34d',whiteSpace:'normal',maxWidth:220,lineHeight:1.35}},`🔔 Registrar en WPS — cita en ${citaAlerta.diff} min`))
+              ?h('span',{className:'pill pill-red cita-blink',style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#fee2e2',color:'#991b1b',border:'1px solid #fca5a5',whiteSpace:'normal',maxWidth:220,lineHeight:1.35}},`⏰ Cita atrasada ${citaAlerta.atraso} min`)
+              :h('span',{className:'pill pill-amber cita-blink-suave',style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#fef3c7',color:'#92400e',border:'1px solid #fcd34d',whiteSpace:'normal',maxWidth:220,lineHeight:1.35}},(citaAlerta.diff>0?`🔔 Registrar en WPS — cita en ${citaAlerta.diff} min`:'🔔 Dentro de su franja — registrar en WPS')))
           });
         });
       })()

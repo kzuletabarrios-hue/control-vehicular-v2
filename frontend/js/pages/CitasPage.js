@@ -32,6 +32,37 @@ import { LoadingDots } from '../shared/LoadingDots.js';
 const { useState, useEffect, useCallback, useRef } = React;
 const h = React.createElement;
 
+// Ajuste de la tolerancia (minutos después del fin de la franja antes de
+// considerar tarde al proveedor). Solo para quien tiene citas:write (hoy,
+// admin). El backend aplica el valor también a las citas ya cargadas de hoy
+// en adelante.
+function EditarTolerancia({actual,onGuardado}){
+  const [valor,setValor] = useState(String(actual));
+  const [estado,setEstado] = useState(null);
+  const [guardando,setGuardando] = useState(false);
+  useEffect(()=>setValor(String(actual)),[actual]);
+  const guardar = async()=>{
+    const n = Number(valor);
+    if(!Number.isInteger(n)||n<0||n>240) return setEstado({type:'err',msg:'Escribe un número de minutos entre 0 y 240.'});
+    setGuardando(true);
+    try{
+      const r = await api.put('/citas/config',{tolerancia_min_default:n});
+      setEstado({type:'ok',msg:`Tolerancia guardada: ${n} min. Se aplicó a ${r.citas_actualizadas??0} cita(s) de hoy en adelante.`});
+      onGuardado&&onGuardado();
+    }catch(e){ setEstado({type:'err',msg:e.message||'No se pudo guardar'}); }
+    finally{ setGuardando(false); }
+  };
+  return h('div',{style:{marginTop:10,display:'flex',flexDirection:'column',gap:6}},
+    h('label',{htmlFor:'tolerancia-min',style:{fontSize:11,fontWeight:700,color:'var(--slate)'}},'Tolerancia después del fin de la franja (minutos)'),
+    h('div',{style:{display:'flex',gap:8,alignItems:'center'}},
+      h('input',{id:'tolerancia-min',type:'number',min:0,max:240,step:5,value:valor,onChange:e=>setValor(e.target.value),style:{width:90}}),
+      h('button',{onClick:guardar,disabled:guardando||String(actual)===valor,style:{background:'var(--navy2)',color:'#fff',border:'none',borderRadius:8,padding:'8px 14px',cursor:'pointer',fontWeight:700,fontSize:12,fontFamily:'inherit',opacity:(guardando||String(actual)===valor)?.5:1}},guardando?'Guardando...':'Guardar')
+    ),
+    h('p',{style:{fontSize:11,color:'var(--slate)',margin:0}},`Ejemplo: cita de 7:00 a 8:00 con ${Number(valor)||0} min → tarde desde las ${(()=>{const t=8*60+(Number(valor)||0);return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');})()}.`),
+    estado&&h(Alert,{...estado,onClose:()=>setEstado(null)})
+  );
+}
+
 export function CitasPage({user}){
   const [citas,setCitas]   = useState([]);
   const [config,setConfig] = useState(null);
@@ -91,7 +122,8 @@ export function CitasPage({user}){
       ),
       !loading&&!error&&config&&h('span',{className:'pill pill-slate',style:{marginTop:6,display:'inline-block'}},
         `Tolerancia vigente: ${config.tolerancia_min_default} min`
-      )
+      ),
+      !loading&&!error&&config&&puede(user,'citas','write')&&h(EditarTolerancia,{actual:config.tolerancia_min_default,onGuardado:load})
     ),
     puede(user,'citas','export')&&h('div',{style:{display:'flex',gap:8,padding:'8px 14px',flexWrap:'wrap',alignItems:'flex-end',background:'var(--white)',borderBottom:'1px solid var(--border)'}},
       h('div',{style:{display:'flex',flexDirection:'column',gap:2}},h('label',{style:{fontSize:10,color:'var(--slate)',fontWeight:600}},'Desde'),h('input',{type:'date',value:fi,onChange:e=>setFi(e.target.value),style:{fontSize:12}})),

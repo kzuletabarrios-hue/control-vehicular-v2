@@ -110,8 +110,16 @@ def actualizar_config(
         VALUES ('tolerancia_min_default', :v, NOW(), :uid)
         ON CONFLICT (clave) DO UPDATE SET valor = :v, updated_at = NOW(), updated_por = :uid
     """), {"v": str(tolerancia), "uid": current_user["id"]})
+    # Decisión de la usuaria (2026-10-03): el cambio aplica también a las
+    # citas ya cargadas de hoy en adelante, no solo al próximo archivo del
+    # WMS. Las citas de días anteriores conservan su valor histórico.
+    actualizadas = db.execute(text("""
+        UPDATE citas_programadas SET tolerancia_min = :v
+        WHERE fecha >= (NOW() AT TIME ZONE 'America/Bogota')::date
+          AND tolerancia_min IS DISTINCT FROM :v
+    """), {"v": tolerancia}).rowcount
     db.commit()
-    return {"tolerancia_min_default": tolerancia}
+    return {"tolerancia_min_default": tolerancia, "citas_actualizadas": actualizadas}
 
 
 @router.get("")

@@ -246,7 +246,41 @@ def _attach_ordenes(db, items: list[dict]) -> list[dict]:
         ordenes_map.setdefault(str(od["proveedor_id"]), []).append(od)
     for item in items:
         item["ordenes"] = ordenes_map.get(str(item["id"]), [])
+    _attach_limite_cita(db, items)
     return items
+
+
+def _attach_limite_cita(db, items: list[dict]) -> None:
+    """Agrega a cada proveedor el fin de su franja y su tolerancia, para que
+    el frontend decida "atrasado" con la misma regla que la cita vencida:
+    tarde solo después de hora_cita_fin + tolerancia_min (decisión de la
+    usuaria 2026-10-03: cita 7:00-8:00 con 15 min -> tarde desde las 8:15).
+
+    - cita_hora_fin: el fin de franja más tardío entre las citas enlazadas
+      (proveedores_ordenes.cita_id). Si no hay cita enlazada (hora_cita
+      digitada a mano), queda None y el frontend usa hora_cita como fin.
+    - cita_tolerancia_min: la de la cita enlazada, o la tolerancia vigente
+      en configuracion si no hay cita.
+    """
+    if not items:
+        return
+    cita_ids = {str(o["cita_id"]) for it in items for o in it.get("ordenes", []) if o.get("cita_id")}
+    citas: dict[str, dict] = {}
+    if cita_ids:
+        ph = ", ".join(f":c{i}" for i in range(len(cita_ids)))
+        rows = db.execute(
+            text(f"SELECT id, hora_cita_fin, tolerancia_min FROM citas_programadas WHERE id IN ({ph})"),
+            {f"c{i}": v for i, v in enumerate(cita_ids)},
+        ).fetchall()
+        citas = {str(r.id): {"fin": r.hora_cita_fin, "tol": r.tolerancia_min} for r in rows}
+    default = _tolerancia_min_default(db)
+    for it in items:
+        enlazadas = [citas[str(o["cita_id"])] for o in it.get("ordenes", []) if o.get("cita_id") and str(o["cita_id"]) in citas]
+        fines = [c["fin"] for c in enlazadas if c["fin"] is not None]
+        fin = max(fines) if fines else None
+        tol = next((c["tol"] for c in enlazadas if c["fin"] == fin and c["tol"] is not None), None) if fin else None
+        it["cita_hora_fin"] = fin.strftime("%H:%M") if fin else None
+        it["cita_tolerancia_min"] = tol if tol is not None else default
 
 
 @router.get("")
