@@ -238,8 +238,13 @@ def actualizar(
     if not _vacio(vals.get("hora_salida_cedi")) and _vacio(antes._mapping.get("hora_salida_cedi")):
         _validar_temperatura(_valor(vals, antes, "temperatura"))
         temp_final = _valor(vals, antes, "temperatura")
-        if str(temp_final).strip().upper() == "N/A" and _vacio(_valor(vals, antes, "obs_salida")):
-            raise HTTPException(422, "Si la temperatura es N/A debes indicar el motivo en las observaciones de salida")
+        # El motivo debe escribirse al cerrar la salida: una observación que ya
+        # estaba guardada (p.ej. "carga con golpe") no cuenta como motivo.
+        if str(temp_final).strip().upper() == "N/A":
+            motivo = vals.get("obs_salida")
+            previa = antes._mapping.get("obs_salida")
+            if _vacio(motivo) or str(motivo).strip() == str(previa or "").strip():
+                raise HTTPException(422, "Si la temperatura es N/A debes escribir el motivo en las observaciones de salida")
         if _sello_invalido(_valor(vals, antes, "sello")):
             raise HTTPException(422, "El N° de sello de salida es obligatorio y no puede ser solo ceros")
         if _vacio(_valor(vals, antes, "tipo_sello")):

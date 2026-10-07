@@ -363,10 +363,24 @@ def test_salida_temperatura_na_motivo_en_blanco_422(headers, mk):
     assert r.status_code == 422
 
 
-def test_salida_temperatura_na_con_motivo_ya_guardado_200(headers, mk):
-    rid = mk(conductor="C", sello="123456", obs_salida="Carga seca")
+def test_salida_temperatura_na_observacion_previa_no_cuenta_como_motivo_422(headers, mk):
+    rid = mk(conductor="C", sello="123456", obs_salida="Carga con golpe")
     r = client.put(f"/api/flota/{rid}", json=_salida(temperatura="N/A"), headers=headers)
+    assert r.status_code == 422, r.text
+    r = client.put(f"/api/flota/{rid}", json=_salida(temperatura="N/A", obs_salida="Carga con golpe"), headers=headers)
+    assert r.status_code == 422, r.text
+
+
+def test_salida_temperatura_na_con_motivo_nuevo_sobre_observacion_previa_200(headers, mk):
+    rid = mk(conductor="C", sello="123456", obs_salida="Carga con golpe")
+    r = client.put(f"/api/flota/{rid}", json=_salida(temperatura="N/A", obs_salida="Carga con golpe. Carga seca, no requiere frío"), headers=headers)
     assert r.status_code == 200, r.text
+
+
+def test_salida_temperatura_na_minusculas_exige_motivo_422(headers, mk):
+    rid = mk(conductor="C", sello="123456")
+    r = client.put(f"/api/flota/{rid}", json=_salida(temperatura=" n/a "), headers=headers)
+    assert r.status_code == 422, r.text
 
 
 def test_salida_con_temperatura_numerica_no_exige_motivo(headers, mk):

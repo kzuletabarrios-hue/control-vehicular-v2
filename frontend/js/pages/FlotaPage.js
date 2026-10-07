@@ -514,7 +514,7 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
           h('button',{className:'btn-primary',style:{background:'#059669'},disabled:saving,onClick:async()=>{
             if(selloInvalido(selloSalida)) return setAlert({type:'err',msg:'El número de sello de salida es obligatorio y no puede ser 0000'});
             const errT=validarTemp(tempSalida); if(errT) return setAlert({type:'err',msg:errT});
-            if(String(tempSalida).trim()==='N/A'&&obsSalida.trim().length<3) return setAlert({type:'err',msg:'Si la temperatura es N/A, escribe el motivo'});
+            if(String(tempSalida).trim()==='N/A'&&(obsSalida.trim().length<3||obsSalida.trim()===String((salida&&salida.obs_salida)||'').trim())) return setAlert({type:'err',msg:'Si la temperatura es N/A, escribe el motivo (no basta la observación que ya tenía)'});
             setSaving(true);
             try{
             const ts=await _tsBog();const body={hora_salida_cedi:ts.hora,fecha_salida:ts.fecha,sello:selloSalida.trim(),temperatura:String(tempSalida).trim(),obs_salida:obsSalida.trim()||undefined,foto_salida:fotoSalida||undefined};
@@ -663,7 +663,7 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
             const sello=(selloSalida||detalleVeh.sello||'').trim();
             if(selloInvalido(sello)) return setAlert({type:'err',msg:'Ingresa el N° de sello de salida (no puede estar vacío ni ser 0000)'});
             const errT=validarTemp(tempSalida); if(errT) return setAlert({type:'err',msg:errT});
-            if(String(tempSalida).trim()==='N/A'&&obsSalida.trim().length<3) return setAlert({type:'err',msg:'Si la temperatura es N/A, escribe el motivo'});
+            if(String(tempSalida).trim()==='N/A'&&(obsSalida.trim().length<3||obsSalida.trim()===String((detalleVeh&&detalleVeh.obs_salida)||'').trim())) return setAlert({type:'err',msg:'Si la temperatura es N/A, escribe el motivo (no basta la observación que ya tenía)'});
             const tipoS=(tipoSelloSalida||detalleVeh.tipo_sello||'').trim();
             if(!tipoS) return setAlert({type:'err',msg:'Selecciona el tipo de sello de salida (o N/A)'});
             const faltaCond=sinConductor(detalleVeh);
