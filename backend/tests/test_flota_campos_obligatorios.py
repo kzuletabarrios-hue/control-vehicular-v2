@@ -10,8 +10,6 @@ cerrados NO deben fallar.
 import uuid
 
 import pytest
-
-from tests.flota_alta_helper import alta_ok
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
@@ -79,7 +77,7 @@ def test_post_conductor_en_blanco_422(headers):
 
 
 def test_post_con_conductor_texto_201(headers):
-    r = client.post("/api/flota", json={"fecha": "2026-10-07", "placa": "QAOBLIG02", "conductor": "Juan Perez - CC 123", **alta_ok()}, headers=headers)
+    r = client.post("/api/flota", json={"fecha": "2026-10-07", "placa": "QAOBLIG02", "conductor": "Juan Perez - CC 123"}, headers=headers)
     assert r.status_code == 201, r.text
     _borrar(r.json()["id"])
 
@@ -95,7 +93,7 @@ def test_post_codigo_conductor_valido_201(headers):
     db.close()
     if not row:
         pytest.skip("no hay conductores en el seed")
-    r = client.post("/api/flota", json={"fecha": "2026-10-07", "placa": "QAOBLIG02", "codigo_conductor": row.codigo, **alta_ok()}, headers=headers)
+    r = client.post("/api/flota", json={"fecha": "2026-10-07", "placa": "QAOBLIG02", "codigo_conductor": row.codigo}, headers=headers)
     assert r.status_code == 201, r.text
     _borrar(r.json()["id"])
 
@@ -328,24 +326,3 @@ def test_llegada_todo_na_200(headers, mk):
     rid = mk(conductor="C", hora_salida_cedi="09:00")
     r = client.put(f"/api/flota/{rid}", json={"hora_llegada": "12:00", "sello_entrada": "N/A", "tipo_sello_entrada": "N/A"}, headers=headers)
     assert r.status_code == 200, r.text
-
-
-# ═══ Registro inicial: campos obligatorios en el servidor ═══
-@pytest.mark.parametrize("campo", ["muelle_cargue", "n_pallets", "n_contenedores", "cant_volumen_externo", "tienda_1", "protocolo", "observacion"])
-def test_alta_sin_campo_obligatorio_422(headers, campo):
-    body = {"fecha": "2026-10-07", "placa": "QAOBLIG03", "conductor": "C", **alta_ok()}
-    body.pop(campo)
-    r = client.post("/api/flota", json=body, headers=headers)
-    assert r.status_code == 422, r.text
-    assert "obligatorios" in r.json()["detail"].lower()
-
-
-def test_alta_completa_con_na_y_ceros_201(headers):
-    r = client.post("/api/flota", json={"fecha": "2026-10-07", "placa": "QAOBLIG03", "conductor": "C", **alta_ok()}, headers=headers)
-    assert r.status_code == 201, r.text
-    _borrar(r.json()["id"])
-
-
-def test_alta_campo_en_blanco_cuenta_como_faltante(headers):
-    r = client.post("/api/flota", json={"fecha": "2026-10-07", "placa": "QAOBLIG03", "conductor": "C", **alta_ok(protocolo="   ")}, headers=headers)
-    assert r.status_code == 422

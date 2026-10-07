@@ -17,8 +17,6 @@ Cada test limpia lo que crea.
 import uuid
 
 import pytest
-
-from tests.flota_alta_helper import alta_ok
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
@@ -93,7 +91,7 @@ def test_guarda_puede_listar_placas_del_maestro(guarda, placa_maestro):
 
 def test_crear_normaliza_y_marca_placa_del_maestro_como_verificada(admin, placa_maestro):
     escrita = placa_maestro[:2].lower() + " - " + placa_maestro[2:]
-    r = client.post("/api/flota", headers=admin, json={"placa": escrita, "fecha": "2026-10-03", "conductor": "QA Conductor", **alta_ok()})
+    r = client.post("/api/flota", headers=admin, json={"placa": escrita, "fecha": "2026-10-03", "conductor": "QA Conductor"})
     assert r.status_code == 201, r.text
     fid = r.json()["id"]
     try:
@@ -106,7 +104,7 @@ def test_crear_normaliza_y_marca_placa_del_maestro_como_verificada(admin, placa_
 
 def test_placa_fuera_del_maestro_se_guarda_y_queda_no_verificada(admin):
     placa = "ZZ" + uuid.uuid4().hex[:4].upper()
-    r = client.post("/api/flota", headers=admin, json={"placa": placa.lower(), "fecha": "2026-10-03", "conductor": "QA Conductor", **alta_ok()})
+    r = client.post("/api/flota", headers=admin, json={"placa": placa.lower(), "fecha": "2026-10-03", "conductor": "QA Conductor"})
     assert r.status_code == 201, r.text
     fid = r.json()["id"]
     try:
@@ -118,7 +116,7 @@ def test_placa_fuera_del_maestro_se_guarda_y_queda_no_verificada(admin):
 
 
 def test_actualizar_normaliza_placa(admin, placa_maestro):
-    r = client.post("/api/flota", headers=admin, json={"placa": "TEMP1", "fecha": "2026-10-03", "conductor": "QA Conductor", **alta_ok()})
+    r = client.post("/api/flota", headers=admin, json={"placa": "TEMP1", "fecha": "2026-10-03", "conductor": "QA Conductor"})
     fid = r.json()["id"]
     try:
         u = client.put(f"/api/flota/{fid}", headers=admin, json={"placa": " " + placa_maestro.lower() + " "})

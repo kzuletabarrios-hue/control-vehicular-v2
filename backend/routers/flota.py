@@ -16,19 +16,6 @@ router = APIRouter()
 # la salida del CEDI o la llegada (transición de vacío -> con hora).
 TEMP_MIN, TEMP_MAX = -30.0, 30.0
 
-# Obligatorios en el ALTA (POST). El 0 es válido en pallets/contenedores
-# ("N/A" se guarda como 0 porque la columna es INT). No aplica a duplicar ni
-# a cargas masivas, que no pasan por este endpoint.
-CAMPOS_ALTA_OBLIGATORIOS = [
-    ("muelle_cargue", "muelle de cargue"),
-    ("n_pallets", "N° pallets"),
-    ("n_contenedores", "N° contenedores"),
-    ("cant_volumen_externo", "volumen externo"),
-    ("tienda_1", "tienda 1"),
-    ("protocolo", "protocolo"),
-    ("observacion", "observación"),
-]
-
 
 def _vacio(v) -> bool:
     return v is None or (isinstance(v, str) and not v.strip())
@@ -179,14 +166,6 @@ def crear(
     vals = {c: body.get(c) for c in campos}
     if not _tiene_conductor(vals.get("conductor"), vals.get("codigo_conductor"), db):
         raise HTTPException(422, "El conductor es obligatorio (selecciónalo o escribe su nombre)")
-    faltan = [
-        nombre for campo, nombre in CAMPOS_ALTA_OBLIGATORIOS if _vacio(vals.get(campo))
-    ]
-    if faltan:
-        raise HTTPException(
-            422,
-            "Campos obligatorios sin completar (usa N/A si no aplica): " + ", ".join(faltan),
-        )
     vals["placa"] = normalizar_placa(vals.get("placa"))
     vals["id"] = rid
     vals["creado_por"] = current_user["id"]
