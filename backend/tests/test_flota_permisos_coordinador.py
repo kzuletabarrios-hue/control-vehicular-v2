@@ -208,7 +208,7 @@ def test_coordinador_obtiene_registro_inexistente_404_nunca_403(token_coordinado
 def test_coordinador_no_puede_crear_flota_403(token_coordinador):
     resp = client.post(
         "/api/flota",
-        json={"fecha": "2026-01-01", "placa": "QA-COORD-POST"},
+        json={"fecha": "2026-01-01", "placa": "QA-COORD-POST", "conductor": "X"},
         headers=_bearer(token_coordinador),
     )
     assert resp.status_code == 403
@@ -419,6 +419,7 @@ def test_admin_crea_flota_via_post_201(token_admin):
             json={
                 "fecha": "2026-01-01",
                 "placa": "QA-ADMIN-POST-001",
+                "conductor": "Conductor QA",
                 "tipo_sello": "plomo",
                 "tipo_sello_entrada": "plastico",
                 "obs_salida": "salida de prueba QA",

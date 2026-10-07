@@ -10,6 +10,57 @@ from utils_placas import normalizar_placa
 router = APIRouter()
 
 
+# ── Validaciones de campos obligatorios (auditoría de datos faltantes) ──
+# Viven en el endpoint (no en la BD) para no romper cargas masivas ni
+# correcciones históricas: solo aplican al crear un registro y al CERRAR
+# la salida del CEDI o la llegada (transición de vacío -> con hora).
+TEMP_MIN, TEMP_MAX = -30.0, 30.0
+
+
+def _vacio(v) -> bool:
+    return v is None or (isinstance(v, str) and not v.strip())
+
+
+def _sello_invalido(v) -> bool:
+    """Vacío o compuesto solo de ceros ('0', '0000')."""
+    if _vacio(v):
+        return True
+    s = str(v).strip()
+    return s.strip("0") == ""
+
+
+def _valor(body: dict, antes, campo: str):
+    """Valor del body si viene en la petición; si no, el ya guardado."""
+    if campo in body:
+        return body[campo]
+    return antes._mapping.get(campo) if antes is not None else None
+
+
+def _validar_temperatura(v):
+    if _vacio(v):
+        raise HTTPException(422, "La temperatura es obligatoria para registrar la salida del CEDI")
+    try:
+        t = float(str(v).strip().replace(",", "."))
+    except (ValueError, TypeError):
+        raise HTTPException(422, "La temperatura debe ser un número válido")
+    if t != t or not (TEMP_MIN <= t <= TEMP_MAX):
+        raise HTTPException(422, f"La temperatura debe estar entre {TEMP_MIN:g} y {TEMP_MAX:g} °C")
+
+
+def _tiene_conductor(texto, codigo, db) -> bool:
+    if not _vacio(texto):
+        return True
+    if _vacio(codigo):
+        return False
+    try:
+        return db.execute(
+            text("SELECT 1 FROM conductores WHERE codigo = :c"), {"c": int(codigo)}
+        ).fetchone() is not None
+    except (ValueError, TypeError):
+        return False
+
+
+
 @router.get("")
 def listar(
     fecha: str = None,
@@ -111,6 +162,8 @@ def crear(
         "obs_salida", "foto_salida", "obs_llegada", "foto_llegada",
     ]
     vals = {c: body.get(c) for c in campos}
+    if not _tiene_conductor(vals.get("conductor"), vals.get("codigo_conductor"), db):
+        raise HTTPException(422, "El conductor es obligatorio (selecciónalo o escribe su nombre)")
     vals["placa"] = normalizar_placa(vals.get("placa"))
     vals["id"] = rid
     vals["creado_por"] = current_user["id"]
@@ -157,6 +210,18 @@ def actualizar(
     if "placa" in vals:
         vals["placa"] = normalizar_placa(vals["placa"])
     vals["id"] = id
+
+    # Cierre de salida CEDI: solo cuando este PUT la registra por primera vez.
+    if not _vacio(vals.get("hora_salida_cedi")) and _vacio(antes._mapping.get("hora_salida_cedi")):
+        _validar_temperatura(_valor(vals, antes, "temperatura"))
+        if _sello_invalido(_valor(vals, antes, "sello")):
+            raise HTTPException(422, "El N° de sello de salida es obligatorio y no puede ser solo ceros")
+        if not _tiene_conductor(_valor(vals, antes, "conductor"), _valor(vals, antes, "codigo_conductor"), db):
+            raise HTTPException(422, "El conductor es obligatorio para registrar la salida del CEDI")
+    # Cierre de llegada: solo cuando este PUT la registra por primera vez.
+    if not _vacio(vals.get("hora_llegada")) and _vacio(antes._mapping.get("hora_llegada")):
+        if _sello_invalido(_valor(vals, antes, "sello_entrada")):
+            raise HTTPException(422, "El N° de sello de entrada es obligatorio y no puede ser solo ceros")
 
     sets = ", ".join(f"{c} = :{c}" for c in vals if c != "id")
     db.execute(text(f"UPDATE flota_propia SET {sets}, updated_at = NOW() WHERE id = :id"), vals)
