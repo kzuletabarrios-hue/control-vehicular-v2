@@ -69,10 +69,15 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
   // Maestro de placas (vehículos activos). Se guarda en el celular para que
   // el selector funcione sin conexión. Una placa fuera del maestro se puede
   // guardar igual, pero queda marcada como "no verificada" para revisión.
+  // Placa: se elige del maestro; "Otra placa" (excepción) habilita escribirla.
+  const [placaOtra,setPlacaOtra] = useState(false);
+  // Cuántos selectores de tienda se muestran (se agregan con "+ Agregar tienda").
+  const [nTiendasUI,setNTiendasUI] = useState(1);
   const [vehiculos,setVehiculos] = useState(()=>{try{return JSON.parse(localStorage.getItem('cv_vehiculos')||'[]');}catch{return [];}});
   const [sugerPlaca,setSugerPlaca] = useState([]);
   const emptyF = {fecha:today(),placa:'',conductor:'',codigo_conductor:'',n_pallets:'',n_contenedores:'',cant_volumen_externo:'',muelle_cargue:'',tienda_1:'',tienda_2:'',tienda_3:'',tienda_4:'',tienda_5:'',ultima_tienda:'',protocolo:'',sello:'',tipo_sello:'',sello_entrada:'',tipo_sello_entrada:'',hora_salida_muelle:ahoraHora(),temperatura:'',hora_salida_cedi:'',hora_llegada:'',observacion:'',foto_url:null};
   const [form,setForm]         = useState(emptyF);
+  useEffect(()=>{setPlacaOtra(false);setNTiendasUI(1);},[view,selected]);
   const [filtro,setFiltro]      = useState('pendientes');
   const [busqueda,setBusqueda]  = useState('');
 
@@ -114,6 +119,23 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
     ),
     valorActual&&h('div',{style:{padding:'8px 10px',background:'#f0fdf4',border:'1px solid #86efac',borderRadius:8,fontSize:12,color:'#166534',marginTop:4}},'✓ ',valorActual)
   );
+  // Campo obligatorio con botón "N/A" para lo que no aplica. Los enteros
+  // (n_pallets, n_contenedores) no admiten texto en la BD: N/A se guarda como 0.
+  const campoNA = (name,label,{num=false}={})=>{
+    const v = form[name]; const vacio = v==null||v==='';
+    const esNA = num ? (String(v)==='0') : v==='N/A';
+    return h('div',{className:'fg'},
+      h('label',null,label,h('span',{className:'req'},'*')),
+      h('div',{style:{display:'flex',gap:6}},
+        h('input',{type:num?'number':'text',min:num?0:undefined,value:vacio?'':v,readOnly:esNA&&!num,
+          onChange:e=>setForm(p=>({...p,[name]:e.target.value})),placeholder:'Obligatorio',
+          style:esNA&&!num?{background:'#f8fafc'}:{}}),
+        h('button',{type:'button',onClick:()=>setForm(p=>({...p,[name]:esNA?'':(num?'0':'N/A')})),
+          style:{border:'1.5px solid '+(esNA?'#2563eb':'var(--border)'),background:esNA?'#dbeafe':'#fff',color:esNA?'#1d4ed8':'var(--slate)',borderRadius:8,padding:'0 10px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0}},
+          esNA?'N/A ✓':'N/A'))
+    );
+  };
+  const MUELLES_FLOTA = Array.from({length:22},(_,i)=>String(i+1));
   const selloInvalido = v => !String(v||'').trim() || /^0+$/.test(String(v).trim());
   const validarTemp = v => {
     const t=String(v??'').trim();
@@ -129,6 +151,9 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
     setForm(f=>({...f,placa:p}));
     setSugerPlaca(p ? vehiculos.filter(v=>v.placa.includes(p)).slice(0,8) : []);
   };
+  const ultimaTiendaIdx = [5,4,3,2,1].find(n=>form['tienda_'+n])||0;
+  const tiendasVisibles = Math.min(5,Math.max(nTiendasUI,ultimaTiendaIdx,1));
+  const otraPlacaActiva = placaOtra || vehiculos.length===0 || (!!form.placa && !vehiculos.some(v=>v.placa===form.placa));
   const placaFueraMaestro = !!form.placa && vehiculos.length>0 && !vehiculos.some(v=>v.placa===form.placa);
   const limpiarForm = ()=>{setForm(emptyF);setSelected(null);resetConductorUI();setSugerPlaca([]);};
 
@@ -187,6 +212,18 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
     // existente no se bloquea: el conductor faltante se exige al registrar la salida.
     if(!selected && !String(form.conductor||'').trim() && !form.codigo_conductor)
       return setAlert({type:'err',msg:'El conductor es obligatorio: selecciónalo o escribe su nombre'});
+    if(!selected){
+      const falta=[];
+      const vac=k=>form[k]==null||String(form[k]).trim()==='';
+      if(vac('muelle_cargue')) falta.push('muelle de cargue');
+      if(vac('n_pallets')) falta.push('N° pallets');
+      if(vac('n_contenedores')) falta.push('N° contenedores');
+      if(vac('cant_volumen_externo')) falta.push('volumen externo');
+      if(vac('tienda_1')) falta.push('al menos una tienda');
+      if(vac('protocolo')) falta.push('protocolo');
+      if(vac('observacion')) falta.push('observación');
+      if(falta.length) return setAlert({type:'err',msg:'Completa los campos obligatorios (usa N/A si no aplica): '+falta.join(', ')});
+    }
     setSaving(true);
     const body = Object.fromEntries(Object.entries({...form,placa:normPlaca(form.placa)}).filter(([,v])=>v!=null&&v!==''));
     if(!selected){const ts=await _tsBog();body.fecha=ts.fecha;body.hora_salida_muelle=ts.hora;}
@@ -227,11 +264,12 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},h('label',null,'Fecha',h('span',{className:'req'},'*')),h('input',{type:'date',value:form.fecha,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg',style:{position:'relative'}},h('label',null,'Placa',h('span',{className:'req'},'*')),
-            h('input',{type:'text',value:form.placa,onChange:e=>escribirPlaca(e.target.value),onFocus:e=>escribirPlaca(e.target.value),onBlur:()=>setTimeout(()=>setSugerPlaca([]),150),placeholder:'Buscar placa...',autoComplete:'off'}),
-            sugerPlaca.length>0&&h('div',{style:{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid var(--border)',borderRadius:8,zIndex:50,boxShadow:'var(--shadow)',maxHeight:180,overflowY:'auto'}},
-              sugerPlaca.map(v=>h('div',{key:v.placa,onMouseDown:e=>e.preventDefault(),onClick:()=>{setForm(f=>({...f,placa:v.placa}));setSugerPlaca([]);},style:{padding:'10px 12px',cursor:'pointer',borderBottom:'1px solid var(--border)',fontSize:13}},
-                h('strong',null,v.placa),v.tipo&&h('span',{style:{color:'var(--slate)',marginLeft:6,fontSize:11}},v.tipo)))
+            h('select',{value:otraPlacaActiva?'__otra__':form.placa,onChange:e=>{const v=e.target.value;if(v==='__otra__'){setPlacaOtra(true);setForm(f=>({...f,placa:''}));}else{setPlacaOtra(false);setSugerPlaca([]);setForm(f=>({...f,placa:v}));}}},
+              h('option',{value:''},'Seleccionar placa...'),
+              ...vehiculos.map(v=>h('option',{key:v.placa,value:v.placa},v.placa+(v.tipo?' · '+v.tipo:''))),
+              h('option',{value:'__otra__'},'Otra placa (excepción)')
             ),
+            otraPlacaActiva&&h('input',{type:'text',value:form.placa,style:{marginTop:6},onChange:e=>escribirPlaca(e.target.value),placeholder:'Escribe la placa (excepción)',autoComplete:'off'}),
             placaFueraMaestro&&h('p',{style:{fontSize:11,color:'#92400e',background:'#fef3c7',borderRadius:6,padding:'6px 8px',margin:'6px 0 0'}},
               'Esta placa no está en la lista oficial. Se puede guardar, pero quedará marcada para revisión. Revisa que esté bien escrita.')
           )
@@ -241,17 +279,27 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'package',s:12}),' Carga y muelle'),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'N° Pallets'),h('input',{type:'text',value:form.n_pallets||'',onChange:e=>setForm(p=>({...p,n_pallets:e.target.value}))})),
-          h('div',{className:'fg'},h('label',null,'N° Contenedores'),h('input',{type:'text',value:form.n_contenedores||'',onChange:e=>setForm(p=>({...p,n_contenedores:e.target.value}))})),
-          h('div',{className:'fg'},h('label',null,'Vol. Externo'),h('input',{type:'text',value:form.cant_volumen_externo||'',onChange:e=>setForm(p=>({...p,cant_volumen_externo:e.target.value}))})),
-          h('div',{className:'fg'},h('label',null,'Muelle cargue'),h('input',{type:'number',value:form.muelle_cargue||'',onChange:e=>setForm(p=>({...p,muelle_cargue:e.target.value}))}))
+          campoNA('n_pallets','N° Pallets',{num:true}),
+          campoNA('n_contenedores','N° Contenedores',{num:true}),
+          campoNA('cant_volumen_externo','Vol. Externo'),
+          h('div',{className:'fg'},h('label',null,'Muelle cargue',h('span',{className:'req'},'*')),
+            h('select',{value:form.muelle_cargue||'',onChange:e=>setForm(p=>({...p,muelle_cargue:e.target.value}))},
+              h('option',{value:''},'Seleccionar muelle...'),
+              ...MUELLES_FLOTA.map(m=>h('option',{key:m,value:m},'Muelle '+m)),
+              h('option',{value:'N/A'},'N/A'),
+              form.muelle_cargue&&!MUELLES_FLOTA.includes(String(form.muelle_cargue))&&form.muelle_cargue!=='N/A'&&h('option',{value:form.muelle_cargue},String(form.muelle_cargue))
+            ))
         )
       ),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},'Ruta de distribución'),
-        ...['tienda_1','tienda_2','tienda_3','tienda_4','tienda_5','ultima_tienda'].map((f,i)=>
-          h(TiendaPicker,{key:f,label:i<5?`Tienda ${i+1}`:'Última tienda',tiendas,value:form[f]||'',onChange:val=>setForm(p=>({...p,[f]:val}))})
-        )
+        ...['tienda_1','tienda_2','tienda_3','tienda_4','tienda_5'].slice(0,tiendasVisibles).map((f,i)=>
+          h(TiendaPicker,{key:f,label:`Tienda ${i+1}`+(i===0?' *':''),tiendas,value:form[f]||'',onChange:val=>setForm(p=>({...p,[f]:val}))})
+        ),
+        tiendasVisibles<5&&h('button',{type:'button',disabled:!form['tienda_'+tiendasVisibles],onClick:()=>setNTiendasUI(tiendasVisibles+1),
+          style:{background:'none',border:'1.5px dashed var(--border)',borderRadius:8,padding:'8px 12px',color:form['tienda_'+tiendasVisibles]?'#1d4ed8':'#94a3b8',fontWeight:700,fontSize:13,cursor:form['tienda_'+tiendasVisibles]?'pointer':'default',fontFamily:'inherit',width:'100%',marginBottom:8}},
+          '+ Agregar tienda'),
+        h(TiendaPicker,{key:'ultima_tienda',label:'Última tienda',tiendas,value:form.ultima_tienda||'',onChange:val=>setForm(p=>({...p,ultima_tienda:val}))})
       ),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'thermometer',s:12}),' Horarios y temperatura'),
@@ -262,10 +310,10 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
           !esBodega&&h('div',{className:'fg'},h('label',null,'Temperatura °C'),h('input',{type:'number',step:'0.1',value:form.temperatura||'',onChange:e=>setForm(p=>({...p,temperatura:e.target.value}))}))
         ),
         h('div',{className:'fgrid2'},
-          h('div',{className:'fg'},h('label',null,'Protocolo'),h('input',{type:'text',value:form.protocolo||'',onChange:e=>setForm(p=>({...p,protocolo:e.target.value}))})),
+          campoNA('protocolo','Protocolo'),
           h('div',{className:'fg'},h('label',null,'N° Sello'),h('input',{type:'text',value:form.sello||'',onChange:e=>setForm(p=>({...p,sello:e.target.value}))}))
         ),
-        h('div',{className:'fg'},h('label',null,'Observación'),h('textarea',{value:form.observacion||'',onChange:e=>setForm(p=>({...p,observacion:e.target.value})),rows:3}))
+        campoNA('observacion','Observación')
       ),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'camera',s:12}),' Fotografía'),
