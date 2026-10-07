@@ -18,7 +18,7 @@
 
 import { Ico } from './core/icons.js';
 import { api } from './core/api-client.js';
-import { getUser, getQueue, addToQueue, clearQueue } from './core/auth-store.js';
+import { getUser, getQueue, addToQueue, clearQueue, saveQueue } from './core/auth-store.js';
 import { puede } from './core/utils.js';
 import { useVisibilityPolling } from './core/hooks.js';
 import { AppHeader } from './shell/AppHeader.js';
@@ -96,19 +96,42 @@ export function App(){
 
   const addOffline = (item)=>{ addToQueue(item); setQueue(getQueue()); };
 
+  // Texto legible del error del servidor (FastAPI responde {"detail": ...}).
+  const motivoError = (e)=>{
+    try{
+      const d = JSON.parse(e.message).detail;
+      if(Array.isArray(d)) return d.map(x=>x.msg).join('; ');
+      if(d) return String(d);
+    }catch{}
+    return e.message ? String(e.message).slice(0,200) : 'Error de conexión';
+  };
+  // Los registros que el servidor rechaza (o que no se pudieron enviar) NO se
+  // borran: quedan en la cola con su motivo para corregirlos o descartarlos a
+  // mano. Solo se quitan los enviados con éxito. La sincronización es manual
+  // (botón), no hay reintentos automáticos en bucle.
   const syncQueue = async()=>{
     const q = getQueue();
     if(!q.length||!online) return;
-    let ok=0,fail=0;
+    let ok=0;
+    const pendientes=[];
     for(const item of q){
       try{
-        if(item.method==='POST') await api.post(item.endpoint,item.body);
-        else if(item.method==='PUT') await api.put(item.endpoint,item.body);
+        let r;
+        if(item.method==='POST') r = await api.post(item.endpoint,item.body);
+        else if(item.method==='PUT') r = await api.put(item.endpoint,item.body);
+        // api devuelve undefined cuando la sesión expiró (recarga la página): no cuenta como enviado.
+        if(r===undefined) throw new Error('Sesión expirada: vuelve a iniciar sesión y sincroniza de nuevo');
         ok++;
-      }catch(e){fail++;}
+      }catch(e){
+        pendientes.push({...item,error:motivoError(e),intentos:(item.intentos||0)+1});
+      }
     }
-    clearQueue(); setQueue([]);
-    alert(`Sincronización: ${ok} enviados, ${fail} con error.`);
+    saveQueue(pendientes); setQueue(pendientes);
+    alert(`Sincronización: ${ok} enviados, ${pendientes.length} con error (siguen pendientes, revisa el aviso).`);
+  };
+  const descartarPendiente = (id)=>{
+    const rest = getQueue().filter(i=>i.id!==id);
+    saveQueue(rest); setQueue(rest);
   };
 
   if(!user) return h(LoginPage,{onLogin:(u)=>setUser(u)});
@@ -170,6 +193,13 @@ export function App(){
         h(Ico,{n:'wifi',s:14}),
         h('p',null,`${queue.length} registros pendientes de sincronizar`),
         h('button',{onClick:syncQueue},'Sincronizar ahora')
+      ),
+      queue.some(i=>i.error)&&h('div',{style:{background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:8,margin:'6px 12px',padding:'8px 10px',fontSize:12,color:'#991b1b'}},
+        h('strong',null,'Registros que no se pudieron enviar:'),
+        queue.filter(i=>i.error).map(i=>h('div',{key:i.id,style:{display:'flex',gap:8,alignItems:'flex-start',justifyContent:'space-between',marginTop:6,paddingTop:6,borderTop:'1px solid #fecaca'}},
+          h('span',null,(i.body&&i.body.placa?i.body.placa+' · ':'')+i.error),
+          h('button',{onClick:()=>{if(confirm('¿Descartar este registro? Se perderá.')) descartarPendiente(i.id);},style:{flexShrink:0,background:'none',border:'1px solid #991b1b',color:'#991b1b',borderRadius:6,fontSize:11,fontWeight:700,padding:'2px 8px',cursor:'pointer'}},'Descartar')
+        ))
       ),
       pageContent[page]||pageContent['home'],
       h(BtnNovedad,{user,moduloActual:page})
