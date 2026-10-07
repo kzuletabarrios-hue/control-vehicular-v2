@@ -156,7 +156,7 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
   // rol, porque es la vista que sí trae hora, fecha y ruta juntos.
   const abrirDetalle = (r) => {
     setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');setTipoSelloEntrada(r.tipo_sello_entrada||'');
-    setSelloEntradaDetalle(r.sello_entrada||'');setSelloSalida(r.sello||'');setTempSalida(r.temperatura||'');
+    setSelloEntradaDetalle(r.sello_entrada||'');setSelloSalida(r.sello||'');setTempSalida(r.temperatura??'');
     setObsSalida(r.obs_salida||'');setObsLleg(r.obs_llegada||'');setUltimaTiendaLleg(r.ultima_tienda||'');
     resetConductorUI();setCondDetalle({conductor:'',codigo_conductor:''});
   };
@@ -183,8 +183,9 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
 
   const handleSave = async()=>{
     if(!normPlaca(form.placa)) return setAlert({type:'err',msg:'La placa es obligatoria'});
-    // Registros ya cerrados (histórico) se pueden corregir sin exigir conductor.
-    if(!form.hora_llegada && !String(form.conductor||'').trim() && !form.codigo_conductor)
+    // Solo se exige en el alta (igual que el backend). Al editar un registro
+    // existente no se bloquea: el conductor faltante se exige al registrar la salida.
+    if(!selected && !String(form.conductor||'').trim() && !form.codigo_conductor)
       return setAlert({type:'err',msg:'El conductor es obligatorio: selecciónalo o escribe su nombre'});
     setSaving(true);
     const body = Object.fromEntries(Object.entries({...form,placa:normPlaca(form.placa)}).filter(([,v])=>v!=null&&v!==''));
