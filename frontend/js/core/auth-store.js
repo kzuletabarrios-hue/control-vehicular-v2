@@ -16,6 +16,6 @@ export const setRefresh = (t) => localStorage.setItem('cv_refresh',t);
 // ── OFFLINE QUEUE ──
 export const QUEUE_KEY = 'cv_offline_queue';
 export const getQueue = () => { try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]')}catch{return []} };
-export const addToQueue = (item) => { const q = getQueue(); q.push({...item,id:Date.now(),ts:new Date().toISOString()}); localStorage.setItem(QUEUE_KEY,JSON.stringify(q)); };
+export const addToQueue = (item) => { const q = getQueue(); q.push({...item,id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,ts:new Date().toISOString()}); localStorage.setItem(QUEUE_KEY,JSON.stringify(q)); };
 export const saveQueue = (q) => { if(q.length) localStorage.setItem(QUEUE_KEY,JSON.stringify(q)); else localStorage.removeItem(QUEUE_KEY); };
 export const clearQueue = () => localStorage.removeItem(QUEUE_KEY);

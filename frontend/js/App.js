@@ -41,7 +41,7 @@ import { MuellesPage } from './pages/muelles/index.js';
 import { CitasPage } from './pages/CitasPage.js';
 import { ProveedorAutorregistroPage } from './pages/ProveedorAutorregistroPage.js';
 
-const { useState, useEffect, useCallback } = React;
+const { useState, useEffect, useCallback, useRef } = React;
 const h = React.createElement;
 
 export function App(){
@@ -97,36 +97,54 @@ export function App(){
   const addOffline = (item)=>{ addToQueue(item); setQueue(getQueue()); };
 
   // Texto legible del error del servidor (FastAPI responde {"detail": ...}).
+  // Devuelve {texto, rechazado}: rechazado=true solo cuando el servidor
+  // respondió con un "detail" (validación); red caída o error 5xx son
+  // transitorios y se pueden reintentar tal cual.
   const motivoError = (e)=>{
     try{
       const d = JSON.parse(e.message).detail;
-      if(Array.isArray(d)) return d.map(x=>x.msg).join('; ');
-      if(d) return String(d);
+      if(Array.isArray(d)) return {texto:d.map(x=>x.msg||JSON.stringify(x)).join('; '),rechazado:true};
+      if(d) return {texto:typeof d==='string'?d:JSON.stringify(d),rechazado:true};
     }catch{}
-    return e.message ? String(e.message).slice(0,200) : 'Error de conexión';
+    return {texto:'No se pudo enviar (conexión o servidor). Vuelve a sincronizar.',rechazado:false};
   };
   // Los registros que el servidor rechaza (o que no se pudieron enviar) NO se
   // borran: quedan en la cola con su motivo para corregirlos o descartarlos a
   // mano. Solo se quitan los enviados con éxito. La sincronización es manual
   // (botón), no hay reintentos automáticos en bucle.
+  // Candado: un doble clic en "Sincronizar ahora" no lanza dos envíos.
+  const sincronizando = useRef(false);
+  const [syncing,setSyncing] = useState(false);
   const syncQueue = async()=>{
+    if(sincronizando.current) return;
     const q = getQueue();
     if(!q.length||!online) return;
+    sincronizando.current = true; setSyncing(true);
     let ok=0;
     const pendientes=[];
-    for(const item of q){
-      try{
-        let r;
-        if(item.method==='POST') r = await api.post(item.endpoint,item.body);
-        else if(item.method==='PUT') r = await api.put(item.endpoint,item.body);
-        // api devuelve undefined cuando la sesión expiró (recarga la página): no cuenta como enviado.
-        if(r===undefined) throw new Error('Sesión expirada: vuelve a iniciar sesión y sincroniza de nuevo');
-        ok++;
-      }catch(e){
-        pendientes.push({...item,error:motivoError(e),intentos:(item.intentos||0)+1});
+    try{
+      for(const item of q){
+        try{
+          let r;
+          if(item.method==='POST') r = await api.post(item.endpoint,item.body);
+          else if(item.method==='PUT') r = await api.put(item.endpoint,item.body);
+          else throw new Error('Método no soportado: '+item.method);
+          // api devuelve undefined cuando la sesión expiró (recarga la página): no cuenta como enviado.
+          if(r===undefined) throw new Error('Sesión expirada: vuelve a iniciar sesión y sincroniza de nuevo');
+          ok++;
+        }catch(e){
+          const m = String(e.message||'').startsWith('Sesión expirada')
+            ? {texto:e.message,rechazado:false} : motivoError(e);
+          pendientes.push({...item,error:m.texto,rechazado:m.rechazado,intentos:(item.intentos||0)+1});
+        }
       }
+      // Conserva lo que se encoló mientras se sincronizaba (no estaba en q).
+      const procesados = new Set(q.map(i=>i.id));
+      const final = [...pendientes, ...getQueue().filter(i=>!procesados.has(i.id))];
+      saveQueue(final); setQueue(final);
+    }finally{
+      sincronizando.current = false; setSyncing(false);
     }
-    saveQueue(pendientes); setQueue(pendientes);
     alert(`Sincronización: ${ok} enviados, ${pendientes.length} con error (siguen pendientes, revisa el aviso).`);
   };
   const descartarPendiente = (id)=>{
@@ -192,12 +210,12 @@ export function App(){
       queue.length>0&&online&&h('div',{className:'queue-banner'},
         h(Ico,{n:'wifi',s:14}),
         h('p',null,`${queue.length} registros pendientes de sincronizar`),
-        h('button',{onClick:syncQueue},'Sincronizar ahora')
+        h('button',{onClick:syncQueue,disabled:syncing},syncing?'Sincronizando...':'Sincronizar ahora')
       ),
       queue.some(i=>i.error)&&h('div',{style:{background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:8,margin:'6px 12px',padding:'8px 10px',fontSize:12,color:'#991b1b'}},
         h('strong',null,'Registros que no se pudieron enviar:'),
         queue.filter(i=>i.error).map(i=>h('div',{key:i.id,style:{display:'flex',gap:8,alignItems:'flex-start',justifyContent:'space-between',marginTop:6,paddingTop:6,borderTop:'1px solid #fecaca'}},
-          h('span',null,(i.body&&i.body.placa?i.body.placa+' · ':'')+i.error),
+          h('span',null,h('strong',null,i.rechazado===false?'Pendiente, reintenta: ':'Rechazado: '),(i.body&&i.body.placa?i.body.placa+' · ':'')+i.error),
           h('button',{onClick:()=>{if(confirm('¿Descartar este registro? Se perderá.')) descartarPendiente(i.id);},style:{flexShrink:0,background:'none',border:'1px solid #991b1b',color:'#991b1b',borderRadius:6,fontSize:11,fontWeight:700,padding:'2px 8px',cursor:'pointer'}},'Descartar')
         ))
       ),
