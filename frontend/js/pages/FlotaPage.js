@@ -69,15 +69,13 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
   // Maestro de placas (vehículos activos). Se guarda en el celular para que
   // el selector funcione sin conexión. Una placa fuera del maestro se puede
   // guardar igual, pero queda marcada como "no verificada" para revisión.
-  // Placa: se elige del maestro; "Otra placa" (excepción) habilita escribirla.
-  const [placaOtra,setPlacaOtra] = useState(false);
   // Cuántos selectores de tienda se muestran (se agregan con "+ Agregar tienda").
   const [nTiendasUI,setNTiendasUI] = useState(1);
   const [vehiculos,setVehiculos] = useState(()=>{try{return JSON.parse(localStorage.getItem('cv_vehiculos')||'[]');}catch{return [];}});
   const [sugerPlaca,setSugerPlaca] = useState([]);
   const emptyF = {fecha:today(),placa:'',conductor:'',codigo_conductor:'',n_pallets:'',n_contenedores:'',cant_volumen_externo:'',muelle_cargue:'',tienda_1:'',tienda_2:'',tienda_3:'',tienda_4:'',tienda_5:'',ultima_tienda:'',protocolo:'',sello:'',tipo_sello:'',sello_entrada:'',tipo_sello_entrada:'',hora_salida_muelle:ahoraHora(),temperatura:'',hora_salida_cedi:'',hora_llegada:'',observacion:'',foto_url:null};
   const [form,setForm]         = useState(emptyF);
-  useEffect(()=>{setPlacaOtra(false);setNTiendasUI(1);},[view,selected]);
+  useEffect(()=>{setNTiendasUI(1);},[view,selected]);
   const [filtro,setFiltro]      = useState('pendientes');
   const [busqueda,setBusqueda]  = useState('');
 
@@ -149,11 +147,10 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
   const escribirPlaca = (val)=>{
     const p = normPlaca(val);
     setForm(f=>({...f,placa:p}));
-    setSugerPlaca(p ? vehiculos.filter(v=>v.placa.includes(p)).slice(0,8) : []);
+    setSugerPlaca(vehiculos.filter(v=>v.placa.includes(p)).slice(0,p?8:15));
   };
   const ultimaTiendaIdx = [5,4,3,2,1].find(n=>form['tienda_'+n])||0;
   const tiendasVisibles = Math.min(5,Math.max(nTiendasUI,ultimaTiendaIdx,1));
-  const otraPlacaActiva = placaOtra || vehiculos.length===0 || (!!form.placa && !vehiculos.some(v=>v.placa===form.placa));
   const placaFueraMaestro = !!form.placa && vehiculos.length>0 && !vehiculos.some(v=>v.placa===form.placa);
   const limpiarForm = ()=>{setForm(emptyF);setSelected(null);resetConductorUI();setSugerPlaca([]);};
 
@@ -264,12 +261,11 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},h('label',null,'Fecha',h('span',{className:'req'},'*')),h('input',{type:'date',value:form.fecha,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg',style:{position:'relative'}},h('label',null,'Placa',h('span',{className:'req'},'*')),
-            h('select',{value:otraPlacaActiva?'__otra__':form.placa,onChange:e=>{const v=e.target.value;if(v==='__otra__'){setPlacaOtra(true);setForm(f=>({...f,placa:''}));}else{setPlacaOtra(false);setSugerPlaca([]);setForm(f=>({...f,placa:v}));}}},
-              h('option',{value:''},'Seleccionar placa...'),
-              ...vehiculos.map(v=>h('option',{key:v.placa,value:v.placa},v.placa+(v.tipo?' · '+v.tipo:''))),
-              h('option',{value:'__otra__'},'Otra placa (excepción)')
+            h('input',{type:'text',value:form.placa,onChange:e=>escribirPlaca(e.target.value),onFocus:e=>escribirPlaca(e.target.value),onBlur:()=>setTimeout(()=>setSugerPlaca([]),150),placeholder:'Escribe la placa o elige de la lista...',autoComplete:'off'}),
+            sugerPlaca.length>0&&h('div',{style:{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid var(--border)',borderRadius:8,zIndex:50,boxShadow:'var(--shadow)',maxHeight:220,overflowY:'auto'}},
+              sugerPlaca.map(v=>h('div',{key:v.placa,onMouseDown:e=>e.preventDefault(),onClick:()=>{setForm(f=>({...f,placa:v.placa}));setSugerPlaca([]);},style:{padding:'10px 12px',cursor:'pointer',borderBottom:'1px solid var(--border)',fontSize:13}},
+                h('strong',null,v.placa),v.tipo&&h('span',{style:{color:'var(--slate)',marginLeft:6,fontSize:11}},v.tipo)))
             ),
-            otraPlacaActiva&&h('input',{type:'text',value:form.placa,style:{marginTop:6},onChange:e=>escribirPlaca(e.target.value),placeholder:'Escribe la placa (excepción)',autoComplete:'off'}),
             placaFueraMaestro&&h('p',{style:{fontSize:11,color:'#92400e',background:'#fef3c7',borderRadius:6,padding:'6px 8px',margin:'6px 0 0'}},
               'Esta placa no está en la lista oficial. Se puede guardar, pero quedará marcada para revisión. Revisa que esté bien escrita.')
           )
