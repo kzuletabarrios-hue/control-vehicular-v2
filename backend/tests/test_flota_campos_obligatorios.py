@@ -191,3 +191,101 @@ def test_duplicar_registro_sin_conductor_sigue_funcionando(headers, mk):
     r = client.post(f"/api/flota/{rid}/duplicar", headers=headers)
     assert r.status_code == 201, r.text
     _borrar(r.json()["id"])
+
+
+# ═══ Revisión independiente QA (Diego Torres, 2026-10-07) ═══
+def _login(email):
+    r = client.post("/api/auth/login", json={"email": email, "password": "Test1234!"})
+    if r.status_code != 200:
+        pytest.skip(f"usuario {email} no disponible en el seed")
+    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+
+def test_coordinador_no_puede_cerrar_salida_403(mk):
+    """El coordinador es solo lectura: la validación nueva no debe cambiar eso."""
+    rid = mk(conductor="C", sello="123456", temperatura="4")
+    r = client.put(f"/api/flota/{rid}", json=_salida(), headers=_login("coordinador@ejemplo.test"))
+    assert r.status_code == 403
+
+
+def test_salida_temperatura_numero_json_y_cero(headers, mk):
+    """Temperatura enviada como número JSON (no string); 0 es válido."""
+    rid = mk(conductor="C", sello="123456")
+    r = client.put(f"/api/flota/{rid}", json=_salida(temperatura=0), headers=headers)
+    assert r.status_code == 200, r.text
+
+
+@pytest.mark.parametrize("t", [True, "inf", "-inf", "1e5", "4..5", [4], {"a": 1}])
+def test_salida_temperatura_basura_nunca_500(headers, mk, t):
+    rid = mk(conductor="C", sello="123456")
+    r = client.put(f"/api/flota/{rid}", json=_salida(temperatura=t), headers=headers)
+    assert r.status_code in (422, 200), r.text  # jamás 500
+
+
+def test_salida_temperatura_con_coma_aceptada(headers, mk):
+    """'4,5' pasa la validación (el frontend la acepta); se guarda tal cual."""
+    rid = mk(conductor="C", sello="123456")
+    r = client.put(f"/api/flota/{rid}", json=_salida(temperatura="4,5"), headers=headers)
+    assert r.status_code == 200, r.text
+
+
+@pytest.mark.parametrize("sello", [" ", "\t", "  000  ", 0, "0"])
+def test_salida_sello_espacios_o_ceros_422(headers, mk, sello):
+    rid = mk(conductor="C", temperatura="4")
+    r = client.put(f"/api/flota/{rid}", json=_salida(sello=sello), headers=headers)
+    assert r.status_code == 422, r.text
+
+
+def test_salida_sello_con_espacios_alrededor_valido(headers, mk):
+    rid = mk(conductor="C", temperatura="4")
+    r = client.put(f"/api/flota/{rid}", json=_salida(sello="  123456 "), headers=headers)
+    assert r.status_code == 200, r.text
+
+
+def test_put_hora_salida_null_no_valida_ni_rompe(headers, mk):
+    """hora_salida_cedi=null no es transición a salida: no exige campos."""
+    rid = mk()
+    r = client.put(f"/api/flota/{rid}", json={"hora_salida_cedi": None, "observacion": "x"}, headers=headers)
+    assert r.status_code == 200, r.text
+
+
+@pytest.mark.xfail(reason="PREEXISTENTE (no de este cambio): hora_salida_cedi='' en PUT da 500 por columna TIME; el frontend filtra vacios", strict=True)
+def test_put_hora_salida_vacia_no_exige_campos_ni_valida(headers, mk):
+    """'' tampoco es transición. Documenta el comportamiento real (TIME en BD)."""
+    rid = mk()
+    r = client.put(f"/api/flota/{rid}", json={"hora_salida_cedi": "", "observacion": "x"}, headers=headers)
+    assert r.status_code == 200, r.text
+
+
+def test_registro_abierto_de_bodega_sin_conductor_sale_con_conductor_en_el_put(headers, mk):
+    """Escenario CEDI: bodega dejó el registro sin conductor; el guarda
+    vehicular lo completa en el mismo PUT de la salida."""
+    rid = mk(sello="123456", temperatura="3")
+    r = client.put(f"/api/flota/{rid}", json=_salida(conductor="Pedro Gómez"), headers=headers)
+    assert r.status_code == 200, r.text
+
+
+def test_guarda_vehicular_cierra_salida_y_llegada(mk):
+    h = _login("guarda.vehicular@ejemplo.test")
+    rid = mk(conductor="C")
+    r = client.put(f"/api/flota/{rid}", json=_salida(sello="777001", temperatura="2"), headers=h)
+    assert r.status_code == 200, r.text
+    r = client.put(f"/api/flota/{rid}", json={"hora_llegada": "18:00", "fecha_llegada": "2026-10-07", "sello_entrada": "777001"}, headers=h)
+    assert r.status_code == 200, r.text
+
+
+def test_llegada_con_sello_en_cero_aun_con_salida_ya_cerrada(headers, mk):
+    rid = mk(conductor="C", sello="123456", temperatura="4", hora_salida_cedi="10:00")
+    r = client.put(f"/api/flota/{rid}", json={"hora_llegada": "18:00", "sello_entrada": "0000"}, headers=headers)
+    assert r.status_code == 422
+
+
+def test_reintento_tras_422_no_deja_estado_a_medias(headers, mk):
+    """Un PUT rechazado no debe persistir nada (cola offline descarta fallidos)."""
+    rid = mk(conductor="C", sello="123456")
+    r = client.put(f"/api/flota/{rid}", json=_salida(observacion="no debe guardarse"), headers=headers)
+    assert r.status_code == 422
+    db = SessionLocal()
+    row = db.execute(text("SELECT hora_salida_cedi, observacion FROM flota_propia WHERE id=:i"), {"i": rid}).fetchone()
+    db.close()
+    assert row.hora_salida_cedi is None and row.observacion != "no debe guardarse"
