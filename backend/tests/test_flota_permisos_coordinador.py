@@ -56,6 +56,8 @@ import json
 import uuid
 
 import pytest
+
+from tests.flota_alta_helper import alta_ok
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
@@ -420,6 +422,7 @@ def test_admin_crea_flota_via_post_201(token_admin):
                 "fecha": "2026-01-01",
                 "placa": "QA-ADMIN-POST-001",
                 "conductor": "Conductor QA",
+                **alta_ok(),
                 "tipo_sello": "plomo",
                 "tipo_sello_entrada": "plastico",
                 "obs_salida": "salida de prueba QA",
