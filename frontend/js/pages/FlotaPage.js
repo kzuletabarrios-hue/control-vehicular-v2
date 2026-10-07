@@ -502,8 +502,8 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
           )
         ),
         h('div',{className:'fg'},
-          h('label',null,'Observaciones (opcional)'),
-          h('textarea',{value:obsSalida,onChange:e=>setObsSalida(e.target.value),rows:2,placeholder:'—'})
+          h('label',null,tempSalida==='N/A'?'Motivo de temperatura N/A':'Observaciones (opcional)',tempSalida==='N/A'&&h('span',{className:'req'},'*')),
+          h('textarea',{value:obsSalida,onChange:e=>setObsSalida(e.target.value),rows:2,placeholder:tempSalida==='N/A'?'Ej: carga seca, no requiere frío':'—',style:tempSalida==='N/A'&&!obsSalida.trim()?{borderColor:'#f59e0b'}:{}})
         ),
         h('div',{className:'fg'},
           h('label',null,'Foto (opcional)'),
@@ -514,9 +514,10 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
           h('button',{className:'btn-primary',style:{background:'#059669'},disabled:saving,onClick:async()=>{
             if(selloInvalido(selloSalida)) return setAlert({type:'err',msg:'El número de sello de salida es obligatorio y no puede ser 0000'});
             const errT=validarTemp(tempSalida); if(errT) return setAlert({type:'err',msg:errT});
+            if(String(tempSalida).trim()==='N/A'&&obsSalida.trim().length<3) return setAlert({type:'err',msg:'Si la temperatura es N/A, escribe el motivo'});
             setSaving(true);
             try{
-            const ts=await _tsBog();const body={hora_salida_cedi:ts.hora,fecha_salida:ts.fecha,sello:selloSalida.trim(),temperatura:String(tempSalida).trim(),obs_salida:obsSalida||undefined,foto_salida:fotoSalida||undefined};
+            const ts=await _tsBog();const body={hora_salida_cedi:ts.hora,fecha_salida:ts.fecha,sello:selloSalida.trim(),temperatura:String(tempSalida).trim(),obs_salida:obsSalida.trim()||undefined,foto_salida:fotoSalida||undefined};
             await api.put(`/flota/${salida.id}`,body);
             setSalida2(null);setDetalleVeh(null);setSelloSalida('');setObsSalida('');setFotoSalida(null);setTempSalida('');load();setAlert({type:'ok',msg:'Salida registrada'});
             }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
