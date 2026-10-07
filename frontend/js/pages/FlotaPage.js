@@ -640,8 +640,8 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
           inputNA(tempSalida,setTempSalida,{type:'number',step:'0.1',min:-30,max:30,placeholder:'Ej: 4.5'})
         ),
         !detalleVeh.hora_salida_cedi&&h('div',{className:'fg',style:{marginTop:10,pointerEvents:esCoordinador?'none':undefined}},
-          h('label',null,'Observaciones (opcional)'),
-          h('textarea',{value:obsSalida,onChange:e=>setObsSalida(e.target.value),rows:2,placeholder:'—'})
+          h('label',null,tempSalida==='N/A'?'Motivo de temperatura N/A':'Observaciones (opcional)',tempSalida==='N/A'&&h('span',{className:'req'},'*')),
+          h('textarea',{value:obsSalida,onChange:e=>setObsSalida(e.target.value),rows:2,placeholder:tempSalida==='N/A'?'Ej: carga seca, no requiere frío':'—',style:tempSalida==='N/A'&&!obsSalida.trim()?{borderColor:'#f59e0b'}:{}})
         ),
         detalleVeh.hora_salida_cedi&&!detalleVeh.hora_llegada&&h('div',{className:'fg',style:{marginTop:10,pointerEvents:esCoordinador?'none':undefined}},
           h('label',null,'Última tienda visitada (opcional)'),
@@ -662,6 +662,7 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
             const sello=(selloSalida||detalleVeh.sello||'').trim();
             if(selloInvalido(sello)) return setAlert({type:'err',msg:'Ingresa el N° de sello de salida (no puede estar vacío ni ser 0000)'});
             const errT=validarTemp(tempSalida); if(errT) return setAlert({type:'err',msg:errT});
+            if(String(tempSalida).trim()==='N/A'&&obsSalida.trim().length<3) return setAlert({type:'err',msg:'Si la temperatura es N/A, escribe el motivo'});
             const tipoS=(tipoSelloSalida||detalleVeh.tipo_sello||'').trim();
             if(!tipoS) return setAlert({type:'err',msg:'Selecciona el tipo de sello de salida (o N/A)'});
             const faltaCond=sinConductor(detalleVeh);

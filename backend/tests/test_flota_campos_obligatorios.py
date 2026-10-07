@@ -312,7 +312,7 @@ def test_salida_con_tipo_sello_ya_guardado_200(headers, mk):
 def test_salida_todo_na_200(headers, mk):
     """Si nada aplica, el guarda marca N/A en temperatura, sello y tipo."""
     rid = mk(conductor="C")
-    r = client.put(f"/api/flota/{rid}", json=_salida(temperatura="N/A", sello="N/A", tipo_sello="N/A"), headers=headers)
+    r = client.put(f"/api/flota/{rid}", json=_salida(temperatura="N/A", sello="N/A", tipo_sello="N/A", obs_salida="Carga seca, no requiere frio"), headers=headers)
     assert r.status_code == 200, r.text
     g = client.get(f"/api/flota/{rid}", headers=headers).json()
     assert (g["temperatura"], g["sello"], g["tipo_sello"]) == ("N/A", "N/A", "N/A")
@@ -349,3 +349,26 @@ def test_alta_completa_con_na_y_ceros_201(headers):
 def test_alta_campo_en_blanco_cuenta_como_faltante(headers):
     r = client.post("/api/flota", json={"fecha": "2026-10-07", "placa": "QAOBLIG03", "conductor": "C", **alta_ok(protocolo="   ")}, headers=headers)
     assert r.status_code == 422
+
+
+def test_salida_temperatura_na_sin_motivo_422(headers, mk):
+    rid = mk(conductor="C", sello="123456")
+    r = client.put(f"/api/flota/{rid}", json=_salida(temperatura="N/A"), headers=headers)
+    assert r.status_code == 422 and "motivo" in r.json()["detail"].lower()
+
+
+def test_salida_temperatura_na_motivo_en_blanco_422(headers, mk):
+    rid = mk(conductor="C", sello="123456")
+    r = client.put(f"/api/flota/{rid}", json=_salida(temperatura="N/A", obs_salida="   "), headers=headers)
+    assert r.status_code == 422
+
+
+def test_salida_temperatura_na_con_motivo_ya_guardado_200(headers, mk):
+    rid = mk(conductor="C", sello="123456", obs_salida="Carga seca")
+    r = client.put(f"/api/flota/{rid}", json=_salida(temperatura="N/A"), headers=headers)
+    assert r.status_code == 200, r.text
+
+
+def test_salida_con_temperatura_numerica_no_exige_motivo(headers, mk):
+    rid = mk(conductor="C", sello="123456")
+    assert client.put(f"/api/flota/{rid}", json=_salida(temperatura="4"), headers=headers).status_code == 200
