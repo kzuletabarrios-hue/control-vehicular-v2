@@ -62,7 +62,7 @@ def mk():
 
 
 def _salida(**extra):
-    return {"hora_salida_cedi": "10:00", "fecha_salida": "2026-10-07", **extra}
+    return {"hora_salida_cedi": "10:00", "fecha_salida": "2026-10-07", "tipo_sello": "Digital", **extra}
 
 
 # ── POST ──
@@ -163,7 +163,7 @@ def test_llegada_sin_sello_entrada_422(headers, mk):
 
 def test_llegada_con_sello_200(headers, mk):
     rid = mk(conductor="C", hora_salida_cedi="09:00")
-    r = client.put(f"/api/flota/{rid}", json={"hora_llegada": "12:00", "sello_entrada": "654321"}, headers=headers)
+    r = client.put(f"/api/flota/{rid}", json={"hora_llegada": "12:00", "sello_entrada": "654321", "tipo_sello_entrada": "Plástico"}, headers=headers)
     assert r.status_code == 200, r.text
 
 
@@ -270,7 +270,7 @@ def test_guarda_vehicular_cierra_salida_y_llegada(mk):
     rid = mk(conductor="C")
     r = client.put(f"/api/flota/{rid}", json=_salida(sello="777001", temperatura="2"), headers=h)
     assert r.status_code == 200, r.text
-    r = client.put(f"/api/flota/{rid}", json={"hora_llegada": "18:00", "fecha_llegada": "2026-10-07", "sello_entrada": "777001"}, headers=h)
+    r = client.put(f"/api/flota/{rid}", json={"hora_llegada": "18:00", "fecha_llegada": "2026-10-07", "sello_entrada": "777001", "tipo_sello_entrada": "Digital"}, headers=h)
     assert r.status_code == 200, r.text
 
 
@@ -289,3 +289,40 @@ def test_reintento_tras_422_no_deja_estado_a_medias(headers, mk):
     row = db.execute(text("SELECT hora_salida_cedi, observacion FROM flota_propia WHERE id=:i"), {"i": rid}).fetchone()
     db.close()
     assert row.hora_salida_cedi is None and row.observacion != "no debe guardarse"
+
+
+# ═══ N/A y tipo de sello obligatorio (pedido de la usuaria, 2026-10-07) ═══
+def test_salida_sin_tipo_sello_422(headers, mk):
+    rid = mk(conductor="C", sello="123456", temperatura="4")
+    body = _salida()
+    body.pop("tipo_sello")
+    r = client.put(f"/api/flota/{rid}", json=body, headers=headers)
+    assert r.status_code == 422 and "tipo de sello" in r.json()["detail"].lower()
+
+
+def test_salida_con_tipo_sello_ya_guardado_200(headers, mk):
+    rid = mk(conductor="C", sello="123456", temperatura="4", tipo_sello="Digital")
+    body = _salida()
+    body.pop("tipo_sello")
+    assert client.put(f"/api/flota/{rid}", json=body, headers=headers).status_code == 200
+
+
+def test_salida_todo_na_200(headers, mk):
+    """Si nada aplica, el guarda marca N/A en temperatura, sello y tipo."""
+    rid = mk(conductor="C")
+    r = client.put(f"/api/flota/{rid}", json=_salida(temperatura="N/A", sello="N/A", tipo_sello="N/A"), headers=headers)
+    assert r.status_code == 200, r.text
+    g = client.get(f"/api/flota/{rid}", headers=headers).json()
+    assert (g["temperatura"], g["sello"], g["tipo_sello"]) == ("N/A", "N/A", "N/A")
+
+
+def test_llegada_sin_tipo_sello_entrada_422(headers, mk):
+    rid = mk(conductor="C", hora_salida_cedi="09:00")
+    r = client.put(f"/api/flota/{rid}", json={"hora_llegada": "12:00", "sello_entrada": "654321"}, headers=headers)
+    assert r.status_code == 422 and "tipo de sello" in r.json()["detail"].lower()
+
+
+def test_llegada_todo_na_200(headers, mk):
+    rid = mk(conductor="C", hora_salida_cedi="09:00")
+    r = client.put(f"/api/flota/{rid}", json={"hora_llegada": "12:00", "sello_entrada": "N/A", "tipo_sello_entrada": "N/A"}, headers=headers)
+    assert r.status_code == 200, r.text

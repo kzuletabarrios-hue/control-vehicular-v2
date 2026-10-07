@@ -38,7 +38,9 @@ def _valor(body: dict, antes, campo: str):
 
 def _validar_temperatura(v):
     if _vacio(v):
-        raise HTTPException(422, "La temperatura es obligatoria para registrar la salida del CEDI")
+        raise HTTPException(422, "La temperatura es obligatoria para registrar la salida del CEDI (usa N/A si no aplica)")
+    if str(v).strip().upper() == "N/A":
+        return  # "No aplica" declarado explícitamente por el guarda
     try:
         t = float(str(v).strip().replace(",", "."))
     except (ValueError, TypeError):
@@ -216,12 +218,16 @@ def actualizar(
         _validar_temperatura(_valor(vals, antes, "temperatura"))
         if _sello_invalido(_valor(vals, antes, "sello")):
             raise HTTPException(422, "El N° de sello de salida es obligatorio y no puede ser solo ceros")
+        if _vacio(_valor(vals, antes, "tipo_sello")):
+            raise HTTPException(422, "El tipo de sello de salida es obligatorio (usa N/A si no aplica)")
         if not _tiene_conductor(_valor(vals, antes, "conductor"), _valor(vals, antes, "codigo_conductor"), db):
             raise HTTPException(422, "El conductor es obligatorio para registrar la salida del CEDI")
     # Cierre de llegada: solo cuando este PUT la registra por primera vez.
     if not _vacio(vals.get("hora_llegada")) and _vacio(antes._mapping.get("hora_llegada")):
         if _sello_invalido(_valor(vals, antes, "sello_entrada")):
             raise HTTPException(422, "El N° de sello de entrada es obligatorio y no puede ser solo ceros")
+        if _vacio(_valor(vals, antes, "tipo_sello_entrada")):
+            raise HTTPException(422, "El tipo de sello de entrada es obligatorio (usa N/A si no aplica)")
 
     sets = ", ".join(f"{c} = :{c}" for c in vals if c != "id")
     db.execute(text(f"UPDATE flota_propia SET {sets}, updated_at = NOW() WHERE id = :id"), vals)

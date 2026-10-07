@@ -133,10 +133,21 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
           esNA?'N/A ✓':'N/A'))
     );
   };
+  // Input con botón "N/A" (sello, temperatura): si no aplica se guarda el texto N/A.
+  const inputNA = (value,setValue,{type='text',step,min,max,placeholder,style}={})=>{
+    const esNA = value==='N/A';
+    return h('div',{style:{display:'flex',gap:6}},
+      h('input',{type:esNA?'text':type,step,min,max,value:value??'',readOnly:esNA,placeholder,
+        onChange:e=>setValue(e.target.value),style:{flex:1,minWidth:0,...(style||{}),...(esNA?{background:'#f8fafc'}:{})}}),
+      h('button',{type:'button',onClick:()=>setValue(esNA?'':'N/A'),
+        style:{border:'1.5px solid '+(esNA?'#2563eb':'var(--border)'),background:esNA?'#dbeafe':'#fff',color:esNA?'#1d4ed8':'var(--slate)',borderRadius:8,padding:'0 10px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0}},
+        esNA?'N/A ✓':'N/A'));
+  };
   const MUELLES_FLOTA = Array.from({length:22},(_,i)=>String(i+1));
   const selloInvalido = v => !String(v||'').trim() || /^0+$/.test(String(v).trim());
   const validarTemp = v => {
     const t=String(v??'').trim();
+    if(t.toUpperCase()==='N/A') return null;
     if(!t) return 'La temperatura es obligatoria para registrar la salida';
     const n=Number(t.replace(',','.'));
     if(!Number.isFinite(n)) return 'La temperatura debe ser un número';
@@ -393,7 +404,7 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
             },'Llegada'),
             !esVehicular&&r.hora_salida_cedi&&!r.hora_llegada&&h('button',{
               title:'Registrar llegada',
-              onClick:(e)=>{e.stopPropagation();setLlegada(r);setHoraLlegada(ahoraHora());setFechaLlegadaV(today());setUltimaTiendaLleg(r.ultima_tienda||'');},
+              onClick:(e)=>{e.stopPropagation();setLlegada(r);setTipoSelloEntrada(r.tipo_sello_entrada||'');setHoraLlegada(ahoraHora());setFechaLlegadaV(today());setUltimaTiendaLleg(r.ultima_tienda||'');},
               style:{background:'#f59e0b',border:'none',cursor:'pointer',color:'#fff',padding:'3px 8px',borderRadius:6,fontSize:11,fontWeight:700}
             },'Llegada'),
             !user?.rol?.startsWith('guarda_')&&h('button',{title:'Duplicar',onClick:()=>handleDuplicate(r),className:'li-act li-act-neutral'},h(Ico,{n:'copy',s:14})),
@@ -431,7 +442,12 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
         ),
         h('div',{className:'fg'},
           h('label',null,'N° Sello de regreso',h('span',{className:'req'},'*')),
-          h('input',{type:'text',value:selloLleg,onChange:e=>setSelloLleg(e.target.value),placeholder:'Ej: 123456',style:selloLleg?{background:'#f0fdf4',borderColor:'#86efac'}:{}})
+          inputNA(selloLleg,setSelloLleg,{placeholder:'Ej: 123456'})
+        ),
+        h('div',{className:'fg'},
+          h('label',null,'Tipo de sello de regreso',h('span',{className:'req'},'*')),
+          h('select',{value:tipoSelloEntrada,onChange:e=>setTipoSelloEntrada(e.target.value)},
+            h('option',{value:''},'— Seleccionar —'),h('option',{value:'Digital'},'Digital'),h('option',{value:'Plástico'},'Plástico'),h('option',{value:'N/A'},'N/A'))
         ),
         h('div',{className:'fg'},
           h('label',null,'Observaciones (opcional)'),
@@ -444,13 +460,14 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
         h('div',{style:{display:'flex',gap:8,marginTop:14}},
           h('button',{className:'btn-cancel',onClick:()=>{setLlegada(null);setDetalleVeh(null);},disabled:saving},'Cancelar'),
           h('button',{className:'btn-primary',disabled:saving,onClick:async()=>{
+            if(!tipoSelloEntrada) return setAlert({type:'err',msg:'Selecciona el tipo de sello de regreso (o N/A)'});
             if(selloInvalido(selloLleg)) return setAlert({type:'err',msg:'El número de sello de regreso es obligatorio y no puede ser 0000'});
             setSaving(true);
             try{
-              const ts=await _tsBog();const body={hora_llegada:ts.hora,fecha_llegada:ts.fecha,sello_entrada:selloLleg.trim(),obs_llegada:obsLleg||undefined,foto_llegada:fotoLleg||undefined};
+              const ts=await _tsBog();const body={hora_llegada:ts.hora,fecha_llegada:ts.fecha,sello_entrada:selloLleg.trim(),tipo_sello_entrada:tipoSelloEntrada,obs_llegada:obsLleg||undefined,foto_llegada:fotoLleg||undefined};
               if(ultimaTiendaLleg) body.ultima_tienda=ultimaTiendaLleg;
               await api.put(`/flota/${llegada.id}`,body);
-              setLlegada(null);setDetalleVeh(null);setSelloLleg('');setObsLleg('');setFotoLleg(null);setUltimaTiendaLleg('');load();setAlert({type:'ok',msg:'Llegada registrada'});
+              setLlegada(null);setDetalleVeh(null);setSelloLleg('');setTipoSelloEntrada('');setObsLleg('');setFotoLleg(null);setUltimaTiendaLleg('');load();setAlert({type:'ok',msg:'Llegada registrada'});
             }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
             finally{setSaving(false);}
           }},saving?h('div',{className:'spinner'}):h(Ico,{n:'checkCircle',s:16}),saving?'Guardando...':'Confirmar llegada')
@@ -477,11 +494,11 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},
             h('label',null,'N° Sello de salida',h('span',{className:'req'},'*')),
-            h('input',{type:'text',value:selloSalida,onChange:e=>setSelloSalida(e.target.value),placeholder:'Ej: 123456'})
+            inputNA(selloSalida,setSelloSalida,{placeholder:'Ej: 123456'})
           ),
           h('div',{className:'fg'},
             h('label',null,'Temperatura °C',h('span',{className:'req'},'*')),
-            h('input',{type:'number',step:'0.1',min:-30,max:30,value:tempSalida,onChange:e=>setTempSalida(e.target.value),placeholder:'Ej: 4.5'})
+            inputNA(tempSalida,setTempSalida,{type:'number',step:'0.1',min:-30,max:30,placeholder:'Ej: 4.5'})
           )
         ),
         h('div',{className:'fg'},
@@ -556,24 +573,13 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
           h('p',{style:{fontSize:11,fontWeight:700,color:'var(--navy)',marginBottom:8,textTransform:'uppercase',letterSpacing:'0.05em'}},'Sellos'),
           h('div',{className:'fgrid2',style:{alignItems:'flex-end'}},
             h('div',{className:'fg',style:{margin:0}},
-              h('label',{style:{fontSize:10,color:'var(--slate)',marginBottom:2,display:'block'}},'N° Sello salida'),
+              h('label',{style:{fontSize:10,color:'var(--slate)',marginBottom:2,display:'block'}},'N° Sello salida',!detalleVeh.hora_salida_cedi&&h('span',{className:'req'},'*')),
               detalleVeh.hora_salida_cedi
                 ? h('p',{style:{fontSize:14,fontWeight:700,color:detalleVeh.sello?'var(--navy)':'var(--slate)',margin:0}},detalleVeh.sello||'—')
-                : h('input',{
-                    type:'text',value:selloSalida,
-                    onChange:e=>setSelloSalida(e.target.value),
-                    onBlur:async e=>{
-                      const val=e.target.value.trim();
-                      if(val&&val!==detalleVeh.sello){
-                        try{await api.put(`/flota/${detalleVeh.id}`,{sello:val});setDetalleVeh(p=>({...p,sello:val}));}
-                        catch(err){setAlert({type:'err',msg:'No se pudo guardar el N° de sello'});}
-                      }
-                    },
-                    placeholder:'Ej: 123456',style:{fontSize:13,fontWeight:600}
-                  })
+                : inputNA(selloSalida,v=>setSelloSalida(v),{placeholder:'Ej: 123456',style:{fontSize:13,fontWeight:600}})
             ),
             h('div',{className:'fg',style:{margin:0}},
-              h('label',{style:{fontSize:10,color:'var(--slate)',marginBottom:2,display:'block'}},'Tipo sello salida'),
+              h('label',{style:{fontSize:10,color:'var(--slate)',marginBottom:2,display:'block'}},'Tipo sello salida',!detalleVeh.hora_llegada&&h('span',{className:'req'},'*')),
               detalleVeh.hora_llegada
                 ? h('span',{style:{fontSize:12,fontWeight:700,padding:'2px 8px',borderRadius:4,
                     background:detalleVeh.tipo_sello==='Digital'?'#dbeafe':detalleVeh.tipo_sello==='Plástico'?'#fef9c3':'#f1f5f9',
@@ -589,33 +595,21 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
                   },
                   h('option',{value:''},'— Seleccionar —'),
                   h('option',{value:'Digital'},'Digital'),
-                  h('option',{value:'Plástico'},'Plástico')
+                  h('option',{value:'Plástico'},'Plástico'),
+                  h('option',{value:'N/A'},'N/A')
                 )
             )
           ),
           detalleVeh.hora_salida_cedi&&h('div',{style:{marginTop:10,paddingTop:10,borderTop:'1px solid var(--border)'}},
             h('div',{className:'fgrid2',style:{alignItems:'flex-end'}},
               h('div',{className:'fg',style:{margin:0}},
-                h('label',{style:{fontSize:10,color:'#059669',marginBottom:2,display:'block'}},'N° Sello entrada'),
+                h('label',{style:{fontSize:10,color:'#059669',marginBottom:2,display:'block'}},'N° Sello entrada',!detalleVeh.hora_llegada&&h('span',{className:'req'},'*')),
                 detalleVeh.hora_llegada
                   ? h('p',{style:{fontSize:14,fontWeight:700,color:'#059669',margin:0}},detalleVeh.sello_entrada||'—')
-                  : h('input',{
-                      type:'text',
-                      value:selloEntradaDetalle,
-                      onChange:e=>setSelloEntradaDetalle(e.target.value),
-                      onBlur:async e=>{
-                        const val=e.target.value.trim();
-                        if(val&&val!==detalleVeh.sello_entrada){
-                          try{await api.put(`/flota/${detalleVeh.id}`,{sello_entrada:val});setDetalleVeh(p=>({...p,sello_entrada:val}));}
-                          catch(err){setAlert({type:'err',msg:'No se pudo guardar el sello de entrada'});}
-                        }
-                      },
-                      placeholder:'Ej: 654321',
-                      style:{fontSize:13,fontWeight:600}
-                    })
+                  : inputNA(selloEntradaDetalle,v=>setSelloEntradaDetalle(v),{placeholder:'Ej: 654321',style:{fontSize:13,fontWeight:600}})
               ),
               h('div',{className:'fg',style:{margin:0}},
-                h('label',{style:{fontSize:10,color:'#059669',marginBottom:2,display:'block'}},'Tipo sello entrada'),
+                h('label',{style:{fontSize:10,color:'#059669',marginBottom:2,display:'block'}},'Tipo sello entrada',!detalleVeh.hora_llegada&&h('span',{className:'req'},'*')),
                 detalleVeh.hora_llegada
                   ? h('span',{style:{fontSize:12,fontWeight:700,padding:'2px 8px',borderRadius:4,
                       background:detalleVeh.tipo_sello_entrada==='Digital'?'#d1fae5':detalleVeh.tipo_sello_entrada==='Plástico'?'#fef9c3':'#f1f5f9',
@@ -631,7 +625,8 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
                     },
                     h('option',{value:''},'— Seleccionar —'),
                     h('option',{value:'Digital'},'Digital'),
-                    h('option',{value:'Plástico'},'Plástico')
+                    h('option',{value:'Plástico'},'Plástico'),
+                    h('option',{value:'N/A'},'N/A')
                   )
               )
             )
@@ -642,7 +637,7 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
         ),
         !detalleVeh.hora_salida_cedi&&h('div',{className:'fg',style:{marginTop:10,pointerEvents:esCoordinador?'none':undefined}},
           h('label',null,'Temperatura °C',h('span',{className:'req'},'*')),
-          h('input',{type:'number',step:'0.1',min:-30,max:30,value:tempSalida,onChange:e=>setTempSalida(e.target.value),placeholder:'Ej: 4.5'})
+          inputNA(tempSalida,setTempSalida,{type:'number',step:'0.1',min:-30,max:30,placeholder:'Ej: 4.5'})
         ),
         !detalleVeh.hora_salida_cedi&&h('div',{className:'fg',style:{marginTop:10,pointerEvents:esCoordinador?'none':undefined}},
           h('label',null,'Observaciones (opcional)'),
@@ -667,11 +662,13 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
             const sello=(selloSalida||detalleVeh.sello||'').trim();
             if(selloInvalido(sello)) return setAlert({type:'err',msg:'Ingresa el N° de sello de salida (no puede estar vacío ni ser 0000)'});
             const errT=validarTemp(tempSalida); if(errT) return setAlert({type:'err',msg:errT});
+            const tipoS=(tipoSelloSalida||detalleVeh.tipo_sello||'').trim();
+            if(!tipoS) return setAlert({type:'err',msg:'Selecciona el tipo de sello de salida (o N/A)'});
             const faltaCond=sinConductor(detalleVeh);
             if(faltaCond&&!condDetalle.conductor.trim()&&!condDetalle.codigo_conductor) return setAlert({type:'err',msg:'El conductor es obligatorio: selecciónalo o escribe su nombre'});
             try{
               const ts=await _tsBog();
-              const body={hora_salida_cedi:ts.hora,fecha_salida:ts.fecha,sello,temperatura:String(tempSalida).trim()};
+              const body={hora_salida_cedi:ts.hora,fecha_salida:ts.fecha,sello,tipo_sello:tipoS,temperatura:String(tempSalida).trim()};
               if(faltaCond){body.conductor=condDetalle.conductor.trim();if(condDetalle.codigo_conductor) body.codigo_conductor=condDetalle.codigo_conductor;}
               if(obsSalida.trim()) body.obs_salida=obsSalida.trim();
               await api.put(`/flota/${detalleVeh.id}`,body);
@@ -681,8 +678,10 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
           detalleVeh.hora_salida_cedi&&!detalleVeh.hora_llegada&&!esCoordinador&&h('button',{className:'btn-primary',style:{flex:1},onClick:async()=>{
             const sello=(detalleVeh.sello_entrada||selloEntradaDetalle||'').trim();
             if(selloInvalido(sello)) return setAlert({type:'err',msg:'Ingresa el N° de sello de entrada (no puede estar vacío ni ser 0000)'});
+            const tipoE=(tipoSelloEntrada||detalleVeh.tipo_sello_entrada||'').trim();
+            if(!tipoE) return setAlert({type:'err',msg:'Selecciona el tipo de sello de entrada (o N/A)'});
             const ts=await _tsBog();
-            const body={hora_llegada:ts.hora,fecha_llegada:ts.fecha,sello_entrada:sello};
+            const body={hora_llegada:ts.hora,fecha_llegada:ts.fecha,sello_entrada:sello,tipo_sello_entrada:tipoE};
             if(obsLleg.trim()) body.obs_llegada=obsLleg.trim();
             if(ultimaTiendaLleg) body.ultima_tienda=ultimaTiendaLleg;
             await api.put(`/flota/${detalleVeh.id}`,body);
