@@ -86,7 +86,7 @@ export function ConductoresPage({user}){
     const mine = ++reqId.current;
     const t = setTimeout(()=>{
       api.get('/conductores?cedula='+encodeURIComponent(d))
-        .then(r=>{ if(mine!==reqId.current) return; const a = Array.isArray(r)?r:[]; setDup(a.length?(a[0].conductor||'(sin nombre)'):null); })
+        .then(r=>{ if(mine!==reqId.current) return; const a = Array.isArray(r)?r:[]; setDup(a.length?a[0]:null); })
         .catch(()=>{})
         .finally(()=>{ if(mine===reqId.current) setChecking(false); });
     },400);
@@ -121,6 +121,19 @@ export function ConductoresPage({user}){
       await api.post('/conductores',body);
       setAlert({type:'ok',msg:'Conductor registrado: '+body.conductor+' · CC '+body.n_cedula+'. Ya aparece en la lista para bodega y vehicular.'});
       setCedula(''); setNombre(''); setCelular('');
+      load();
+    }catch(err){ setErrForm(textoError(err)); }
+    finally{ setSaving(false); }
+  };
+
+  // La cédula pertenece a un conductor desactivado: se reactiva en vez de crear otro.
+  const reactivar = async()=>{
+    if(!dup||!dup.id) return;
+    setSaving(true); setErrForm(''); setAlert(null);
+    try{
+      await api.put('/conductores/'+dup.id,{activo:true});
+      setAlert({type:'ok',msg:'Conductor reactivado: '+(dup.conductor||'')+'. Ya aparece en la lista para bodega y vehicular.'});
+      setCedula(''); setNombre(''); setCelular(''); setDup(null);
       load();
     }catch(err){ setErrForm(textoError(err)); }
     finally{ setSaving(false); }
@@ -193,7 +206,11 @@ export function ConductoresPage({user}){
             onChange:e=>{setCedula(soloDigitos(e.target.value).slice(0,10));setErrForm('');},
             style:{...inputBase,borderColor:dup?'#dc2626':undefined}}),
           h('div',{id:'cond-cedula-msg',style:{minHeight:20}},
-            dup?h('p',{role:'alert',style:{margin:'6px 0 0',fontSize:14,fontWeight:700,color:'#b91c1c'}},'Ya registrado: '+dup)
+            dup&&dup.activo===false?h('div',{role:'alert',style:{margin:'6px 0 0'}},
+              h('p',{style:{margin:0,fontSize:14,fontWeight:700,color:'#b45309'}},'Registrado pero desactivado: '+(dup.conductor||'(sin nombre)')),
+              h('button',{type:'button',className:'btn-primary',onClick:reactivar,disabled:saving,style:{marginTop:6,minHeight:44,width:'100%'}},
+                h(Ico,{n:'refresh',s:16}),saving?' Reactivando...':' Reactivar conductor'))
+            :dup?h('p',{role:'alert',style:{margin:'6px 0 0',fontSize:14,fontWeight:700,color:'#b91c1c'}},'Ya registrado: '+(dup.conductor||'(sin nombre)'))
             :checking?h('p',{style:{margin:'6px 0 0',fontSize:12,color:'var(--slate)'}},'Verificando cédula...')
             :(cedula&&!cedulaOk)?h('p',{style:{margin:'6px 0 0',fontSize:12,color:'var(--slate)'}},'Faltan dígitos: la cédula tiene entre 6 y 10.')
             :(cedulaOk&&!dup)?h('p',{style:{margin:'6px 0 0',fontSize:12,fontWeight:600,color:'#047857'}},'Cédula disponible'):null

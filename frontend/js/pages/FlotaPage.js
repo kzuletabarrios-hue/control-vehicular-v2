@@ -267,7 +267,7 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
               'Esta placa no está en la lista oficial. Se puede guardar, pero quedará marcada para revisión. Revisa que esté bien escrita.')
           )
         ),
-        conductorPicker(v=>setForm(p=>({...p,...v})),form.conductor)
+        conductorPicker(v=>setForm(p=>({...p,...v})),(form.conductor_id||selected)?form.conductor:'')
       ),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'package',s:12}),' Carga y muelle'),
