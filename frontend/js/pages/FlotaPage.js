@@ -91,7 +91,7 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
     setSugerCond([]);
   };
   const resetConductorUI = ()=>{setCedulaBusq('');setSugerCond([]);setModoManual(false);setManualNombre('');setManualCedula('');};
-  const componerManual = (nombre,cedula)=>{const n=nombre.trim();const c=cedula.trim();return n?(c?`${n} - CC ${c}`:n):'';};
+  const componerManual = (nombre,cedula)=>{const n=nombre.replace(/\s+/g,' ').trim().toUpperCase();const c=cedula.trim();return n?(c?`${n} - CC ${c}`:n):'';};
   const cambiarManual = (nombre,cedula,onPick)=>{
     setManualNombre(nombre);setManualCedula(cedula);
     onPick({conductor:componerManual(nombre,cedula),codigo_conductor:''});
@@ -103,7 +103,7 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
       h('label',null,modoManual?'Conductor no registrado':'Cédula conductor',h('span',{className:'req'},'*')),
       modoManual
         ? h('div',null,
-            h('input',{type:'text',value:manualNombre,onChange:e=>cambiarManual(e.target.value,manualCedula,onPick),placeholder:'Nombre completo del conductor'}),
+            h('input',{type:'text',value:manualNombre,onChange:e=>cambiarManual(e.target.value.toUpperCase(),manualCedula,onPick),placeholder:'NOMBRE COMPLETO DEL CONDUCTOR',style:{textTransform:'uppercase'}}),
             h('input',{type:'text',inputMode:'numeric',value:manualCedula,onChange:e=>cambiarManual(manualNombre,e.target.value.replace(/\D/g,''),onPick),placeholder:'Cédula (recomendada)',style:{marginTop:6}})
           )
         : h('input',{type:'text',value:cedulaBusq,onChange:e=>buscarConductor(e.target.value),onBlur:()=>setTimeout(()=>setSugerCond([]),150),placeholder:'Buscar por cédula o nombre...'}),

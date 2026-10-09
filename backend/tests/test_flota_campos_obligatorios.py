@@ -146,7 +146,7 @@ def test_salida_completa_conductor_a_mano_200(headers, mk):
         f"/api/flota/{rid}", json=_salida(temperatura="4", conductor="Pedro Gomez"), headers=headers
     )
     assert r.status_code == 200, r.text
-    assert client.get(f"/api/flota/{rid}", headers=headers).json()["conductor"] == "Pedro Gomez"
+    assert client.get(f"/api/flota/{rid}", headers=headers).json()["conductor"] == "PEDRO GOMEZ"
 
 
 # ── PUT llegada ──
@@ -386,3 +386,28 @@ def test_salida_temperatura_na_minusculas_exige_motivo_422(headers, mk):
 def test_salida_con_temperatura_numerica_no_exige_motivo(headers, mk):
     rid = mk(conductor="C", sello="123456")
     assert client.put(f"/api/flota/{rid}", json=_salida(temperatura="4"), headers=headers).status_code == 200
+
+
+# ═══ Conductor escrito a mano: siempre en MAYÚSCULAS y sin espacios dobles ═══
+def test_normalizar_nombre_unitario():
+    from utils_nombres import normalizar_nombre
+    assert normalizar_nombre("  juan   Pérez - cc 123 ") == "JUAN PÉREZ - CC 123"
+    assert normalizar_nombre("   ") is None
+    assert normalizar_nombre(None) is None
+
+
+def test_post_conductor_se_guarda_en_mayusculas(headers):
+    r = client.post("/api/flota", json={"fecha": "2026-10-08", "placa": "QAOBLIG04", "conductor": "  pedro   gómez ", **alta_ok()}, headers=headers)
+    assert r.status_code == 201, r.text
+    rid = r.json()["id"]
+    try:
+        assert client.get(f"/api/flota/{rid}", headers=headers).json()["conductor"] == "PEDRO GÓMEZ"
+    finally:
+        _borrar(rid)
+
+
+def test_put_salida_conductor_a_mano_queda_en_mayusculas(headers, mk):
+    rid = mk(sello="123456")
+    r = client.put(f"/api/flota/{rid}", json=_salida(temperatura="4", conductor="ana lópez"), headers=headers)
+    assert r.status_code == 200, r.text
+    assert client.get(f"/api/flota/{rid}", headers=headers).json()["conductor"] == "ANA LÓPEZ"

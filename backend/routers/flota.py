@@ -6,6 +6,7 @@ from sqlalchemy import text
 from database import get_db
 from routers.auth import get_current_user, require_permiso
 from utils_placas import normalizar_placa
+from utils_nombres import normalizar_nombre
 
 router = APIRouter()
 
@@ -177,6 +178,8 @@ def crear(
         "obs_salida", "foto_salida", "obs_llegada", "foto_llegada",
     ]
     vals = {c: body.get(c) for c in campos}
+    if vals.get("conductor") is not None:
+        vals["conductor"] = normalizar_nombre(vals["conductor"])
     if not _tiene_conductor(vals.get("conductor"), vals.get("codigo_conductor"), db):
         raise HTTPException(422, "El conductor es obligatorio (selecciónalo o escribe su nombre)")
     faltan = [
@@ -228,6 +231,8 @@ def actualizar(
         "obs_salida", "foto_salida", "obs_llegada", "foto_llegada",
     ]
     vals = {c: body[c] for c in campos if c in body}
+    if isinstance(vals.get("conductor"), str):
+        vals["conductor"] = normalizar_nombre(vals["conductor"])
     if not vals:
         raise HTTPException(400, "Sin campos para actualizar")
     if "placa" in vals:
