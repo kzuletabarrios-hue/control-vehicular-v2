@@ -30,6 +30,7 @@ import { ProveedoresPage } from './pages/proveedores/index.js';
 import { VisitaVehicularPage } from './pages/VisitaVehicularPage.js';
 import { AccesoPage } from './pages/AccesoPage.js';
 import { VisitantesPage } from './pages/VisitantesPage.js';
+import { ConductoresPage } from './pages/ConductoresPage.js';
 import { ItemAccesoPage } from './pages/ItemAccesoPage.js';
 import { BaseDatosPage } from './pages/basedatos/index.js';
 import { CargaMasivaPage } from './pages/CargaMasivaPage.js';
@@ -157,7 +158,7 @@ export function App(){
   const rol = user?.rol||'';
   const navItems =
     rol==='guarda_bodega'        ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'visitavh',label:'Visita Vh.',icon:'truck'}]
-    :rol==='guarda_peatonal'     ? [{id:'home',label:'Inicio',icon:'home'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'},{id:'sust',label:'Sust.',icon:'alert'},{id:'herr',label:'Herram.',icon:'key'}]
+    :rol==='guarda_peatonal'     ? [{id:'home',label:'Inicio',icon:'home'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'},{id:'conductores',label:'Conductores',icon:'user'},{id:'sust',label:'Sust.',icon:'alert'},{id:'herr',label:'Herram.',icon:'key'}]
     :rol==='guarda_vehicular'    ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'visitavh',label:'Visita Vh.',icon:'truck'},{id:'visit',label:'Visitas',icon:'users'}]
     :rol==='recorredor_externo'  ? [{id:'home',label:'Inicio',icon:'home'},{id:'ronda',label:'Ronda',icon:'mapPin'},{id:'novedades',label:'Novedades',icon:'bell'}]
     :rol==='coordinador'         ? [{id:'home',label:'Inicio',icon:'home'},{id:'flota',label:'Flota',icon:'truck'},{id:'prov',label:'Proveedores',icon:'package'},{id:'acceso',label:'Acceso',icon:'userCheck'},{id:'visit',label:'Visitas',icon:'users'}]
@@ -185,6 +186,12 @@ export function App(){
     navItems.push({id:'citas',label:'Citas',icon:'calendar'});
   }
 
+  // Conductores (alta en el maestro): fijo para guarda_peatonal arriba; aquí se
+  // agrega a cualquier otro rol con permiso conductores:write (admin).
+  if(puede(user,'conductores','write') && !navItems.some(it=>it.id==='conductores')){
+    navItems.push({id:'conductores',label:'Conductores',icon:'user'});
+  }
+
   const pageContent = {
     home:   h(HomePage,{setPage:navigate,user}),
     flota:  h(FlotaPage,{user,online,addOffline,openId:openFlotaId,onOpened:()=>setOpenFlotaId(null)}),
@@ -192,6 +199,7 @@ export function App(){
     visitavh: h(VisitaVehicularPage,{user,online,addOffline}),
     acceso: h(AccesoPage,{user,online,addOffline}),
     visit:  h(VisitantesPage,{user,online,addOffline}),
+    conductores: h(ConductoresPage,{user}),
     sust:   h(ItemAccesoPage,{tipo:'sustancias',user}),
     herr:   h(ItemAccesoPage,{tipo:'herramientas',user}),
     bd:        h(BaseDatosPage,{user}),

@@ -32,7 +32,7 @@ const h = React.createElement;
 export function AppHeader({user,page,setPage,online,offlineQueue,onAbrirFlota}){
   const [perfilOpen,setPerfilOpen] = useState(false);
   const [buscarOpen,setBuscarOpen] = useState(false);
-  const titleMap = {home:'Inicio',flota:'Flota Propia',prov:'Proveedores',acceso:'Control Acceso',visit:'Visitantes',visitavh:'Visita Vehicular',bd:'Base de Datos',reg:'Registros',carga:'Carga Masiva'};
+  const titleMap = {home:'Inicio',flota:'Flota Propia',prov:'Proveedores',acceso:'Control Acceso',visit:'Visitantes',conductores:'Conductores',visitavh:'Visita Vehicular',bd:'Base de Datos',reg:'Registros',carga:'Carga Masiva'};
 
   const logout = async () => {
     try{ await api.post('/auth/logout',{refresh_token:getRefresh()}); }catch(e){}
