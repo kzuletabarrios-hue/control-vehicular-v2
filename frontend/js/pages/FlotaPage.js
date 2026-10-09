@@ -59,12 +59,7 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
   const esVehicular = user?.rol==='guarda_vehicular';
   const esCoordinador = user?.rol==='coordinador';
   const [cedulaBusq,setCedulaBusq]   = useState('');
-  // Conductor "no registrado" (no está en el maestro): se escribe a mano y se
-  // guarda como texto en `conductor`; NO se crea nada en el maestro.
-  const [modoManual,setModoManual]   = useState(false);
-  const [manualNombre,setManualNombre] = useState('');
-  const [manualCedula,setManualCedula] = useState('');
-  const [condDetalle,setCondDetalle] = useState({conductor:'',codigo_conductor:''});
+  const [condDetalle,setCondDetalle] = useState({conductor:'',conductor_id:''});
   const [sugerCond,setSugerCond]     = useState([]);
   // Maestro de placas (vehículos activos). Se guarda en el celular para que
   // el selector funcione sin conexión. Una placa fuera del maestro se puede
@@ -73,7 +68,7 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
   const [nTiendasUI,setNTiendasUI] = useState(1);
   const [vehiculos,setVehiculos] = useState(()=>{try{return JSON.parse(localStorage.getItem('cv_vehiculos')||'[]');}catch{return [];}});
   const [sugerPlaca,setSugerPlaca] = useState([]);
-  const emptyF = {fecha:today(),placa:'',conductor:'',codigo_conductor:'',n_pallets:'',n_contenedores:'',cant_volumen_externo:'',muelle_cargue:'',tienda_1:'',tienda_2:'',tienda_3:'',tienda_4:'',tienda_5:'',ultima_tienda:'',protocolo:'',sello:'',tipo_sello:'',sello_entrada:'',tipo_sello_entrada:'',hora_salida_muelle:ahoraHora(),temperatura:'',hora_salida_cedi:'',hora_llegada:'',observacion:'',foto_url:null};
+  const emptyF = {fecha:today(),placa:'',conductor:'',conductor_id:'',n_pallets:'',n_contenedores:'',cant_volumen_externo:'',muelle_cargue:'',tienda_1:'',tienda_2:'',tienda_3:'',tienda_4:'',tienda_5:'',ultima_tienda:'',protocolo:'',sello:'',tipo_sello:'',sello_entrada:'',tipo_sello_entrada:'',hora_salida_muelle:ahoraHora(),temperatura:'',hora_salida_cedi:'',hora_llegada:'',observacion:'',foto_url:null};
   const [form,setForm]         = useState(emptyF);
   useEffect(()=>{setNTiendasUI(1);},[view,selected]);
   const [filtro,setFiltro]      = useState('pendientes');
@@ -86,34 +81,25 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
     setSugerCond(conductores.filter(c=>(c.n_cedula&&c.n_cedula.includes(q))||c.conductor.toLowerCase().includes(q)).slice(0,8));
   };
   const seleccionarConductor = (c,onPick)=>{
-    onPick({conductor:c.conductor,codigo_conductor:c.codigo||''});
+    onPick({conductor:c.conductor,conductor_id:c.id});
     setCedulaBusq(c.n_cedula||'');
     setSugerCond([]);
   };
-  const resetConductorUI = ()=>{setCedulaBusq('');setSugerCond([]);setModoManual(false);setManualNombre('');setManualCedula('');};
-  const componerManual = (nombre,cedula)=>{const n=nombre.trim();const c=cedula.trim();return n?(c?`${n} - CC ${c}`:n):'';};
-  const cambiarManual = (nombre,cedula,onPick)=>{
-    setManualNombre(nombre);setManualCedula(cedula);
-    onPick({conductor:componerManual(nombre,cedula),codigo_conductor:''});
-  };
-  // Selector de conductor reutilizado en el formulario y en el detalle del
-  // vehículo (salida). onPick recibe {conductor,codigo_conductor}.
+  const resetConductorUI = ()=>{setCedulaBusq('');setSugerCond([]);};
+  // Selector de conductor reutilizado en el formulario (bodega) y en el detalle
+  // del vehículo (salida, vehicular). SOLO se elige del maestro `conductores`;
+  // no hay texto libre: si no aparece lo registra el puesto de control peatonal.
+  // onPick recibe {conductor,conductor_id}.
   const conductorPicker = (onPick,valorActual)=>h('div',null,
     h('div',{className:'fg',style:{position:'relative'}},
-      h('label',null,modoManual?'Conductor no registrado':'Cédula conductor',h('span',{className:'req'},'*')),
-      modoManual
-        ? h('div',null,
-            h('input',{type:'text',value:manualNombre,onChange:e=>cambiarManual(e.target.value,manualCedula,onPick),placeholder:'Nombre completo del conductor'}),
-            h('input',{type:'text',inputMode:'numeric',value:manualCedula,onChange:e=>cambiarManual(manualNombre,e.target.value.replace(/\D/g,''),onPick),placeholder:'Cédula (recomendada)',style:{marginTop:6}})
-          )
-        : h('input',{type:'text',value:cedulaBusq,onChange:e=>buscarConductor(e.target.value),onBlur:()=>setTimeout(()=>setSugerCond([]),150),placeholder:'Buscar por cédula o nombre...'}),
-      !modoManual&&sugerCond.length>0&&h('div',{style:{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid var(--border)',borderRadius:8,zIndex:50,boxShadow:'var(--shadow)',maxHeight:180,overflowY:'auto'}},
+      h('label',null,'Conductor (cédula o nombre)',h('span',{className:'req'},'*')),
+      h('input',{type:'text',value:cedulaBusq,onChange:e=>{buscarConductor(e.target.value);if(valorActual) onPick({conductor:'',conductor_id:''});},onBlur:()=>setTimeout(()=>setSugerCond([]),150),placeholder:'Buscar por cédula o nombre...'}),
+      sugerCond.length>0&&h('div',{style:{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid var(--border)',borderRadius:8,zIndex:50,boxShadow:'var(--shadow)',maxHeight:180,overflowY:'auto'}},
         sugerCond.map(c=>h('div',{key:c.id,onClick:()=>seleccionarConductor(c,onPick),style:{padding:'10px 12px',cursor:'pointer',borderBottom:'1px solid var(--border)',fontSize:13}},
           h('strong',null,c.conductor),h('span',{style:{fontSize:11,color:'var(--slate)',marginLeft:8}},c.n_cedula||'')
         ))
       ),
-      h('button',{type:'button',onClick:()=>{const m=!modoManual;resetConductorUI();setModoManual(m);onPick({conductor:'',codigo_conductor:''});},style:{background:'none',border:'none',color:'#1d4ed8',cursor:'pointer',fontSize:12,fontWeight:600,padding:'6px 0',textAlign:'left',fontFamily:'inherit'}},
-        modoManual?'← Buscar en la lista de conductores':'Conductor no registrado? Escribirlo a mano')
+      !valorActual&&cedulaBusq.length>=2&&sugerCond.length===0&&h('div',{style:{fontSize:12,color:'#b45309',marginTop:6}},'¿No aparece? Pide al puesto de control peatonal que lo registre')
     ),
     valorActual&&h('div',{style:{padding:'8px 10px',background:'#f0fdf4',border:'1px solid #86efac',borderRadius:8,fontSize:12,color:'#166534',marginTop:4}},'✓ ',valorActual)
   );
@@ -191,7 +177,7 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
     setDetalleVeh(r);setTipoSelloSalida(r.tipo_sello||'');setTipoSelloEntrada(r.tipo_sello_entrada||'');
     setSelloEntradaDetalle(r.sello_entrada||'');setSelloSalida(r.sello||'');setTempSalida(r.temperatura??'');
     setObsSalida(r.obs_salida||'');setObsLleg(r.obs_llegada||'');setUltimaTiendaLleg(r.ultima_tienda||'');
-    resetConductorUI();setCondDetalle({conductor:'',codigo_conductor:''});
+    resetConductorUI();setCondDetalle({conductor:'',conductor_id:''});
   };
 
   // Viene de la búsqueda global (lupa): pide el registro puntual por id --
@@ -218,8 +204,8 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
     if(!normPlaca(form.placa)) return setAlert({type:'err',msg:'La placa es obligatoria'});
     // Solo se exige en el alta (igual que el backend). Al editar un registro
     // existente no se bloquea: el conductor faltante se exige al registrar la salida.
-    if(!selected && !String(form.conductor||'').trim() && !form.codigo_conductor)
-      return setAlert({type:'err',msg:'El conductor es obligatorio: selecciónalo o escribe su nombre'});
+    if(!selected && !form.conductor_id)
+      return setAlert({type:'err',msg:'El conductor es obligatorio: elígelo de la lista (si no aparece, pide al puesto de control peatonal que lo registre)'});
     if(!selected){
       const falta=[];
       const vac=k=>form[k]==null||String(form[k]).trim()==='';
@@ -336,7 +322,7 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
     )
   );
 
-  const sinConductor = r => !(r&&(String(r.conductor||'').trim()||r.codigo_conductor||r.nombre_conductor_bd||r.conductor_nombre));
+  const sinConductor = r => !(r&&(r.conductor_id||String(r.conductor||'').trim()||r.codigo_conductor||r.nombre_conductor_bd||r.conductor_nombre));
   const tiendasDeRuta = r => r ? [r.tienda_1,r.tienda_2,r.tienda_3,r.tienda_4,r.tienda_5].filter(Boolean) : [];
   const tiendasRutaLleg = tiendasDeRuta(llegada);
   const tiendasRutaDetalle = tiendasDeRuta(detalleVeh);
@@ -667,11 +653,11 @@ export function FlotaPage({user,online,addOffline,openId,onOpened}){
             const tipoS=(tipoSelloSalida||detalleVeh.tipo_sello||'').trim();
             if(!tipoS) return setAlert({type:'err',msg:'Selecciona el tipo de sello de salida (o N/A)'});
             const faltaCond=sinConductor(detalleVeh);
-            if(faltaCond&&!condDetalle.conductor.trim()&&!condDetalle.codigo_conductor) return setAlert({type:'err',msg:'El conductor es obligatorio: selecciónalo o escribe su nombre'});
+            if(faltaCond&&!condDetalle.conductor_id) return setAlert({type:'err',msg:'El conductor es obligatorio: elígelo de la lista (si no aparece, pide al puesto de control peatonal que lo registre)'});
             try{
               const ts=await _tsBog();
               const body={hora_salida_cedi:ts.hora,fecha_salida:ts.fecha,sello,tipo_sello:tipoS,temperatura:String(tempSalida).trim()};
-              if(faltaCond){body.conductor=condDetalle.conductor.trim();if(condDetalle.codigo_conductor) body.codigo_conductor=condDetalle.codigo_conductor;}
+              if(faltaCond){body.conductor_id=condDetalle.conductor_id;body.conductor=condDetalle.conductor;}
               if(obsSalida.trim()) body.obs_salida=obsSalida.trim();
               await api.put(`/flota/${detalleVeh.id}`,body);
               setDetalleVeh(null);setSelloSalida('');setTempSalida('');setObsSalida('');load();setAlert({type:'ok',msg:'Salida registrada ✓'});

@@ -1,6 +1,6 @@
 """Campos obligatorios de Flota Propia (auditoría de datos faltantes).
 
-POST: conductor obligatorio (texto o codigo_conductor válido).
+POST: conductor_id obligatorio (conductor activo del maestro); el texto libre se rechaza.
 PUT que CIERRA la salida del CEDI (primera vez que llega hora_salida_cedi):
 temperatura numérica en [-30, 30], sello no vacío ni solo ceros, conductor.
 PUT que CIERRA la llegada: sello_entrada no vacío ni solo ceros.
@@ -11,7 +11,7 @@ import uuid
 
 import pytest
 
-from tests.flota_alta_helper import alta_ok
+from tests.flota_alta_helper import QA_NOMBRE, alta_ok, conductor_qa_id
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
@@ -78,10 +78,10 @@ def test_post_conductor_en_blanco_422(headers):
     assert r.status_code == 422
 
 
-def test_post_con_conductor_texto_201(headers):
-    r = client.post("/api/flota", json={"fecha": "2026-10-07", "placa": "QAOBLIG02", "conductor": "Juan Perez - CC 123", **alta_ok()}, headers=headers)
-    assert r.status_code == 201, r.text
-    _borrar(r.json()["id"])
+def test_post_con_conductor_texto_sin_id_422(headers):
+    """Texto libre ya no sirve: hay que elegir del maestro."""
+    r = client.post("/api/flota", json={"fecha": "2026-10-07", "placa": "QAOBLIG02", "conductor": "Juan Perez - CC 123", **alta_ok(conductor_id=None)}, headers=headers)
+    assert r.status_code == 422
 
 
 def test_post_codigo_conductor_inexistente_422(headers):
@@ -89,15 +89,15 @@ def test_post_codigo_conductor_inexistente_422(headers):
     assert r.status_code == 422
 
 
-def test_post_codigo_conductor_valido_201(headers):
+def test_post_codigo_conductor_valido_sin_id_422(headers):
+    """codigo_conductor ya no sustituye a conductor_id."""
     db = SessionLocal()
     row = db.execute(text("SELECT codigo FROM conductores WHERE codigo IS NOT NULL LIMIT 1")).fetchone()
     db.close()
     if not row:
         pytest.skip("no hay conductores en el seed")
-    r = client.post("/api/flota", json={"fecha": "2026-10-07", "placa": "QAOBLIG02", "codigo_conductor": row.codigo, **alta_ok()}, headers=headers)
-    assert r.status_code == 201, r.text
-    _borrar(r.json()["id"])
+    r = client.post("/api/flota", json={"fecha": "2026-10-07", "placa": "QAOBLIG02", "codigo_conductor": row.codigo, **alta_ok(conductor_id=None)}, headers=headers)
+    assert r.status_code == 422, r.text
 
 
 # ── PUT salida CEDI ──
@@ -140,13 +140,24 @@ def test_salida_sin_conductor_422(headers, mk):
     assert r.status_code == 422 and "conductor" in r.json()["detail"].lower()
 
 
-def test_salida_completa_conductor_a_mano_200(headers, mk):
+def test_salida_conductor_a_mano_sin_id_422(headers, mk):
+    """El texto libre de `conductor` se ignora: sin conductor_id no cierra."""
     rid = mk(sello="123456")
     r = client.put(
         f"/api/flota/{rid}", json=_salida(temperatura="4", conductor="Pedro Gomez"), headers=headers
     )
+    assert r.status_code == 422, r.text
+
+
+def test_salida_con_conductor_id_200_y_copia_nombre(headers, mk):
+    rid = mk(sello="123456")
+    r = client.put(
+        f"/api/flota/{rid}",
+        json=_salida(temperatura="4", conductor="texto libre ignorado", conductor_id=conductor_qa_id()),
+        headers=headers,
+    )
     assert r.status_code == 200, r.text
-    assert client.get(f"/api/flota/{rid}", headers=headers).json()["conductor"] == "Pedro Gomez"
+    assert client.get(f"/api/flota/{rid}", headers=headers).json()["conductor"] == QA_NOMBRE
 
 
 # ── PUT llegada ──
@@ -263,7 +274,7 @@ def test_registro_abierto_de_bodega_sin_conductor_sale_con_conductor_en_el_put(h
     """Escenario CEDI: bodega dejó el registro sin conductor; el guarda
     vehicular lo completa en el mismo PUT de la salida."""
     rid = mk(sello="123456", temperatura="3")
-    r = client.put(f"/api/flota/{rid}", json=_salida(conductor="Pedro Gómez"), headers=headers)
+    r = client.put(f"/api/flota/{rid}", json=_salida(conductor_id=conductor_qa_id()), headers=headers)
     assert r.status_code == 200, r.text
 
 

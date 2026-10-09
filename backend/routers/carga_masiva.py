@@ -29,7 +29,7 @@ def _int(v) -> int | None:
 def importar_conductores(
     body: dict,
     db: Session = Depends(get_db),
-    _: dict = Depends(require_permiso("flota", "write")),
+    _: dict = Depends(require_permiso("conductores", "write")),
 ):
     filas = body.get("filas", [])
     if not filas:

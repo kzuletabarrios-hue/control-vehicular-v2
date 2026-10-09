@@ -1,10 +1,13 @@
 # backend/routers/flota.py
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from database import get_db
 from routers.auth import get_current_user, require_permiso
+from utils_nombres import normalizar_nombre
 from utils_placas import normalizar_placa
 
 router = APIRouter()
@@ -74,6 +77,23 @@ def _tiene_conductor(texto, codigo, db) -> bool:
     except (ValueError, TypeError):
         return False
 
+
+
+def _conductor_maestro_activo(conductor_id, db):
+    """Devuelve (id, nombre en MAYUSCULAS) del conductor ACTIVO del maestro o
+    lanza 422. El nombre es siempre el del maestro, nunca texto libre."""
+    try:
+        cid = str(uuid.UUID(str(conductor_id)))
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(422, "Conductor inválido: elígelo de la lista de conductores")
+    row = db.execute(
+        text("SELECT id, conductor FROM conductores WHERE id = :id AND activo = TRUE"), {"id": cid}
+    ).fetchone()
+    if not row:
+        raise HTTPException(
+            422, "El conductor no existe o está inactivo. Pide al puesto de control peatonal que lo registre"
+        )
+    return str(row.id), normalizar_nombre(row.conductor)
 
 
 @router.get("")
@@ -163,10 +183,9 @@ def crear(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permiso("flota", "write")),
 ):
-    import uuid
     rid = str(uuid.uuid4())
     campos = [
-        "fecha", "placa", "codigo_conductor", "conductor",
+        "fecha", "placa", "codigo_conductor", "conductor", "conductor_id",
         "n_pallets", "n_contenedores", "cant_volumen_externo", "muelle_cargue",
         "tienda_1", "tienda_2", "tienda_3", "tienda_4", "tienda_5",
         "ultima_tienda", "ultima_tienda_visitada",
@@ -177,8 +196,14 @@ def crear(
         "obs_salida", "foto_salida", "obs_llegada", "foto_llegada",
     ]
     vals = {c: body.get(c) for c in campos}
-    if not _tiene_conductor(vals.get("conductor"), vals.get("codigo_conductor"), db):
-        raise HTTPException(422, "El conductor es obligatorio (selecciónalo o escribe su nombre)")
+    # El conductor SIEMPRE sale del maestro (lo da de alta el puesto peatonal):
+    # se exige conductor_id y se ignora el texto libre / codigo_conductor.
+    if _vacio(vals.get("conductor_id")):
+        raise HTTPException(
+            422, "El conductor es obligatorio: elígelo de la lista (si no aparece, pide al puesto de control peatonal que lo registre)"
+        )
+    vals["conductor_id"], vals["conductor"] = _conductor_maestro_activo(vals["conductor_id"], db)
+    vals["codigo_conductor"] = None
     faltan = [
         nombre for campo, nombre in CAMPOS_ALTA_OBLIGATORIOS if _vacio(vals.get(campo))
     ]
@@ -217,7 +242,7 @@ def actualizar(
         raise HTTPException(404, "Registro no encontrado")
 
     campos = [
-        "fecha", "placa", "codigo_conductor", "conductor",
+        "fecha", "placa", "codigo_conductor", "conductor", "conductor_id",
         "n_pallets", "n_contenedores", "cant_volumen_externo", "muelle_cargue",
         "tienda_1", "tienda_2", "tienda_3", "tienda_4", "tienda_5",
         "ultima_tienda", "ultima_tienda_visitada",
@@ -232,6 +257,16 @@ def actualizar(
         raise HTTPException(400, "Sin campos para actualizar")
     if "placa" in vals:
         vals["placa"] = normalizar_placa(vals["placa"])
+    # Conductor: solo se acepta del maestro (conductor_id). El texto libre de
+    # `conductor` sin conductor_id se ignora; el nombre se copia del maestro.
+    if _vacio(vals.get("conductor_id")):
+        vals.pop("conductor_id", None)
+        vals.pop("conductor", None)
+    else:
+        vals["conductor_id"], vals["conductor"] = _conductor_maestro_activo(vals["conductor_id"], db)
+    vals.pop("codigo_conductor", None)
+    if not vals:
+        raise HTTPException(400, "Sin campos para actualizar")
     vals["id"] = id
 
     # Cierre de salida CEDI: solo cuando este PUT la registra por primera vez.
@@ -249,7 +284,11 @@ def actualizar(
             raise HTTPException(422, "El N° de sello de salida es obligatorio y no puede ser solo ceros")
         if _vacio(_valor(vals, antes, "tipo_sello")):
             raise HTTPException(422, "El tipo de sello de salida es obligatorio (usa N/A si no aplica)")
-        if not _tiene_conductor(_valor(vals, antes, "conductor"), _valor(vals, antes, "codigo_conductor"), db):
+        # conductor_id (nuevo o ya guardado); o, solo para registros históricos
+        # anteriores a este cambio, el texto ya guardado en `conductor`.
+        if _vacio(_valor(vals, antes, "conductor_id")) and not _tiene_conductor(
+            antes._mapping.get("conductor"), antes._mapping.get("codigo_conductor"), db
+        ):
             raise HTTPException(422, "El conductor es obligatorio para registrar la salida del CEDI")
     # Cierre de llegada: solo cuando este PUT la registra por primera vez.
     if not _vacio(vals.get("hora_llegada")) and _vacio(antes._mapping.get("hora_llegada")):
@@ -274,7 +313,6 @@ def duplicar(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permiso("flota", "write")),
 ):
-    import uuid
     from datetime import datetime, timedelta, timezone
     _BOG = timezone(timedelta(hours=-5))
     original = db.execute(
