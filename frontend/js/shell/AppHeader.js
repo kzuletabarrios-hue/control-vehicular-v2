@@ -49,7 +49,6 @@ export function AppHeader({user,page,setPage,online,offlineQueue,onAbrirFlota}){
         !online&&h('span',{className:'offline-badge'},h(Ico,{n:'wifiOff',s:11}),' Sin red'),
         offlineQueue>0&&h('span',{className:'offline-badge',style:{background:'rgba(245,158,11,.25)',borderColor:'rgba(245,158,11,.5)'}},`${offlineQueue} pendientes`),
         h('button',{className:'btn-icon',title:'Buscar ingreso',onClick:()=>setBuscarOpen(true)},h(Ico,{n:'search',s:15})),
-        h('button',{className:'btn-icon',title:'Cerrar sesión',onClick:()=>{ if(confirm('¿Cerrar sesión?')) logout(); }},h(Ico,{n:'logOut',s:15})),
         h('div',{className:'user-chip',onClick:()=>setPerfilOpen(true)},
           h('div',{className:'user-avatar'},initials(user?.nombre||'')),
           h('span',{className:'user-name'},user?.nombre?.split(' ')[0]||'Usuario')
