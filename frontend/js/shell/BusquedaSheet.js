@@ -40,7 +40,7 @@ export function BusquedaSheet({onClose,onAbrirFlota}){
     : (estado==='En bodega') ? 'pill-blue' : 'pill-slate';
 
   return h('div',{className:'overlay',onClick:onClose},
-    h('div',{className:'sheet',style:{maxHeight:'85vh',display:'flex',flexDirection:'column'},onClick:e=>e.stopPropagation()},
+    h('div',{className:'sheet mh-85',style:{display:'flex',flexDirection:'column'},onClick:e=>e.stopPropagation()},
       h('div',{className:'sheet-handle'}),
       h('div',{className:'sheet-header',style:{padding:'0 16px 10px'}},
         h('h2',null,h(Ico,{n:'search',s:16}),' Buscar ingreso'),

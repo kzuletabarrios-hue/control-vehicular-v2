@@ -49,7 +49,7 @@ export function BtnNovedad({user,moduloActual}){
     }, h(Ico,{n:'bell',s:19})),
 
     open&&h('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'flex-end'}},
-      h('div',{style:{background:'var(--white)',borderRadius:'20px 20px 0 0',width:'100%',maxHeight:'92vh',overflowY:'auto'}},
+      h('div',{className:'mh-92',style:{background:'var(--white)',borderRadius:'20px 20px 0 0',width:'100%',overflowY:'auto'}},
         h('div',{className:'sheet-handle'}),
         h('div',{className:'sheet-header',style:{padding:'0 16px 12px'}},
           h('h2',null,h(Ico,{n:'bell',s:16}),' Registrar Novedad'),

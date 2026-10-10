@@ -17,7 +17,7 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 
 /* ── LOGIN SCREEN ── */
 .login-wrap{
-  min-height:100vh;display:flex;flex-direction:column;
+  min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;
   justify-content:center;align-items:center;padding:24px;
   background:linear-gradient(160deg,var(--navy) 0%,var(--navy2) 60%,#1e3a6e 100%);
 }
@@ -346,7 +346,7 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 
 /* ── CONFIRM SHEET ── */
 .overlay{position:absolute;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:flex-end;z-index:100}
-.sheet{background:var(--white);border-radius:20px 20px 0 0;width:100%;padding:0 16px 24px;max-height:90vh;overflow-y:auto}
+.sheet{background:var(--white);border-radius:20px 20px 0 0;width:100%;padding:0 16px 24px;max-height:90vh;max-height:90dvh;overflow-y:auto}
 .sheet-handle{width:32px;height:4px;background:var(--border);border-radius:2px;margin:12px auto}
 .sheet-header{padding-bottom:14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .sheet-header h2{font-size:16px;font-weight:700}
@@ -394,7 +394,7 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
 .empty p{font-size:13px;color:var(--slate)}
 
 /* ── APP SHELL ── */
-.app-wrap{display:flex;flex-direction:column;height:100vh;position:relative;overflow:hidden}
+.app-wrap{display:flex;flex-direction:column;height:100vh;height:100dvh;position:relative;overflow:hidden}
 .app-main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;position:relative}
 
 /* ── RESPONSIVE · TABLET (≥640px) ── */
@@ -440,7 +440,7 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
   .dash-section{padding:0 24px;max-width:960px;margin-left:auto;margin-right:auto}
   /* Sheets → centred modal */
   .overlay{align-items:center;justify-content:center;padding:24px}
-  .sheet{border-radius:20px;max-width:600px;width:100%;margin:0 auto;max-height:85vh}
+  .sheet{border-radius:20px;max-width:600px;width:100%;margin:0 auto;max-height:85vh;max-height:85dvh}
   /* Spacing */
   .pad{padding:24px;max-width:960px;margin-left:auto;margin-right:auto}
   .fcard{max-width:960px;margin-left:auto;margin-right:auto}
@@ -488,3 +488,8 @@ h1,h2,h3,.syne{font-family:'Syne',sans-serif}
   .chart-grid{grid-template-columns:repeat(3,1fr)}
   .chart-card-full{grid-column:1 / -1}
 }
+
+/* Alturas máximas con dvh (fallback vh) para que no se corten bajo la barra del navegador móvil */
+.mh-85{max-height:85vh;max-height:85dvh}
+.mh-90{max-height:90vh;max-height:90dvh}
+.mh-92{max-height:92vh;max-height:92dvh}

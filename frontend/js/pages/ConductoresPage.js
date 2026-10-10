@@ -267,7 +267,7 @@ export function ConductoresPage({user}){
 
     // ── Editor ──
     edit&&h('div',{className:'overlay',onClick:()=>!editSaving&&setEdit(null)},
-      h('div',{className:'sheet',role:'dialog','aria-modal':'true','aria-labelledby':'cond-edit-ttl',onClick:e=>e.stopPropagation(),style:{maxHeight:'90vh',overflowY:'auto'}},
+      h('div',{className:'sheet mh-90',role:'dialog','aria-modal':'true','aria-labelledby':'cond-edit-ttl',onClick:e=>e.stopPropagation(),style:{overflowY:'auto'}},
         h('div',{className:'sheet-header'},
           h('span',{id:'cond-edit-ttl',style:{fontWeight:700,fontSize:15}},'Editar conductor'),
           h('button',{type:'button',className:'btn-icon','aria-label':'Cerrar',onClick:()=>setEdit(null),style:{minWidth:MIN_TOUCH,minHeight:MIN_TOUCH}},h(Ico,{n:'x',s:16}))
