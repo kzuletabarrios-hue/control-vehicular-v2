@@ -59,6 +59,9 @@ export function PerfilSheet({user,onClose,onLogout}){
           h('span',{className:'pill pill-blue',style:{marginTop:5,display:'inline-block'}},ROL_LABELS[user?.rol]||user?.rol)
         )
       ),
+      !done&&h('button',{onClick:onLogout,style:{width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:'#fee2e2',border:'none',borderRadius:8,padding:'12px 14px',cursor:'pointer',fontSize:14,fontWeight:700,color:'#991b1b',fontFamily:'inherit',marginBottom:16}},
+        h(Ico,{n:'logOut',s:16}),'Cerrar sesión'
+      ),
       done
         ? h('div',{style:{textAlign:'center',padding:'20px 0'}},
             h('div',{style:{fontSize:36,marginBottom:8}},'✓'),
@@ -85,9 +88,6 @@ export function PerfilSheet({user,onClose,onLogout}){
             h('button',{className:'btn-primary',onClick:handleSave,disabled:saving,style:{width:'100%',marginBottom:12}},
               saving?h('div',{className:'spinner'}):h(Ico,{n:'save',s:15}),saving?'Guardando...':'Guardar contraseña'
             ),
-            h('button',{onClick:onLogout,style:{width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:'#fee2e2',border:'none',borderRadius:8,padding:'10px 14px',cursor:'pointer',fontSize:13,fontWeight:600,color:'#dc2626',fontFamily:'inherit'}},
-              h(Ico,{n:'logOut',s:14}),'Cerrar sesión'
-            )
           )
     )
   );
