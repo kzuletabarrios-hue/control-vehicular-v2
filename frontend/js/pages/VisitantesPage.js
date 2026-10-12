@@ -27,6 +27,15 @@ import { ConfirmSheet } from '../shared/ConfirmSheet.js';
 const { useState, useEffect, useCallback } = React;
 const h = React.createElement;
 
+const MSG_CEDULA = 'La cédula o documento es obligatoria: mínimo 5 caracteres entre letras y números (se permite guion), sin espacios';
+const OBLIGATORIOS_TXT = [
+  ['nombre','El nombre del visitante es requerido'],
+  ['empresa_pertenece','La empresa a la que pertenece es obligatoria (escribe «Particular» si no pertenece a ninguna)'],
+  ['empresa','Indica a quién visita o la dependencia'],
+  ['actividad_a_desarrollar','La actividad a desarrollar es obligatoria'],
+  ['dependencia_autoriza','Indica quién autoriza la visita'],
+];
+
 export function VisitantesPage({user,online,addOffline}){
   const [view,setView]       = useState('list');
   const [records,setRecords] = useState([]);
@@ -52,10 +61,30 @@ export function VisitantesPage({user,online,addOffline}){
   },[]);
   useEffect(()=>load(),[load]);
 
+  // Mismos mensajes y reglas que backend/routers/visitantes.py. Al editar un registro
+  // histórico incompleto solo se exige lo que ya tenía valor (no se puede vaciar);
+  // la cédula solo se revalida si cambió.
+  const validar = ()=>{
+    for(const [c,m] of OBLIGATORIOS_TXT){
+      if(selected && !String(selected[c]??'').trim()) continue;
+      if(!String(form[c]??'').trim()) return m;
+    }
+    const ced = String(form.cedula??'').trim();
+    const cedOk = /^[A-Za-z0-9-]+$/.test(ced) && ced.replace(/[^A-Za-z0-9]/g,'').length>=5;
+    if(selected){
+      if(String(selected.cedula??'').trim() && ced!==String(selected.cedula).trim() && !cedOk) return MSG_CEDULA;
+      if(String(selected.cedula??'').trim() && !ced) return MSG_CEDULA;
+      if(!String(selected.cedula??'').trim() && ced && !cedOk) return MSG_CEDULA;
+    }else if(!cedOk) return MSG_CEDULA;
+    return null;
+  };
+
   const handleSave = async()=>{
-    if(!form.nombre) return setAlert({type:'err',msg:'El nombre es obligatorio'});
+    const err = validar();
+    if(err) return setAlert({type:'err',msg:err});
     setSaving(true);
     const body = Object.fromEntries(Object.entries(form).filter(([,v])=>v!=null&&v!==''));
+    for(const k of ['nombre','cedula','empresa_pertenece','empresa','actividad_a_desarrollar','dependencia_autoriza']) if(typeof body[k]==='string') body[k]=body[k].trim();
     if(!selected){const ts=await _tsBog();body.fecha=ts.fecha;body.hora_ingreso=ts.hora;}
     try{
       if(selected) await api.put(`/visitantes/${selected.id}`,body);
@@ -83,13 +112,13 @@ export function VisitantesPage({user,online,addOffline}){
         h('p',{className:'sec-ttl'},h(Ico,{n:'users',s:12}),' Datos del visitante'),
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
-          h('div',{className:'fg'},h('label',null,'Cédula'),h('input',{type:'text',value:form.cedula,onChange:e=>setForm(p=>({...p,cedula:e.target.value})),placeholder:'Número'}))
+          h('div',{className:'fg'},h('label',null,'Cédula / pasaporte',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.cedula||'',onChange:e=>setForm(p=>({...p,cedula:e.target.value})),placeholder:'Cédula o pasaporte (mín. 5)'}))
         ),
-        h('div',{className:'fg'},h('label',null,'Nombre',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.nombre,onChange:e=>setForm(p=>({...p,nombre:e.target.value})),onBlur:()=>setForm(p=>({...p,nombre:capitalizarNombre(p.nombre)})),placeholder:'Nombre completo'})),
-        h('div',{className:'fg'},h('label',null,'Empresa a la que pertenece'),h('input',{type:'text',value:form.empresa_pertenece||'',onChange:e=>setForm(p=>({...p,empresa_pertenece:e.target.value})),placeholder:'Empresa del visitante'})),
-        h('div',{className:'fg'},h('label',null,'A quién visita / dependencia'),h('input',{type:'text',value:form.empresa,onChange:e=>setForm(p=>({...p,empresa:e.target.value})),placeholder:'Persona o dependencia a visitar'})),
-        h('div',{className:'fg'},h('label',null,'Actividad a desarrollar'),h('textarea',{value:form.actividad_a_desarrollar||'',onChange:e=>setForm(p=>({...p,actividad_a_desarrollar:e.target.value})),rows:2,placeholder:'Motivo de la visita'})),
-        h('div',{className:'fg'},h('label',null,'Quién autoriza'),h('input',{type:'text',value:form.dependencia_autoriza||'',onChange:e=>setForm(p=>({...p,dependencia_autoriza:e.target.value})),placeholder:'Nombre o dependencia que autoriza'}))
+        h('div',{className:'fg'},h('label',null,'Nombre',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.nombre||'',onChange:e=>setForm(p=>({...p,nombre:e.target.value})),onBlur:()=>setForm(p=>({...p,nombre:capitalizarNombre(p.nombre)})),placeholder:'Nombre completo'})),
+        h('div',{className:'fg'},h('label',null,'Empresa a la que pertenece',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.empresa_pertenece||'',onChange:e=>setForm(p=>({...p,empresa_pertenece:e.target.value})),placeholder:'Si no pertenece a ninguna, escribe Particular'})),
+        h('div',{className:'fg'},h('label',null,'A quién visita / dependencia',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.empresa||'',onChange:e=>setForm(p=>({...p,empresa:e.target.value})),placeholder:'Persona o dependencia a visitar'})),
+        h('div',{className:'fg'},h('label',null,'Actividad a desarrollar',h('span',{className:'req'},'*')),h('textarea',{value:form.actividad_a_desarrollar||'',onChange:e=>setForm(p=>({...p,actividad_a_desarrollar:e.target.value})),rows:2,placeholder:'Motivo de la visita'})),
+        h('div',{className:'fg'},h('label',null,'Quién autoriza',h('span',{className:'req'},'*')),h('input',{type:'text',value:form.dependencia_autoriza||'',onChange:e=>setForm(p=>({...p,dependencia_autoriza:e.target.value})),placeholder:'Nombre o dependencia que autoriza'}))
       ),
       h('div',{className:'fcard'},
         h('p',{className:'sec-ttl'},h(Ico,{n:'check',s:12}),' Horarios'),

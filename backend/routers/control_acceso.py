@@ -1,7 +1,7 @@
 # backend/routers/control_acceso.py
 import re
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
@@ -10,6 +10,12 @@ from sqlalchemy.exc import DBAPIError
 
 from database import get_db
 from routers.auth import require_permiso
+from validaciones_registro import (
+    BOG,
+    validar_texto_obligatorio as _validar_texto_obligatorio,
+    validar_fecha as _validar_fecha,
+    validar_hora as _validar_hora,
+)
 
 router = APIRouter()
 
@@ -51,12 +57,11 @@ def _codigo_http_anulacion(mensaje: str) -> int:
 
 
 # ── VALIDACIÓN DE REGISTROS DE PERSONAS ───────────────────────────
-# Misma zona horaria fija que usan dashboard.py, export.py y /api/tiempo
-# (Bogotá = UTC-5, sin DST).
-_BOG = timezone(timedelta(hours=-5))
+# _BOG y los validadores de texto/fecha/hora viven en validaciones_registro.py
+# (compartidos con visitantes.py); se conservan los nombres locales.
+_BOG = BOG
 _BIGINT_MAX = 9223372036854775807
 _RE_CEDULA = re.compile(r"[0-9]+")
-_RE_HORA = re.compile(r"([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?")
 
 MSG_CEDULA = "La cédula es obligatoria y debe ser un número válido mayor que cero"
 MSG_NOMBRE = "El nombre es obligatorio"
@@ -80,33 +85,6 @@ def _validar_cedula(valor) -> int:
         raise HTTPException(400, MSG_CEDULA)
     return n
 
-
-def _validar_texto_obligatorio(valor, mensaje: str) -> str:
-    if not isinstance(valor, str) or not valor.strip():
-        raise HTTPException(400, mensaje)
-    return valor.strip()
-
-
-def _validar_fecha(valor, campo: str):
-    """None/'' -> None. Formato YYYY-MM-DD o 400."""
-    if valor is None or valor == "":
-        return None
-    if isinstance(valor, str) and len(valor) == 10:
-        try:
-            date.fromisoformat(valor)
-            return valor
-        except ValueError:
-            pass
-    raise HTTPException(400, f"{campo}: fecha inválida, use el formato AAAA-MM-DD")
-
-
-def _validar_hora(valor, campo: str):
-    """None/'' -> None. Formato HH:MM o HH:MM:SS o 400."""
-    if valor is None or valor == "":
-        return None
-    if isinstance(valor, str) and _RE_HORA.fullmatch(valor):
-        return valor
-    raise HTTPException(400, f"{campo}: hora inválida, use el formato HH:MM")
 
 
 # ── SUSTANCIAS ────────────────────────────────────────────────────
