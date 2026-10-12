@@ -120,11 +120,18 @@ export function AccesoPage({user,online,addOffline}){
   };
 
   const handleSave = async()=>{
-    if(!form.nombre) return setAlert({type:'err',msg:'El nombre es obligatorio'});
+    if(!String(form.nombre||'').trim()) return setAlert({type:'err',msg:'El nombre es obligatorio'});
+    // Mismo mensaje que el servidor. La cédula es obligatoria en el alta; al editar
+    // un registro histórico sin cédula se deja pasar, pero no se permite vaciar una existente.
+    const cedTxt = String(form.cedula??'').trim();
+    if((!selected||selected.cedula) && !(/^[0-9]+$/.test(cedTxt) && Number(cedTxt)>0))
+      return setAlert({type:'err',msg:'La cédula es obligatoria y debe ser un número válido mayor que cero'});
+    if(cedTxt && !(/^[0-9]+$/.test(cedTxt) && Number(cedTxt)>0))
+      return setAlert({type:'err',msg:'La cédula es obligatoria y debe ser un número válido mayor que cero'});
     if(!form.contratista) return setAlert({type:'err',msg:'Selecciona un contratista'});
     setSaving(true);
     const body = Object.fromEntries(Object.entries(form).filter(([,v])=>v!=null&&v!==''));
-    if(body.cedula) body.cedula = parseInt(body.cedula);
+    if(body.cedula) body.cedula = cedTxt;  // string: evita perder precisión de parseInt en números muy grandes (el servidor valida rango)
     if(!selected){const ts=await _tsBog();body.fecha=ts.fecha;body.hora_ingreso=ts.hora;}
     try{
       if(selected) await api.put(`/control-acceso/${selected.id}`,body);
@@ -153,7 +160,7 @@ export function AccesoPage({user,online,addOffline}){
         h('div',{className:'fgrid2'},
           h('div',{className:'fg'},h('label',null,'Fecha'),h('input',{type:'date',value:form.fecha,readOnly:true,style:{background:'#f8fafc',cursor:'default'}})),
           h('div',{className:'fg',style:{position:'relative'}},
-            h('label',null,'Cédula'),
+            h('label',null,'Cédula',!selected&&h('span',{className:'req'},'*')),
             h('input',{type:'number',value:form.cedula,onChange:e=>buscarCedula(e.target.value),onBlur:()=>setTimeout(()=>setSugerencias([]),150),placeholder:'Número de cédula'}),
             sugerencias.length>0&&h('div',{style:{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid var(--border)',borderRadius:8,zIndex:50,boxShadow:'var(--shadow)',maxHeight:180,overflowY:'auto'}},
               sugerencias.map(s=>h('div',{key:s.cedula,onClick:()=>{setForm(p=>({...p,cedula:String(s.cedula),nombre:s.nombre,contratista:s.contratista||''}));setSugerencias([]);},
@@ -248,6 +255,7 @@ export function AccesoPage({user,online,addOffline}){
           !r.hora_salida&&r.fecha!==hoyStr&&h('span',{className:'pill',style:{background:diasAbiertos(r.fecha)>=5?'#fee2e2':'#fef3c7',color:diasAbiertos(r.fecha)>=5?'#991b1b':'#92400e',marginBottom:3,display:'inline-block'}},diasAbiertos(r.fecha)+(diasAbiertos(r.fecha)===1?' día':' días')+' · '+fmtDate(r.fecha)),
           h('div',{className:'li-title'},r.nombre),
           h('div',{className:'li-sub'},r.contratista||'Sin empresa'),
+          r.cedula&&!r.estado_bd&&h('span',{className:'pill pill-amber',title:'Esta cédula no está en la base de datos maestra: debe darse de alta',style:{marginTop:2}},'No está en el maestro'),
           r.hora_ingreso&&h('div',{className:'li-sub'},'Ingreso: ',r.hora_ingreso,r.hora_salida&&(' · Salida: '+r.hora_salida))
         ),
         h('div',{className:'li-right'},

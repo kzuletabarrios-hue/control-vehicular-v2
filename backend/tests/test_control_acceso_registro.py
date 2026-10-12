@@ -46,8 +46,6 @@ NOMBRE_MAESTRO = "QA Maestro Acceso"
 FK = "control_acceso_cedula_fkey"
 BOG = timezone(timedelta(hours=-5))
 
-xfail_fix = pytest.mark.xfail(reason="pendiente fix cedula control_acceso", strict=True)
-
 
 @pytest.fixture(scope="module", autouse=True)
 def _columna_fecha_salida():
@@ -217,7 +215,6 @@ def test_listado_trae_estado_bd_para_cedula_del_maestro(guarda, maestro):
 
 # ═════════════ B) REGLA NUEVA (xfail hasta el fix de María) ═════════════
 
-@xfail_fix
 def test_alta_con_cedula_fuera_del_maestro_guarda_la_cedula(guarda, sin_fk):
     r = client.post("/api/control-acceso", json=_alta_body(CED_FUERA), headers=guarda)
     assert r.status_code == 201, r.text
@@ -228,13 +225,11 @@ def test_alta_con_cedula_fuera_del_maestro_guarda_la_cedula(guarda, sin_fk):
     assert fila["cedula"] == CED_FUERA and fila["estado_bd"] is None
 
 
-@xfail_fix
 def test_alta_sin_cedula_es_400(guarda, sin_fk):
     r = client.post("/api/control-acceso", json=_alta_body(None), headers=guarda)
     assert r.status_code == 400, r.text
 
 
-@xfail_fix
 def test_alta_sin_nombre_es_400(guarda, sin_fk):
     body = _alta_body(CED_FUERA)
     del body["nombre"]
@@ -256,7 +251,6 @@ def test_salida_a_registro_historico_sin_cedula_sigue_funcionando(guarda, sin_fk
     assert fila["hora_salida"] is not None and fila["cedula"] is None
 
 
-@xfail_fix
 def test_put_que_cambia_cedula_a_una_fuera_del_maestro_la_guarda(guarda, sin_fk):
     rid = _insertar_historico(cedula=None)
     r = client.put(f"/api/control-acceso/{rid}", json={"cedula": CED_FUERA}, headers=guarda)
@@ -264,7 +258,6 @@ def test_put_que_cambia_cedula_a_una_fuera_del_maestro_la_guarda(guarda, sin_fk)
     assert _fila(rid)["cedula"] == CED_FUERA
 
 
-@xfail_fix
 def test_alta_sin_fecha_ni_hora_se_sella_con_hora_del_servidor_bogota(guarda, sin_fk):
     antes = datetime.now(BOG)
     body = {"cedula": CED_FUERA, "nombre": "QA-CA sin reloj", "contratista": "QA Contratista"}
@@ -276,3 +269,68 @@ def test_alta_sin_fecha_ni_hora_se_sella_con_hora_del_servidor_bogota(guarda, si
     assert fila["hora_ingreso"] is not None
     ingreso = datetime.combine(fila["fecha"], fila["hora_ingreso"], tzinfo=BOG)
     assert antes - timedelta(minutes=1) <= ingreso <= despues + timedelta(minutes=1)
+
+
+# ═════════════ C) VALIDACIÓN DE CÉDULA / NOMBRE / CONTRATISTA / FORMATOS ═════════════
+
+@pytest.mark.parametrize("cedula", ["0", 0, "", "   ", "abc", "12a45", "-5", -5, "1.5",
+                                    99999999999999999999, "9223372036854775808", True])
+def test_alta_con_cedula_invalida_es_400(guarda, sin_fk, cedula):
+    r = client.post("/api/control-acceso", json=_alta_body(cedula), headers=guarda)
+    assert r.status_code == 400, r.text
+    assert "cédula" in r.json()["detail"].lower()
+
+
+def test_alta_acepta_cedula_como_string_numerico(guarda, sin_fk):
+    r = client.post("/api/control-acceso", json=_alta_body(f" {CED_FUERA} "), headers=guarda)
+    assert r.status_code == 201, r.text
+    assert _fila(r.json()["id"])["cedula"] == CED_FUERA
+
+
+@pytest.mark.parametrize("nombre", ["", "   "])
+def test_alta_con_nombre_vacio_es_400(guarda, sin_fk, nombre):
+    body = _alta_body(CED_FUERA)
+    body["nombre"] = nombre
+    assert client.post("/api/control-acceso", json=body, headers=guarda).status_code == 400
+
+
+@pytest.mark.parametrize("contratista", [None, "", "  "])
+def test_alta_sin_contratista_es_400(guarda, sin_fk, contratista):
+    body = _alta_body(CED_FUERA)
+    if contratista is None:
+        del body["contratista"]
+    else:
+        body["contratista"] = contratista
+    assert client.post("/api/control-acceso", json=body, headers=guarda).status_code == 400
+
+
+@pytest.mark.parametrize("campo,valor", [("hora_ingreso", "25:99"), ("hora_ingreso", "abc"),
+                                         ("fecha", "2026-13-45"), ("fecha", "ayer"),
+                                         ("hora_salida", "8"), ("fecha_salida", "2026/01/01")])
+def test_alta_con_fecha_u_hora_mal_formada_es_400(guarda, sin_fk, campo, valor):
+    r = client.post("/api/control-acceso", json=_alta_body(CED_FUERA, **{campo: valor}), headers=guarda)
+    assert r.status_code == 400, r.text
+
+
+@pytest.mark.parametrize("cuerpo", [{"cedula": ""}, {"cedula": "  "}, {"cedula": 0}, {"cedula": "0"},
+                                    {"cedula": "abc"}, {"cedula": None}, {"nombre": ""}, {"nombre": "  "},
+                                    {"nombre": None}, {"hora_salida": "99:99"}, {"fecha_salida": "x"}])
+def test_put_que_vacia_o_invalida_cedula_nombre_es_400(guarda, sin_fk, cuerpo):
+    rid = client.post("/api/control-acceso", json=_alta_body(CED_FUERA, "QA-CA original"),
+                      headers=guarda).json()["id"]
+    r = client.put(f"/api/control-acceso/{rid}", json=cuerpo, headers=guarda)
+    assert r.status_code == 400, r.text
+    fila = _fila(rid)
+    assert fila["cedula"] == CED_FUERA and fila["nombre"] == "QA-CA original"
+
+
+def test_put_edicion_completa_como_el_formulario_sigue_funcionando(guarda, sin_fk):
+    """El formulario de edición reenvía el registro entero (horas con segundos)."""
+    rid = client.post("/api/control-acceso", json=_alta_body(CED_FUERA, "QA-CA edit"), headers=guarda).json()["id"]
+    f = _fila(rid)
+    body = {"fecha": str(f["fecha"]), "cedula": str(CED_FUERA), "nombre": "QA-CA edit",
+            "contratista": "QA Contratista", "hora_ingreso": str(f["hora_ingreso"]),
+            "observaciones": "nota"}
+    r = client.put(f"/api/control-acceso/{rid}", json=body, headers=guarda)
+    assert r.status_code == 200, r.text
+    assert _fila(rid)["observaciones"] == "nota"

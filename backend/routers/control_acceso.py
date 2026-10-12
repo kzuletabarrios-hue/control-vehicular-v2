@@ -1,5 +1,7 @@
 # backend/routers/control_acceso.py
+import re
 import uuid
+from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
@@ -46,6 +48,65 @@ def _codigo_http_anulacion(mensaje: str) -> int:
     # "ya está anulado", "fuera de la ventana" y "motivo ... obligatorio"
     # (esta última es defensa en profundidad: Pydantic ya la bloquea antes).
     return 400
+
+
+# ── VALIDACIÓN DE REGISTROS DE PERSONAS ───────────────────────────
+# Misma zona horaria fija que usan dashboard.py, export.py y /api/tiempo
+# (Bogotá = UTC-5, sin DST).
+_BOG = timezone(timedelta(hours=-5))
+_BIGINT_MAX = 9223372036854775807
+_RE_CEDULA = re.compile(r"[0-9]+")
+_RE_HORA = re.compile(r"([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?")
+
+MSG_CEDULA = "La cédula es obligatoria y debe ser un número válido mayor que cero"
+MSG_NOMBRE = "El nombre es obligatorio"
+MSG_CONTRATISTA = "Selecciona un contratista"
+
+
+def _validar_cedula(valor) -> int:
+    """Cédula numérica, positiva y dentro de BIGINT (acepta str o int)."""
+    if isinstance(valor, bool):
+        raise HTTPException(400, MSG_CEDULA)
+    if isinstance(valor, int):
+        n = valor
+    elif isinstance(valor, str):
+        t = valor.strip()
+        if not _RE_CEDULA.fullmatch(t):
+            raise HTTPException(400, MSG_CEDULA)
+        n = int(t)
+    else:
+        raise HTTPException(400, MSG_CEDULA)
+    if n <= 0 or n > _BIGINT_MAX:
+        raise HTTPException(400, MSG_CEDULA)
+    return n
+
+
+def _validar_texto_obligatorio(valor, mensaje: str) -> str:
+    if not isinstance(valor, str) or not valor.strip():
+        raise HTTPException(400, mensaje)
+    return valor.strip()
+
+
+def _validar_fecha(valor, campo: str):
+    """None/'' -> None. Formato YYYY-MM-DD o 400."""
+    if valor is None or valor == "":
+        return None
+    if isinstance(valor, str) and len(valor) == 10:
+        try:
+            date.fromisoformat(valor)
+            return valor
+        except ValueError:
+            pass
+    raise HTTPException(400, f"{campo}: fecha inválida, use el formato AAAA-MM-DD")
+
+
+def _validar_hora(valor, campo: str):
+    """None/'' -> None. Formato HH:MM o HH:MM:SS o 400."""
+    if valor is None or valor == "":
+        return None
+    if isinstance(valor, str) and _RE_HORA.fullmatch(valor):
+        return valor
+    raise HTTPException(400, f"{campo}: hora inválida, use el formato HH:MM")
 
 
 # ── SUSTANCIAS ────────────────────────────────────────────────────
@@ -262,23 +323,29 @@ def crear(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permiso("control_acceso", "write")),
 ):
+    # La cédula se guarda aunque la persona no esté en bd_control_acceso
+    # (sin FK desde la migración 20261011120000): el listado la marca con
+    # estado_bd NULL para que el coordinador la dé de alta en el maestro.
+    cedula = _validar_cedula(body.get("cedula"))
+    nombre = _validar_texto_obligatorio(body.get("nombre"), MSG_NOMBRE)
+    contratista = _validar_texto_obligatorio(body.get("contratista"), MSG_CONTRATISTA)
+
+    ahora = datetime.now(_BOG)
+    fecha = _validar_fecha(body.get("fecha"), "fecha") or ahora.strftime("%Y-%m-%d")
+    hora_ingreso = _validar_hora(body.get("hora_ingreso"), "hora_ingreso") or ahora.strftime("%H:%M")
+    hora_salida = _validar_hora(body.get("hora_salida"), "hora_salida")
+    fecha_salida = _validar_fecha(body.get("fecha_salida"), "fecha_salida")
+
     rid = str(uuid.uuid4())
-    cedula = body.get("cedula")
-    if cedula:
-        existe_en_bd = db.execute(
-            text("SELECT 1 FROM bd_control_acceso WHERE cedula = :c"), {"c": cedula}
-        ).fetchone()
-        if not existe_en_bd:
-            cedula = None
     vals = {
         "id": rid,
-        "fecha": body.get("fecha"),
+        "fecha": fecha,
         "cedula": cedula,
-        "nombre": body.get("nombre"),
-        "contratista": body.get("contratista"),
-        "hora_ingreso": body.get("hora_ingreso"),
-        "hora_salida": body.get("hora_salida"),
-        "fecha_salida": body.get("fecha_salida"),
+        "nombre": nombre,
+        "contratista": contratista,
+        "hora_ingreso": hora_ingreso,
+        "hora_salida": hora_salida,
+        "fecha_salida": fecha_salida,
         "observaciones": body.get("observaciones"),
         "foto_url": body.get("foto_url"),
         "creado_por": current_user["id"],
@@ -308,12 +375,24 @@ def actualizar(
 
     campos = ["fecha", "cedula", "nombre", "contratista", "hora_ingreso", "hora_salida", "fecha_salida", "observaciones", "foto_url"]
     vals = {c: body[c] for c in campos if c in body}
-    if "cedula" in vals and vals["cedula"]:
-        existe_en_bd = db.execute(
-            text("SELECT 1 FROM bd_control_acceso WHERE cedula = :c"), {"c": vals["cedula"]}
-        ).fetchone()
-        if not existe_en_bd:
-            del vals["cedula"]
+
+    # Solo se valida lo que el body trae: el botón "Salida" manda
+    # únicamente hora/fecha de salida y debe funcionar también en
+    # registros históricos sin cédula. Cédula y nombre no se pueden vaciar.
+    if "cedula" in vals:
+        vals["cedula"] = _validar_cedula(vals["cedula"])
+    if "nombre" in vals:
+        vals["nombre"] = _validar_texto_obligatorio(vals["nombre"], MSG_NOMBRE)
+    if "fecha" in vals:
+        vals["fecha"] = _validar_fecha(vals["fecha"], "fecha")
+        if vals["fecha"] is None:  # columna NOT NULL
+            raise HTTPException(400, "fecha: es obligatoria")
+    if "fecha_salida" in vals:
+        vals["fecha_salida"] = _validar_fecha(vals["fecha_salida"], "fecha_salida")
+    if "hora_ingreso" in vals:
+        vals["hora_ingreso"] = _validar_hora(vals["hora_ingreso"], "hora_ingreso")
+    if "hora_salida" in vals:
+        vals["hora_salida"] = _validar_hora(vals["hora_salida"], "hora_salida")
     if not vals:
         raise HTTPException(400, "Sin campos para actualizar")
     vals["id"] = id
