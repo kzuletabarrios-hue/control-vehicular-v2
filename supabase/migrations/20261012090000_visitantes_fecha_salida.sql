@@ -2,7 +2,7 @@
 -- visitantes.fecha_salida: registrar en migraciones una columna
 -- que ya existe en producción.
 --
--- Drift detectado por QA (Diego): el router (POST/PUT /control-acceso)
+-- Drift detectado por QA (Diego): el router (POST/PUT /visitantes)
 -- y el botón "Salida" usan visitantes.fecha_salida, pero ninguna
 -- migración la creaba. En producción existe (DATE, verificado, creada
 -- a mano); en una BD levantada solo con migraciones el alta y la
