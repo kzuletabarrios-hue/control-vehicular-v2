@@ -945,18 +945,21 @@ export function ProveedoresPage({user,online,addOffline}){
     const emps = (r.ordenes||[]).map(o=>o.empresa).filter(Boolean);
     return emps.length===0?(r.empresa||'Sin empresa'):emps.length<=2?emps.join(' · '):emps.slice(0,2).join(' · ')+` +${emps.length-2}`;
   };
-  // Orden compuesto: fecha DESC (como ya viene del backend, agrupa por
-  // día) y, dentro del mismo día, hora_cita ASC -- los que tienen cita más
-  // temprano primero. Los registros sin hora_cita van al final de su día
-  // sin romper el orden de los que sí la tienen. Se ordena ANTES de
-  // filtrar para que todas las pestañas hereden el mismo orden.
+  // Orden compuesto: fecha DESC (agrupa por día) y, dentro del día:
+  // 1) hora_cita ASC (HH:MM; los sin cita van al final del día),
+  // 2) en empate (o entre los sin cita) hora_ingreso ASC = llegada a portería
+  //    (los sin hora_ingreso después de los que sí la tienen),
+  // 3) created_at ASC. Se ordena ANTES de filtrar para que todas las
+  //    pestañas hereden el mismo orden.
   const cmpRecords = (a,b) => {
     if(a.fecha !== b.fecha) return a.fecha < b.fecha ? 1 : -1; // fecha DESC
-    const ha = a.hora_cita || null, hb = b.hora_cita || null;
-    if(ha && hb) return ha < hb ? -1 : ha > hb ? 1 : 0; // hora_cita ASC
-    if(ha && !hb) return -1;
-    if(!ha && hb) return 1;
-    return 0;
+    const c = (x,y) => x < y ? -1 : x > y ? 1 : 0;
+    const nul = (x,y) => (x?0:1) - (y?0:1); // con valor primero
+    const ca = a.hora_cita ? String(a.hora_cita).slice(0,5) : '', cb = b.hora_cita ? String(b.hora_cita).slice(0,5) : '';
+    if(ca !== cb) return ca && cb ? c(ca,cb) : nul(ca,cb); // hora_cita ASC
+    const ia = a.hora_ingreso ? String(a.hora_ingreso).slice(0,8) : '', ib = b.hora_ingreso ? String(b.hora_ingreso).slice(0,8) : '';
+    if(ia !== ib) return ia && ib ? c(ia,ib) : nul(ia,ib); // hora_ingreso ASC
+    return c(a.created_at||'', b.created_at||''); // created_at ASC
   };
   const visibles = [...records]
     .sort(cmpRecords)
