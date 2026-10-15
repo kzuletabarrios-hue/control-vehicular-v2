@@ -182,6 +182,18 @@ export function ProveedoresPage({user,online,addOffline}){
   const minDe = t => { const [hh,mm] = String(t).slice(0,5).split(':').map(Number); return hh*60+mm; };
   const limiteCitaMin = r => minDe(r.cita_hora_fin || r.hora_cita) + (r.cita_tolerancia_min ?? 15);
   const ahoraMin = () => minDe(ahoraHora());
+  // Fase de la tarjeta respecto a la hora de ingresar a WPS (regla confirmada):
+  // 'naranja' = ya llegó a portería y está dentro de [hora_cita, límite] sin
+  // ingresar a WPS; 'vencida' = pendiente y pasó el límite; null = nada.
+  const citaFase = (r, ahora = ahoraMin()) => {
+    if(r.estado_confirmacion!=='pendiente' || !r.hora_cita) return null;
+    if(ahora > limiteCitaMin(r)) return 'vencida';
+    if(r.hora_ingreso && ahora >= minDe(r.hora_cita)) return 'naranja';
+    return null;
+  };
+  // El color depende de la hora actual: forzar re-render aunque los datos no cambien.
+  const [,setTick] = useState(0);
+  useEffect(()=>{ const id=setInterval(()=>setTick(t=>t+1),30000); return ()=>clearInterval(id); },[]);
 
   // Suena una alerta cuando a un proveedor por confirmar le falten ≤5 min para
   // su hora de cita (declarada por el conductor). Una sola vez por registro.
@@ -1179,6 +1191,7 @@ export function ProveedoresPage({user,online,addOffline}){
           );
         };
 
+        const pillNaranja = () => h('span',{className:'pill cita-blink-suave',style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#ffedd5',color:'#9a3412',border:'1px solid #fdba74',whiteSpace:'normal',maxWidth:220,lineHeight:1.35}},'⏱ Hora de cita: ingresar a WPS ya');
         if(filtro==='confirmar'){
           // Agrupación por puntualidad: atrasado solo después del fin de la franja + tolerancia (limiteCitaMin, decisión 2026-10-03).
           // atrasoMin se calcula con hora_ingreso REAL (llegada a portería
@@ -1242,6 +1255,9 @@ export function ProveedoresPage({user,online,addOffline}){
             );
           };
           const cardConfirmar = ({r,atrasoMin,sinLlegar,diff},tipo) => {
+            const fase = tipo==='aTiempo' ? citaFase(r) : null;
+            if(fase==='naranja') return cardFor(r,{style:{border:'1.5px solid #fb923c',background:'#fff7ed'},pill:pillNaranja()});
+            if(fase==='vencida') return cardFor(r,{style:{border:'1.5px solid #f87171',background:'#fef2f2'},pill:h('span',{className:'pill pill-red',style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#fee2e2',color:'#991b1b',border:'1px solid #fca5a5',whiteSpace:'normal',maxWidth:220,lineHeight:1.35}},'Pasó la hora de ingreso a WPS')});
             const style = tipo==='atrasados'
               ?{border:'1.5px solid #f87171',background:'#fef2f2'}
               :{border:'1.5px solid #fcd34d',background:'#fffbeb'};
@@ -1280,6 +1296,7 @@ export function ProveedoresPage({user,online,addOffline}){
           })() : null;
           const citaProxima = !!citaAlerta;
           const citaVencida = citaProxima && citaAlerta.atraso>0;
+          if(!citaVencida && citaFase(r)==='naranja') return cardFor(r,{style:{border:'1.5px solid #fb923c',background:'#fff7ed'},pill:pillNaranja()});
           return cardFor(r,{
             style: citaVencida?{border:'1.5px solid #f87171',background:'#fef2f2'}:(citaProxima||pendConf)?{border:'1.5px solid #fcd34d',background:'#fffbeb'}:null,
             pill: citaAlerta&&(citaVencida
