@@ -1191,7 +1191,7 @@ export function ProveedoresPage({user,online,addOffline}){
           );
         };
 
-        const pillNaranja = () => h('span',{className:'pill cita-blink-suave',style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#ffedd5',color:'#9a3412',border:'1px solid #fdba74',whiteSpace:'normal',maxWidth:220,lineHeight:1.35}},'⏱ Hora de cita: ingresar a WPS ya');
+        const pillNaranja = () => h('span',{className:'pill cita-blink-suave',style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#fed7aa',color:'#7c2d12',border:'1px solid #fb923c',fontWeight:800,whiteSpace:'normal',maxWidth:220,lineHeight:1.35}},'⏱ HORA DE CITA: INGRESAR A WPS YA');
         if(filtro==='confirmar'){
           // Agrupación por puntualidad: atrasado solo después del fin de la franja + tolerancia (limiteCitaMin, decisión 2026-10-03).
           // atrasoMin se calcula con hora_ingreso REAL (llegada a portería
@@ -1256,7 +1256,7 @@ export function ProveedoresPage({user,online,addOffline}){
           };
           const cardConfirmar = ({r,atrasoMin,sinLlegar,diff},tipo) => {
             const fase = tipo==='aTiempo' ? citaFase(r) : null;
-            if(fase==='naranja') return cardFor(r,{style:{border:'1.5px solid #fb923c',background:'#fff7ed'},pill:pillNaranja()});
+            if(fase==='naranja') return cardFor(r,{style:{border:'1.5px solid #fb923c',borderLeft:'4px solid #ea580c',background:'#ffedd5'},pill:pillNaranja()});
             if(fase==='vencida') return cardFor(r,{style:{border:'1.5px solid #f87171',background:'#fef2f2'},pill:h('span',{className:'pill pill-red',style:{marginBottom:3,marginRight:4,display:'inline-block',background:'#fee2e2',color:'#991b1b',border:'1px solid #fca5a5',whiteSpace:'normal',maxWidth:220,lineHeight:1.35}},'Pasó la hora de ingreso a WPS')});
             const style = tipo==='atrasados'
               ?{border:'1.5px solid #f87171',background:'#fef2f2'}
@@ -1296,7 +1296,7 @@ export function ProveedoresPage({user,online,addOffline}){
           })() : null;
           const citaProxima = !!citaAlerta;
           const citaVencida = citaProxima && citaAlerta.atraso>0;
-          if(!citaVencida && citaFase(r)==='naranja') return cardFor(r,{style:{border:'1.5px solid #fb923c',background:'#fff7ed'},pill:pillNaranja()});
+          if(!citaVencida && citaFase(r)==='naranja') return cardFor(r,{style:{border:'1.5px solid #fb923c',borderLeft:'4px solid #ea580c',background:'#ffedd5'},pill:pillNaranja()});
           return cardFor(r,{
             style: citaVencida?{border:'1.5px solid #f87171',background:'#fef2f2'}:(citaProxima||pendConf)?{border:'1.5px solid #fcd34d',background:'#fffbeb'}:null,
             pill: citaAlerta&&(citaVencida
