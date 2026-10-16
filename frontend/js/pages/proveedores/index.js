@@ -243,15 +243,14 @@ export function ProveedoresPage({user,online,addOffline}){
     api.get('/maestros/proveedores').then(r=>setBdProv(Array.isArray(r)?r:(r.items||[]))).catch(()=>{});
   },[]);
 
-  // muelle es opcional: si viene, viaja como muelle_descargue en el mismo
-  // PUT que confirma (ver ConfirmarMuelleSheet, tablero que abre el botón
-  // "Confirmar"). Sin muelle, el comportamiento es exactamente el de
-  // siempre -- confirma sin tocar el muelle.
+  // El muelle es OBLIGATORIO: viaja como muelle_descargue en el mismo PUT que
+  // confirma (ver ConfirmarMuelleSheet, tablero que abre el botón "Confirmar").
+  // Sin muelle no se llama a la API (el backend también responde 422).
   const confirmarIngreso = async(id,muelle)=>{
+    if(!muelle){ setAlert({type:'err',msg:'Debes elegir un muelle para confirmar el ingreso'}); return; }
     try{
-      const body = muelle?{muelle_descargue:String(muelle)}:{};
-      await api.put(`/proveedores/${id}/confirmar`,body);
-      setAlert({type:'ok',msg:muelle?`Ingreso confirmado — muelle ${muelle}`:'Ingreso confirmado'});
+      await api.put(`/proveedores/${id}/confirmar`,{muelle_descargue:String(muelle)});
+      setAlert({type:'ok',msg:`Ingreso confirmado — muelle ${muelle}`});
       load();
     }catch(e){setAlert({type:'err',msg:'Error: '+e.message});}
   };
@@ -1405,8 +1404,8 @@ export function ProveedoresPage({user,online,addOffline}){
     muelleSheet&&h(ConfirmarMuelleSheet,{
       registro:muelleSheet,
       onClose:()=>setMuelleSheet(null),
-      onElegirMuelle:async(numero)=>{ await confirmarIngreso(muelleSheet.id,numero); setMuelleSheet(null); },
-      onSinMuelle:async()=>{ await confirmarIngreso(muelleSheet.id); setMuelleSheet(null); }
+      ocultarSinMuelle:true, // el muelle es obligatorio para confirmar
+      onElegirMuelle:async(numero)=>{ await confirmarIngreso(muelleSheet.id,numero); setMuelleSheet(null); }
     }),
     muelleInversaSheet&&h(ConfirmarMuelleSheet,{
       registro:muelleInversaSheet,

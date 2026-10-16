@@ -16,6 +16,25 @@ from sqlalchemy.exc import IntegrityError, DataError
 
 from database import get_db
 from routers.auth import require_permiso, SECRET_KEY, ALGORITHM
+from routers.muelles import MUELLES_NUMEROS
+
+
+def _normalizar_muelle_descargue(valor) -> str | None:
+    """Devuelve el muelle como str canónico ("07" -> "7") si es un entero
+    1-19 (int, o str solo de dígitos tras strip); None si es inválido.
+    Estricto a propósito: "7 y 8", "abc", "0", "20", bool, float -> None."""
+    if isinstance(valor, bool):
+        return None
+    if isinstance(valor, int):
+        n = valor
+    elif isinstance(valor, str):
+        s = valor.strip()
+        if not (s.isascii() and s.isdigit()):
+            return None
+        n = int(s)
+    else:
+        return None
+    return str(n) if n in MUELLES_NUMEROS else None
 
 router = APIRouter()
 
@@ -1173,6 +1192,27 @@ def actualizar(
         vals["tipos_logistica_inversa"] = _validar_tipos_logistica_inversa(
             vals["tipos_logistica_inversa"], requerido=False
         )
+    # Muelle aún ocupado (confirmado, sin salida y sin liberar): no se puede
+    # dejar vacío ni fuera de 1-19 vía edición, o se saltaría la obligatoriedad
+    # de /confirmar. Cuando ya fue liberado, _release_muelle_descargue deja
+    # muelle_descargue=NULL (y lo pasa a muelle_numero), así que ahí no se
+    # valida. Tampoco si el valor no cambia (registros viejos con texto libre).
+    if (
+        "muelle_descargue" in vals
+        and antes.estado_confirmacion == "confirmado"
+        and not antes.hora_salida
+        and not antes.hora_muelle_liberado
+    ):
+        nuevo = vals["muelle_descargue"]
+        nuevo_s = str(nuevo).strip() if nuevo is not None else ""
+        actual_s = str(antes.muelle_descargue).strip() if antes.muelle_descargue is not None else ""
+        if nuevo_s != actual_s:
+            if not nuevo_s:
+                raise HTTPException(422, "El muelle es obligatorio para un registro confirmado con muelle ocupado")
+            normalizado = _normalizar_muelle_descargue(nuevo)
+            if normalizado is None:
+                raise HTTPException(422, "Muelle inválido: debe ser un número entre 1 y 19")
+            vals["muelle_descargue"] = normalizado
     vals["id"] = id
 
     sets = ", ".join(f"{c} = :{c}" for c in vals if c != "id")
@@ -1401,37 +1441,27 @@ def confirmar_autorregistro(
         raise HTTPException(409, "Este registro ya estaba confirmado")
     if antes.estado_confirmacion == "pendiente":
         raise HTTPException(409, "Falta marcar ingreso a WPS antes de confirmar a muelle")
+    # El muelle es OBLIGATORIO para confirmar el ingreso: el tablero de muelles
+    # del guarda vehicular (ProveedoresPage) lo manda en el mismo gesto que
+    # confirma. Se valida acá (no solo en el frontend) porque el endpoint es
+    # llamable directo: solo se acepta un entero 1-19 (int o str, "07" -> "7").
+    # Que el muelle esté ocupado NO se bloquea (el guarda puede "Confirmar igual").
+    muelle_raw = (body or {}).get("muelle_descargue")
+    if muelle_raw is None or (isinstance(muelle_raw, str) and not muelle_raw.strip()):
+        raise HTTPException(422, "El muelle es obligatorio para confirmar el ingreso")
+    muelle = _normalizar_muelle_descargue(muelle_raw)
+    if muelle is None:
+        raise HTTPException(422, "Muelle inválido: debe ser un número entre 1 y 19")
     hora = datetime.now(_BOG).strftime("%H:%M:%S")
-    # El tablero de muelles del guarda vehicular (ProveedoresPage) puede mandar
-    # el muelle elegido en el mismo gesto que confirma el ingreso, para no
-    # obligarlo a abrir la tarjeta completa del registro después. Es opcional
-    # a propósito: si no viene (o llega vacío), el comportamiento es
-    # exactamente el de siempre -- confirma sin tocar muelle_descargue, que
-    # bodega puede asignar más tarde desde la pantalla de Muelles. No se
-    # valida el rango 1-19 acá: el valor sale de un botón del tablero, no de
-    # texto libre (mismo criterio laxo que ya tiene esta columna en el resto
-    # del archivo, ver `actualizar` arriba).
-    muelle = (body or {}).get("muelle_descargue")
-    muelle = str(muelle).strip() if muelle not in (None, "") else None
-    if muelle:
-        db.execute(
-            text("""
-                UPDATE proveedores
-                SET estado_confirmacion = 'confirmado', hora_ingreso_confirmado = :hora,
-                    muelle_descargue = :muelle, updated_at = NOW()
-                WHERE id = :id
-            """),
-            {"id": id, "hora": hora, "muelle": muelle},
-        )
-    else:
-        db.execute(
-            text("""
-                UPDATE proveedores
-                SET estado_confirmacion = 'confirmado', hora_ingreso_confirmado = :hora, updated_at = NOW()
-                WHERE id = :id
-            """),
-            {"id": id, "hora": hora},
-        )
+    db.execute(
+        text("""
+            UPDATE proveedores
+            SET estado_confirmacion = 'confirmado', hora_ingreso_confirmado = :hora,
+                muelle_descargue = :muelle, updated_at = NOW()
+            WHERE id = :id
+        """),
+        {"id": id, "hora": hora, "muelle": muelle},
+    )
     # Red de seguridad defensiva (ya NO es el camino principal: eso se movió a
     # PUT /{id}/marcar-wps, que consume la cita al pasar a 'ingresado_wps'). Este
     # UPDATE sigue siendo necesario porque POST /{id}/ordenes permite agregar una
@@ -1451,9 +1481,11 @@ def confirmar_autorregistro(
         {"id": id},
     )
     try:
-        despues = {"estado_confirmacion": "confirmado", "hora_ingreso_confirmado": hora}
-        if muelle:
-            despues["muelle_descargue"] = muelle
+        despues = {
+            "estado_confirmacion": "confirmado",
+            "hora_ingreso_confirmado": hora,
+            "muelle_descargue": muelle,
+        }
         _audit(db, current_user, "UPDATE", "proveedores", id, dict(antes._mapping), despues)
     except Exception:
         pass
